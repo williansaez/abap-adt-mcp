@@ -2,23 +2,28 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
 import { ADTClient } from 'abap-adt-api';
+import { sourceCache } from '../lib/sourceCache.js';
 
 export class CodeAnalysisHandlers extends BaseHandler {
     getTools(): ToolDefinition[] {
         return [
             {
                 name: 'syntaxCheckCode',
-                description: 'Perform ABAP syntax check with source code',
+                description: 'Perform ABAP syntax check. Provide the source in "code", or omit it to reuse the source last read/written for "url" via getObjectSource/setObjectSource (cached this session).',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        code: { type: 'string' },
+                        code: {
+                            type: 'string',
+                            description: 'The ABAP source to check. Optional if the source for "url" was already read or written this session.',
+                            optional: true
+                        },
                         url: { type: 'string', optional: true },
                         mainUrl: { type: 'string', optional: true },
                         mainProgram: { type: 'string', optional: true },
                         version: { type: 'string', optional: true }
                     },
-                    required: ['code']
+                    required: ['url']
                 }
             },
             {
@@ -251,9 +256,26 @@ export class CodeAnalysisHandlers extends BaseHandler {
         }
     }
     async handleSyntaxCheckCode(args: any): Promise<any> {
+        // Reuse the source cached by getObjectSource/setObjectSource for this
+        // URL when the caller does not pass it explicitly (issue #2). Resolved
+        // before the try so a missing-source error keeps its InvalidParams code.
+        let code = args?.code;
+        let usedCachedSource = false;
+        if (code === undefined || code === null || code === '') {
+            const cached = sourceCache.get(args.url);
+            if (cached === undefined) {
+                throw new McpError(
+                    ErrorCode.InvalidParams,
+                    `No source provided and none cached for '${args.url}'. Pass "code", or call getObjectSource/setObjectSource for this URL first.`
+                );
+            }
+            code = cached;
+            usedCachedSource = true;
+        }
+
         const startTime = performance.now();
         try {
-            const result = await this.adtclient.syntaxCheck(args.url, args?.mainUrl, args?.code, args?.mainProgram, args?.version);
+            const result = await this.adtclient.syntaxCheck(args.url, args?.mainUrl, code, args?.mainProgram, args?.version);
             this.trackRequest(startTime, true);
             return {
                 content: [
@@ -261,6 +283,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
                         type: 'text',
                         text: JSON.stringify({
                             status: 'success',
+                            usedCachedSource,
                             result
                         })
                     }

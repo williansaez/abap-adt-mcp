@@ -2,6 +2,7 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler';
 import type { ToolDefinition } from '../types/tools';
 import { session_types } from "abap-adt-api";
+import { sourceCache } from '../lib/sourceCache';
 
 export class ObjectSourceHandlers extends BaseHandler {
   getTools(): ToolDefinition[] {
@@ -61,6 +62,9 @@ export class ObjectSourceHandlers extends BaseHandler {
     const startTime = performance.now();
     try {
       const fullSource = await this.adtclient.getObjectSource(args.objectSourceUrl, args.options);
+      // Remember the source so a later syntaxCheckCode on the same URL can reuse
+      // it without the caller re-sending it (issue #2).
+      sourceCache.set(args.objectSourceUrl, fullSource);
       this.trackRequest(startTime, true);
 
       const lines = fullSource.split('\n');
@@ -112,6 +116,9 @@ export class ObjectSourceHandlers extends BaseHandler {
         args.lockHandle,
         args.transport
       );
+      // Cache the just-written source so a follow-up syntaxCheckCode can reuse it
+      // without the caller re-sending it (issue #2).
+      sourceCache.set(args.objectSourceUrl, args.source);
       this.trackRequest(startTime, true);
       return {
         content: [
