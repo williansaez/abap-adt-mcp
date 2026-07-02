@@ -186,14 +186,14 @@ SAP systems contain vast amounts of data.  It's crucial to write ABAP code that 
     ```
 ## Checking Table and Structure Definitions
 
-When working with ABAP objects, you may encounter errors related to unknown field names or incorrect table usage.  You can use the following tools to inspect table and structure definitions:
+When working with ABAP objects, you may encounter errors related to unknown field names or incorrect table usage. Use the following tools to inspect DDIC (Data Dictionary) objects:
 
-*   **`GetTable`:** Use this tool to retrieve the structure of an ABAP Dictionary table, including its field names and data types. This is helpful for verifying the correct fields to use in your `SELECT` statements.
-*    If you need to inspect an include structure, you may need to use `searchObject` to find the include and then use `GetTypeInfo` or `GetStructure`. You may get a 404 error and try again with `GetStructure`
-*   **`GetStructure`:** Use this tool to retrieve the structure of an ABAP Dictionary structure, including its field names and data types. This is helpful for verifying the correct fields to use in your `SELECT` statements.
-*    If you need to inspect an include structure, you may need to use `searchObject` to find the include and then use `GetTypeInfo` or `GetStructure`.
+*   **`objectStructure`:** Retrieves the structure/metadata of an ABAP object (including DDIC tables and structures) from its object URI. Use `searchObject` first to resolve the object name to a URI.
+*   **`ddicElement`:** Retrieves details of a DDIC element (e.g. a data element or domain).
+*   **`ddicRepositoryAccess`:** Reads DDIC repository information for a given path.
+*   **`tableContents`:** Retrieves the *contents* (rows) of a table, not its definition. Use `runQuery` for ad-hoc `SELECT`s.
 
-```
+> **Note:** Earlier versions of this README listed `GetTable`, `GetStructure`, and `GetTypeInfo`. Those tools are **not** part of this server — they belong to the separate [`mcp-abap-adt`](https://github.com/mario-andreschak/mcp-abap-adt) project. This server (`mcp-abap-abap-adt-api`) exposes the lower-level ADT API tools listed above instead.
 
 ## Contributing
 
