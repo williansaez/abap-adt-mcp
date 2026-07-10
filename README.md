@@ -22,7 +22,33 @@ The MCP-Server `mcp-abap-abap-adt-api` is a Model Context Protocol (MCP) server 
 - **Node.js**: Ensure you have Node.js installed. You can download it from [here](https://nodejs.org/).
 - **ABAP System Access**: Credentials and URL to access the ABAP system.
 
-### Steps
+### Quick start (published package)
+
+The server is published on npm as [`mcp-abap-abap-adt-api`](https://www.npmjs.com/package/mcp-abap-abap-adt-api). You don't need to clone or build anything — most MCP clients can launch it directly via `npx`.
+
+Add it to your MCP client configuration (e.g. Cline, Claude Desktop):
+
+```json
+{
+  "mcpServers": {
+    "mcp-abap-abap-adt-api": {
+      "command": "npx",
+      "args": ["-y", "mcp-abap-abap-adt-api"],
+      "env": {
+        "SAP_URL": "https://your-sap-server.com:44300",
+        "SAP_USER": "YOUR_SAP_USERNAME",
+        "SAP_PASSWORD": "YOUR_SAP_PASSWORD",
+        "SAP_CLIENT": "100",
+        "SAP_LANGUAGE": "EN"
+      }
+    }
+  }
+}
+```
+
+If your SAP system uses a self-signed certificate, add `"NODE_TLS_REJECT_UNAUTHORIZED": "0"` to the `env` block (development only).
+
+### Steps (build from source)
 
 1. **Clone the Repository**
 
