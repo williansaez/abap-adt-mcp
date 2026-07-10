@@ -2,8 +2,6 @@ DISCLAIMER: This server is still in experimental status! Use it with caution!
 
 # ABAP-ADT-API MCP-Server
 
-[![smithery badge](https://smithery.ai/badge/@mario-andreschak/mcp-abap-abap-adt-api)](https://smithery.ai/server/@mario-andreschak/mcp-abap-abap-adt-api)
-
 ## Description
 
 The MCP-Server `mcp-abap-abap-adt-api` is a Model Context Protocol (MCP) server designed to facilitate seamless communication between ABAP systems and MCP clients. It is a wrapper for [abap-adt-api](https://github.com/marcellourbani/abap-adt-api/) and provides a suite of tools and resources for managing ABAP objects, handling transport requests, performing code analysis, and more, enhancing the efficiency and effectiveness of ABAP development workflows.
@@ -18,14 +16,6 @@ The MCP-Server `mcp-abap-abap-adt-api` is a Model Context Protocol (MCP) server 
 - **Session Management**: Handle session caching and termination using `dropSession` and `logout`.
 
 ## Installation
-
-### Installing via Smithery
-
-To install ABAP-ADT-API MCP-Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@mario-andreschak/mcp-abap-abap-adt-api):
-
-```bash
-npx -y @smithery/cli install @mario-andreschak/mcp-abap-abap-adt-api --client claude
-```
 
 ### Prerequisites
 
