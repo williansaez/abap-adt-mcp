@@ -79,7 +79,19 @@ export async function browserLogin(
 
     const deadline = Date.now() + (opts.timeoutMs ?? 300000);
     while (Date.now() < deadline) {
-      const { cookies } = (await cdp.send('Network.getAllCookies')) as { cookies: any[] };
+      if (!browser.connected) {
+        throw new Error('Browser was closed before the SSO login completed.');
+      }
+      let cookies: any[];
+      try {
+        ({ cookies } = (await cdp.send('Network.getAllCookies')) as { cookies: any[] });
+      } catch (e) {
+        // The user closing the window/tab closes the CDP session mid-poll.
+        if (!browser.connected) {
+          throw new Error('Browser was closed before the SSO login completed.');
+        }
+        throw e;
+      }
       const forHost = cookies.filter((c) => belongsToHost(c.domain, host));
       if (forHost.some((c) => SESSION_COOKIE_RE.test(c.name))) {
         return forHost.map((c) => ({ name: c.name, value: c.value }));
