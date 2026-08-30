@@ -67,4 +67,5 @@ export abstract class BaseHandler {
   }
 
   abstract getTools(): ToolDefinition[];
+  abstract handle(command: string, args: any): Promise<any>;
 }
