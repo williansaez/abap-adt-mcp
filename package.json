@@ -34,11 +34,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mario-andreschak/mcp-abap-abap-adt-api.git"
+    "url": "git+https://github.com/williansaez/abap-adt-mcp.git"
   },
-  "homepage": "https://github.com/mario-andreschak/mcp-abap-abap-adt-api#readme",
+  "homepage": "https://github.com/williansaez/abap-adt-mcp#readme",
   "bugs": {
-    "url": "https://github.com/mario-andreschak/mcp-abap-abap-adt-api/issues"
+    "url": "https://github.com/williansaez/abap-adt-mcp/issues"
   },
   "engines": {
     "node": ">=18"
