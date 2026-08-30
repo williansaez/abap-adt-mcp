@@ -11,6 +11,9 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { ADTClient, session_types } from "abap-adt-api";
 import path from 'path';
+import { readOAuthConfig, makeBearerFetcher } from './lib/oauth.js';
+import { CookieHttpClient } from './lib/cookieHttpClient.js';
+import { browserLogin } from './lib/browserLogin.js';
 import { AuthHandlers } from './handlers/AuthHandlers.js';
 import { TransportHandlers } from './handlers/TransportHandlers.js';
 import { ObjectHandlers } from './handlers/ObjectHandlers.js';
@@ -41,6 +44,11 @@ config({ path: path.resolve(__dirname, '../.env') });
 
 export class AbapAdtServer extends Server {
   private adtClient: ADTClient;
+  private cookieClient?: CookieHttpClient;
+  private ssoMode = false;
+  private ssoLoggedIn = false;
+  private sapUrl = '';
+  private sapClient?: string;
   private authHandlers: AuthHandlers;
   private transportHandlers: TransportHandlers;
   private objectHandlers: ObjectHandlers;
@@ -80,18 +88,53 @@ export class AbapAdtServer extends Server {
       }
     );
 
-    const missingVars = ['SAP_URL', 'SAP_USER', 'SAP_PASSWORD'].filter(v => !process.env[v]);
+    // Auth mode selection:
+    //   sso   — browser SSO, session cookies harvested from a real browser
+    //           (S/4HANA Cloud named users; no SAP-side config, like Eclipse)
+    //   oauth — OAuth2 bearer (S/4HANA Cloud with a registered OAuth client)
+    //   basic — user/password (on-prem, or a Communication User)
+    const authType = (process.env.SAP_AUTH_TYPE || '').toLowerCase();
+    const ssoMode = authType === 'sso' || authType === 'browser';
+    const oauthConfig = ssoMode ? undefined : readOAuthConfig();
+
+    this.sapUrl = process.env.SAP_URL || '';
+    this.sapClient = process.env.SAP_CLIENT;
+
+    const baseVars = ssoMode || oauthConfig ? ['SAP_URL'] : ['SAP_URL', 'SAP_USER', 'SAP_PASSWORD'];
+    const missingVars = baseVars.filter(v => !process.env[v]);
     if (missingVars.length > 0) {
       throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
     }
-    
-    this.adtClient = new ADTClient(
-      process.env.SAP_URL as string,
-      process.env.SAP_USER as string,
-      process.env.SAP_PASSWORD as string,
-      process.env.SAP_CLIENT as string,
-      process.env.SAP_LANGUAGE as string
-    );
+
+    if (ssoMode) {
+      // Cookie jar starts empty; it is filled by the browser login flow (the
+      // `login` tool, or automatically on first use).
+      this.ssoMode = true;
+      const insecureTls = /^(1|true|yes)$/i.test(process.env.SAP_TLS_INSECURE || '');
+      this.cookieClient = new CookieHttpClient(process.env.SAP_URL as string, [], insecureTls);
+      this.adtClient = new ADTClient(
+        this.cookieClient as any,
+        (process.env.SAP_USER as string) || 'sso',
+        '',
+        process.env.SAP_CLIENT as string,
+        process.env.SAP_LANGUAGE as string
+      );
+    } else {
+      // Third constructor arg is the password (string) or a BearerFetcher
+      // (() => Promise<string>). The library sends `Authorization: bearer <token>`
+      // when a fetcher is supplied.
+      const credential: string | (() => Promise<string>) = oauthConfig
+        ? makeBearerFetcher(oauthConfig)
+        : (process.env.SAP_PASSWORD as string);
+
+      this.adtClient = new ADTClient(
+        process.env.SAP_URL as string,
+        (process.env.SAP_USER as string) || oauthConfig?.clientId || 'oauth',
+        credential,
+        process.env.SAP_CLIENT as string,
+        process.env.SAP_LANGUAGE as string
+      );
+    }
     this.adtClient.stateful = session_types.stateful
     
     // Initialize handlers
@@ -221,10 +264,42 @@ export class AbapAdtServer extends Server {
       };
     });
 
+    this.registerToolHandlers();
+  }
+
+  /**
+   * Run the browser SSO login and load the harvested cookies into the client.
+   * No-op when already logged in unless `force` is set.
+   */
+  private async ensureSsoLogin(force: boolean): Promise<void> {
+    if (this.ssoLoggedIn && !force) return;
+    if (!this.cookieClient) throw new Error('SSO mode not initialised');
+    const cookies = await browserLogin(this.sapUrl, this.sapClient);
+    this.cookieClient.setCookies(cookies);
+    // Establish CSRF token / stateful session over the harvested cookies.
+    await this.adtClient.login();
+    this.ssoLoggedIn = true;
+  }
+
+  private registerToolHandlers(): void {
     this.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
         let result: any;
-        
+
+        // SSO mode: run the browser login on explicit `login`, and lazily before
+        // the first real call. Other tools then run against the cookie session.
+        if (this.ssoMode) {
+          if (request.params.name === 'login') {
+            await this.ensureSsoLogin(true);
+            return {
+              content: [{ type: 'text', text: JSON.stringify({ status: 'logged in via browser SSO' }) }],
+            };
+          }
+          if (request.params.name !== 'logout' && request.params.name !== 'healthcheck') {
+            await this.ensureSsoLogin(false);
+          }
+        }
+
         switch (request.params.name) {
             case 'login':
             case 'logout':
