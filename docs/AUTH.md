@@ -1,8 +1,41 @@
 # Authentication
 
-The server connects to an ABAP system through the ADT (`/sap/bc/adt/...`) endpoints
+The server connects to ABAP systems through the ADT (`/sap/bc/adt/...`) endpoints
 using the [`abap-adt-api`](https://www.npmjs.com/package/abap-adt-api) client. Three
 authentication modes are supported.
+
+## Multiple systems (destinations)
+
+One server instance serves **many** ABAP systems. Each system is a named
+*destination*; every tool takes a `destination` argument to pick one — so a single
+MCP entry exposes one set of tools for all systems, instead of one server per system.
+
+Configure destinations in **`systems.json`** at the repo root (gitignored — see
+`systems.example.json`), or inline via `SAP_SYSTEMS` / a path in `SAP_SYSTEMS_FILE`:
+
+```json
+{
+  "MDPharma-DEV":         { "url": "https://my411584.s4hana.cloud.sap", "client": "080" },
+  "MDPharma-CUSTOMIZING": { "url": "https://my411584.s4hana.cloud.sap", "client": "100" }
+}
+```
+
+Entries default to `authType: "sso"` (override per entry). Resolution order:
+`SAP_SYSTEMS` → `SAP_SYSTEMS_FILE` → `systems.json` → single implicit destination from
+the flat `SAP_URL`/`SAP_CLIENT`/… variables (back-compat). With more than one system,
+`destination` is required on each call; with exactly one (or `SAP_DEFAULT_DESTINATION`
+set) it may be omitted. `listSystems` returns the configured destinations.
+
+The MCP client config is then a single server:
+
+```json
+{ "mcpServers": { "abap-adt": {
+  "command": "/opt/homebrew/bin/node",
+  "args": ["/absolute/path/abap-adt-mcp/dist/index.js"]
+} } }
+```
+
+Each authentication mode below can be set per destination (`authType` in the entry).
 
 ## Mode SSO — Browser login (S/4HANA Public Cloud, like Eclipse) — recommended
 
