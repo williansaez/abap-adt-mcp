@@ -1,7 +1,7 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
-import { ADTClient, Range, ExtractMethodProposal, GenericRefactoring } from 'abap-adt-api';
+import { ADTClient, Range, ExtractMethodProposal, GenericRefactoring, session_types } from 'abap-adt-api';
 
 export class RefactorHandlers extends BaseHandler {
     getTools(): ToolDefinition[] {
@@ -83,7 +83,24 @@ export class RefactorHandlers extends BaseHandler {
         const startTime = performance.now();
         try {
             const range = this.parseObjectArg<Range>(args.range, 'range');
-            const result = await this.adtclient.extractMethodEvaluate(args.uri, range);
+            // The evaluation misbehaves in the stateful session ("No selection
+            // supplied") while the identical request succeeds stateless; retry
+            // once with the session temporarily switched to stateless.
+            // (statelessClone cannot be used: it does not inherit the SSO
+            // cookie authentication and fails with "Not logged in".)
+            let result;
+            try {
+                result = await this.adtclient.extractMethodEvaluate(args.uri, range);
+            } catch (firstErr: any) {
+                if (!/no selection/i.test(firstErr?.message || '')) throw firstErr;
+                const prev = this.adtclient.stateful;
+                this.adtclient.stateful = session_types.stateless;
+                try {
+                    result = await this.adtclient.extractMethodEvaluate(args.uri, range);
+                } finally {
+                    this.adtclient.stateful = prev;
+                }
+            }
             this.trackRequest(startTime, true);
             return {
                 content: [
