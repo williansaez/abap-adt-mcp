@@ -154,7 +154,9 @@ If your SAP system uses a self-signed certificate, add `"NODE_TLS_REJECT_UNAUTHO
    ```
 
 ## Custom Instruction
-Use this Custom Instruction to explain the tool to your model:
+Use this Custom Instruction to explain the tool to your model (a ready-to-fill
+`agents.md` template is also available at `docs/agents.template.md`; the server
+additionally announces these workflows to MCP hosts via its `instructions` field):
 ```
 ## mcp-abap-abap-adt-api Server
 
@@ -192,11 +194,25 @@ This server provides tools for interacting with an SAP system via ADT (ABAP Deve
     *   `version`: (string, optional) The version.
     *   Returns syntax check results, including any errors.
 
-*   **`activate`:** Activates an ABAP object. (See notes below on activation/unlocking.)
-    *    `object`: The object to be activated.
+*   **`activateByName`:** Activates a single ABAP object by name and URL.
+    *   `objectName`: (string, required) Name of the object.
+    *   `objectUrl`: (string, required) The object's URI.
+    (For bulk activation use `activateObjects`; `inactiveObjects` lists what needs activating.)
 
 *   **`getObjectSource`:** Retrieves the source code of an ABAP object.
     *   `objectSourceUrl`: (string, required) The object's URI *with the suffix `/source/main`*.
+
+**Multi-destination:** every tool accepts an optional `destination` parameter selecting the target SAP system. Call `listSystems` first to see the configured destinations (see `docs/AUTH.md` for configuration).
+
+**Workflow for Creating a New Object:**
+
+1.  **Pick the object type:** Use `loadTypes` (e.g. `CLAS/OC` for a class).
+2.  **Validate first:** Use `validateNewObject` (objtype, objname, description, packagename).
+3.  **Create a transport:** Use `createTransport` if the package is transportable (not `$TMP`).
+4.  **Create the object:** Use `createObject`.
+5.  **Write the source:** `lock` → `setObjectSource` (with `/source/main` suffix) → `unLock`.
+6.  **Activate:** Use `activateByName`.
+7.  **Test:** Use `unitTestRun`.
 
 **Workflow for Modifying ABAP Code:**
 
@@ -207,8 +223,9 @@ This server provides tools for interacting with an SAP system via ADT (ABAP Deve
 5.  **Lock the object:** Use `lock`.
 6.  **Set the modified source code:** Use `setObjectSource` (with the `/source/main` suffix).
 7.  **Perform a syntax check:** Use `syntaxCheckCode`.
-8.  **Activate** the object, Use `activate`..
+8.  **Activate the object:** Use `activateByName`.
 9.  **unLock the object:** Use `unLock`.
+10. **Run unit tests:** Use `unitTestRun`.
 
 **Important Notes:**
 *   **File Handling:** SAP is completly de-coupled from the local file system. Reading source code will only return the code as tool result - it has no effect on file. Files are not synchronized with SAP but merely a local copy for our reference. FYI: It's not strictly necessary for you to create local copies of source codes, as they have no effect on SAP, but it helps us track changes. 
@@ -216,9 +233,20 @@ This server provides tools for interacting with an SAP system via ADT (ABAP Deve
 *   **URL Suffix:**  Remember to add `/source/main` to the object URI when using `setObjectSource` and `getObjectSource`.
 *   **Transport Request:** Obtain the transport request number (e.g., from `transportInfo` or from the user) and include it in relevant operations.
 *   **Lock Handle:**  The `lockHandle` obtained from the `lock` operation is crucial for `setObjectSource` and `unLock`. Ensure you are using a valid `lockHandle`. If a lock fails, you may need to re-acquire the lock. Locks can expire or be released by other users.
-*   **Activation/Unlocking Order:** The exact order of `activate` and `unLock` operations might need clarification. Refer to the tool descriptions or ask the user. It appears `activate` can be used without unlocking first.
+*   **Activation/Unlocking Order:** Activate after writing the source; `activateByName` can be used without unlocking first, but unlocking before activation is the safe default.
 * **Error Handling:** The tools return JSON responses. Check for error messages within these responses.
 ```
+
+## Security
+
+This server gives an AI agent read/write access to SAP systems. Operate it deliberately:
+
+*   **Prompt injection:** content returned from the SAP system (source code, comments, table data, feeds) is untrusted input to the model. A malicious string in a repository object could try to steer the agent. Use an MCP host with per-tool approval, and review destructive calls (`deleteObject`, `transportRelease`, `transportDelete`, `setObjectSource`, `runClass`) before approving them. Enterprise hosts can restrict which MCP servers are allowed (e.g. GitHub Copilot's MCP allowlist policy, Claude Code permission rules).
+*   **Least privilege:** connect with SAP users that have only the authorizations the task needs, and point the server at development systems by default. `runQuery` and `tableContents` read real business data — only configure destinations where that is acceptable.
+*   **Credentials:** prefer `SAP_SYSTEMS_FILE` pointing at a file with `0600` permissions over inline `SAP_SYSTEMS` JSON in host config files. Never commit `systems.json` or `.env` (both are git-ignored). The `reentranceTicket` tool is disabled by default because it returns a live logon credential into the conversation; enable only deliberately with `SAP_ALLOW_REENTRANCE_TICKET=1`.
+*   **TLS:** do not set `NODE_TLS_REJECT_UNAUTHORIZED=0` globally; use the per-system `insecureTls` option only for on-prem systems with self-signed certificates. The server logs a warning at startup when verification is disabled.
+*   **SSO profile:** browser-SSO sessions persist in `~/.abap-adt-mcp/sso/<host>/` (mode `0700`). Delete that directory to fully log out of a tenant.
+*   **Responsibility:** as with SAP's own ADT MCP Server guidance, the operator is responsible for the security of the environment the server runs in and for any additional MCP servers configured alongside it.
 
 ## Efficient Database Access
 

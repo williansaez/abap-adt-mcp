@@ -39,7 +39,7 @@ export class ObjectManagementHandlers extends BaseHandler {
     return [
       {
         name: 'activateObjects',
-        description: 'Activate ABAP objects using object references',
+        description: 'Activate ABAP objects using object references. Run after setObjectSource; the entries returned by inactiveObjects can be passed here directly. For a single object, activateByName is simpler.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -58,7 +58,7 @@ export class ObjectManagementHandlers extends BaseHandler {
       },
       {
         name: 'activateByName',
-        description: 'Activate an ABAP object using name and URL',
+        description: 'Activate a single ABAP object by name and URL. Run after setObjectSource (and unLock); after activation run unitTestRun to verify behavior.',
         inputSchema: {
           type: 'object',
           properties: {

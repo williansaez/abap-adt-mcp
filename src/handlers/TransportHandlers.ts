@@ -32,7 +32,7 @@ export class TransportHandlers extends BaseHandler {
             },
             {
                 name: 'createTransport',
-                description: 'Create a new transport request',
+                description: 'Create a new transport request. Required before creating or changing objects in transportable (non-$TMP) packages; pass the returned transport number to createObject / setObjectSource. Use transportInfo to find existing transports for an object first.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -46,7 +46,7 @@ export class TransportHandlers extends BaseHandler {
                         },
                         DEVCLASS: {
                             type: 'string',
-                            description: 'Development class'
+                            description: 'Development class (the ABAP package, e.g. ZPACKAGE)'
                         },
                         transportLayer: {
                             type: 'string',

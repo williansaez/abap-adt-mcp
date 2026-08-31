@@ -49,7 +49,7 @@ export class DiscoveryHandlers extends BaseHandler {
             },
             {
                 name: 'loadTypes',
-                description: 'Loads object types.',
+                description: 'List the ABAP object types creatable on this system (version-aware). Use BEFORE createObject to pick a valid objtype value such as CLAS/OC. For the raw ADT type catalog see objectTypes.',
                 inputSchema: {
                     type: 'object',
                     properties: {}

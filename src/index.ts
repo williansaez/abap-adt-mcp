@@ -43,6 +43,18 @@ import { RevisionHandlers } from './handlers/RevisionHandlers.js';
 
 config({ path: path.resolve(__dirname, '../.env') });
 
+/**
+ * Strip credential material from error text before it reaches the model/host.
+ * Upstream HTTP errors can echo request headers or URLs with embedded secrets.
+ */
+function redactSecrets(text: string): string {
+  return String(text)
+    .replace(/(authorization\s*[:=]\s*)(?:basic|bearer)?\s*[^\s,;"']+/gi, '$1[REDACTED]')
+    .replace(/((?:cookie|set-cookie)\s*[:=]\s*)[^\n"']+/gi, '$1[REDACTED]')
+    .replace(/((?:password|passwd|client_secret|clientsecret|sap-password)\s*[=:]\s*)[^\s&,;"']+/gi, '$1[REDACTED]')
+    .replace(/(https?:\/\/)[^\/\s:@]+:[^\/\s:@]+@/gi, '$1[REDACTED]@');
+}
+
 /** All per-domain handlers, one set bound to a single system's ADTClient. */
 interface HandlerSet {
   auth: AuthHandlers;
@@ -132,11 +144,31 @@ export class AbapAdtServer extends Server {
   constructor() {
     super(
       { name: "mcp-abap-abap-adt-api", version: "0.2.0" },
-      { capabilities: { tools: {} } }
+      {
+        capabilities: { tools: {} },
+        instructions: [
+          'ABAP ADT MCP server. Every tool accepts an optional `destination` parameter selecting the target SAP system; call listSystems first to see the configured destinations.',
+          '',
+          'Creating a new object: loadTypes (pick objtype, e.g. CLAS/OC) -> validateNewObject (check name/package) -> createTransport (if package is not $TMP) -> createObject -> lock -> setObjectSource -> unLock -> activateByName -> unitTestRun.',
+          '',
+          'Editing an existing object: searchObject / findObjectPath -> getObjectSource -> transportInfo (find or create a transport for non-local packages) -> lock -> setObjectSource (source URL usually ends in /source/main; pass the lockHandle from lock) -> syntaxCheckCode -> unLock -> activateByName -> unitTestRun.',
+          '',
+          'Always run unit tests after adding tests or changing source code. Unit tests belong in the testclass include (createTestInclude). Use $TMP for local throwaway development; transportable packages require a transport request.',
+        ].join('\n'),
+      }
     );
 
     this.systems = readSystems();
     this.defaultDest = defaultDestination(this.systems);
+
+    // Surface TLS-verification bypasses loudly: they silently apply to every request.
+    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
+      console.error('[abap-adt-mcp] WARNING: NODE_TLS_REJECT_UNAUTHORIZED=0 disables TLS certificate verification for ALL destinations. Prefer per-system "insecureTls" for individual on-prem systems with self-signed certificates.');
+    }
+    const insecure = [...this.systems.entries()].filter(([, s]) => s.insecureTls).map(([name]) => name);
+    if (insecure.length > 0) {
+      console.error(`[abap-adt-mcp] WARNING: TLS certificate verification disabled (insecureTls) for destination(s): ${insecure.join(', ')}`);
+    }
 
     for (const key of Object.keys(TOOL_ROUTES) as (keyof HandlerSet)[]) {
       for (const tool of TOOL_ROUTES[key]) this.toolToHandlerKey.set(tool, key);
@@ -248,14 +280,14 @@ export class AbapAdtServer extends Server {
     }
     if (error instanceof McpError) {
       return {
-        content: [{ type: 'text', text: JSON.stringify({ error: error.message, code: error.code }) }],
+        content: [{ type: 'text', text: JSON.stringify({ error: redactSecrets(error.message), code: error.code }) }],
         isError: true
       };
     }
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({ error: (error as Error).message || 'Internal server error', code: ErrorCode.InternalError })
+        text: JSON.stringify({ error: redactSecrets((error as Error).message || 'Internal server error'), code: ErrorCode.InternalError })
       }],
       isError: true
     };
@@ -298,7 +330,7 @@ export class AbapAdtServer extends Server {
       const tools = this.allDomainTools().map((t) => this.withDestination(t));
       tools.push({
         name: 'listSystems',
-        description: 'List the configured ABAP systems (destinations) this server can reach.',
+        description: 'List the configured ABAP systems (destinations) this server can reach. Call this first to pick the destination to pass to all other tools.',
         inputSchema: { type: 'object', properties: {} },
       });
       tools.push({

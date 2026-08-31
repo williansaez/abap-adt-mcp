@@ -31,14 +31,14 @@ export class ObjectSourceHandlers extends BaseHandler {
       },
       {
         name: 'setObjectSource',
-        description: 'Sets source code for ABAP objects',
+        description: 'Write source code of an ABAP object. Flow: lock the object first (lock returns the lockHandle), setObjectSource, then unLock and activate with activateByName. Run syntaxCheckCode before writing to catch errors early.',
         inputSchema: {
           type: 'object',
           properties: {
-            objectSourceUrl: { type: 'string' },
-            source: { type: 'string' },
-            lockHandle: { type: 'string' },
-            transport: { type: 'string' }
+            objectSourceUrl: { type: 'string', description: 'Source URL of the object, usually the object URL plus /source/main' },
+            source: { type: 'string', description: 'Full new source code (replaces the current source)' },
+            lockHandle: { type: 'string', description: 'Lock handle obtained from the lock tool' },
+            transport: { type: 'string', description: 'Transport number for objects in transportable packages (see transportInfo / createTransport)' }
           },
           required: ['objectSourceUrl', 'source', 'lockHandle']
         }

@@ -8,17 +8,17 @@ export class UnitTestHandlers extends BaseHandler {
         return [
             {
                 name: 'unitTestRun',
-                description: 'Runs unit tests.',
+                description: 'Run ABAP unit tests for an object. ALWAYS run after adding tests or changing and activating source code. Tests live in the testclass include (see createTestInclude).',
                 inputSchema: {
                     type: 'object',
                     properties: {
                         url: {
                             type: 'string',
-                            description: 'The URL of the object to test.'
+                            description: 'ADT URL of the object to test, e.g. /sap/bc/adt/oo/classes/zcl_my_class'
                         },
                         flags: {
                             type: 'string',
-                            description: 'Flags for the unit test run.',
+                            description: 'Optional JSON string of UnitTestRunFlags: {"harmless":true,"dangerous":false,"critical":false,"short":true,"medium":true,"long":false}',
                             optional: true
                         }
                     },
@@ -106,7 +106,8 @@ export class UnitTestHandlers extends BaseHandler {
     async handleUnitTestRun(args: any): Promise<any> {
         const startTime = performance.now();
         try {
-            const result = await this.adtclient.unitTestRun(args.url, args.flags);
+            const flags = typeof args.flags === 'string' ? JSON.parse(args.flags) : args.flags;
+            const result = await this.adtclient.unitTestRun(args.url, flags);
             this.trackRequest(startTime, true);
             return {
                 content: [
@@ -131,7 +132,8 @@ export class UnitTestHandlers extends BaseHandler {
     async handleUnitTestEvaluation(args: any): Promise<any> {
         const startTime = performance.now();
         try {
-            const result = await this.adtclient.unitTestEvaluation(args.clas, args.flags);
+            const evalFlags = typeof args.flags === 'string' ? JSON.parse(args.flags) : args.flags;
+            const result = await this.adtclient.unitTestEvaluation(args.clas, evalFlags);
             this.trackRequest(startTime, true);
             return {
                 content: [

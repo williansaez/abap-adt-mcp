@@ -53,9 +53,12 @@ export async function browserLogin(
   const host = new URL(sapUrl).host;
   const executablePath = detectBrowser();
   // Dedicated profile per host so "keep me signed in" persists across restarts
-  // without touching the user's own browser profile.
-  const userDataDir = path.join(os.tmpdir(), 'abap-adt-mcp-sso', host);
-  fs.mkdirSync(userDataDir, { recursive: true });
+  // without touching the user's own browser profile. Lives under the user's home
+  // (not tmp) with 0700 perms: the profile holds long-lived IdP session cookies.
+  const userDataDir = path.join(os.homedir(), '.abap-adt-mcp', 'sso', host);
+  fs.mkdirSync(userDataDir, { recursive: true, mode: 0o700 });
+  fs.chmodSync(path.dirname(userDataDir), 0o700);
+  fs.chmodSync(userDataDir, 0o700);
 
   const browser = await puppeteer.launch({
     executablePath,

@@ -7,7 +7,7 @@ export class ObjectLockHandlers extends BaseHandler {
   getTools(): ToolDefinition[] {
     return [{
       name: 'lock',
-      description: 'Lock an object',
+      description: 'Lock an ABAP object for editing. Returns the lockHandle required by setObjectSource, deleteObject and unLock. Always unLock when done.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -25,7 +25,7 @@ export class ObjectLockHandlers extends BaseHandler {
       }
     }, {
       name: 'unLock',
-      description: 'Unlock an object',
+      description: 'Unlock an ABAP object previously locked with lock (requires its lockHandle).',
       inputSchema: {
         type: 'object',
         properties: {

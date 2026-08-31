@@ -15,8 +15,8 @@ Configure destinations in **`systems.json`** at the repo root (gitignored — se
 
 ```json
 {
-  "DEV":         { "url": "https://my100002.s4hana.cloud.sap", "client": "080" },
-  "CUSTOMIZING": { "url": "https://my100002.s4hana.cloud.sap", "client": "100" }
+  "ACME-DEV":         { "url": "https://myXXXXXX.s4hana.cloud.sap", "client": "080" },
+  "ACME-CUSTOMIZING": { "url": "https://myXXXXXX.s4hana.cloud.sap", "client": "100" }
 }
 ```
 
@@ -45,7 +45,7 @@ it opens a real browser, you complete the SSO login, and the resulting **session
 cookies** are harvested and reused for ADT calls. **No SAP-side configuration.**
 
 ```env
-SAP_URL=https://my100002.s4hana.cloud.sap
+SAP_URL=https://myXXXXXX.s4hana.cloud.sap
 SAP_CLIENT=100
 SAP_AUTH_TYPE=sso
 # SAP_BROWSER_PATH=/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge   # optional
@@ -59,17 +59,21 @@ Requirements & behaviour:
 - Login is triggered by the `login` tool, and automatically before the first call.
   When the session expires, run `login` again.
 - The session cookie (`SAP_SESSIONID_*` / `MYSAPSSO2`) is HttpOnly and is read over
-  the Chrome DevTools Protocol; it is held **in memory only**.
+  the Chrome DevTools Protocol; the harvested cookie jar is held **in memory only**.
+  Note that the dedicated browser profile (kept so "stay signed in" works across
+  restarts) persists the IdP session on disk under `~/.abap-adt-mcp/sso/<host>/`
+  with `0700` permissions — delete that directory to fully log out.
 
-> **Client note:** the SSO session is established for the tenant's logon client (for
-> `my100002` that was observed to be **100**, not `080`). Set `SAP_CLIENT` to the
-> client your SSO session actually lands on. Access to a different client (e.g. a
-> separate developer-extensibility client) may require its own login and is not
-> guaranteed to be reachable via the same SSO session — verify per tenant.
+> **Client note:** the SSO session is established for the tenant's logon client
+> (which may differ from the client you expect — e.g. **100** instead of `080`).
+> Set `SAP_CLIENT` to the client your SSO session actually lands on. Access to a
+> different client (e.g. a separate developer-extensibility client) may require
+> its own login and is not guaranteed to be reachable via the same SSO session —
+> verify per tenant.
 
-Verified end-to-end against CUSTOMER DEV (my100002): browser login → cookie harvest →
-`adt.login()` (CSRF ok) → `reentranceTicket()` and `nodeContents('DEVC/K','$TMP')`
-returned real data.
+Verified end-to-end against a real S/4HANA Cloud DEV tenant: browser login →
+cookie harvest → `adt.login()` (CSRF ok) → `reentranceTicket()` and
+`nodeContents('DEVC/K','$TMP')` returned real data.
 
 ## Mode 1 — Basic auth
 
@@ -99,10 +103,10 @@ Enable the mode by setting `SAP_AUTH_TYPE=oauth` (or simply providing
 `SAP_OAUTH_CLIENT_ID`). When enabled, `SAP_USER`/`SAP_PASSWORD` are ignored.
 
 ```env
-SAP_URL=https://my100002.s4hana.cloud.sap
+SAP_URL=https://myXXXXXX.s4hana.cloud.sap
 SAP_CLIENT=080
 SAP_AUTH_TYPE=oauth
-SAP_OAUTH_TOKEN_URL=https://my100002.s4hana.cloud.sap/sap/bc/sec/oauth2/token
+SAP_OAUTH_TOKEN_URL=https://myXXXXXX.s4hana.cloud.sap/sap/bc/sec/oauth2/token
 SAP_OAUTH_CLIENT_ID=<client id>
 SAP_OAUTH_CLIENT_SECRET=<client secret>
 # SAP_OAUTH_SCOPE=   # optional, only if the arrangement defines scopes
@@ -134,14 +138,14 @@ The server fetches a token via the `client_credentials` grant and caches it unti
 ```json
 {
   "mcpServers": {
-    "DEV": {
+    "ACME-DEV": {
       "command": "node",
       "args": ["/absolute/path/abap-adt-mcp/dist/index.js"],
       "env": {
-        "SAP_URL": "https://my100002.s4hana.cloud.sap",
+        "SAP_URL": "https://myXXXXXX.s4hana.cloud.sap",
         "SAP_CLIENT": "080",
         "SAP_AUTH_TYPE": "oauth",
-        "SAP_OAUTH_TOKEN_URL": "https://my100002.s4hana.cloud.sap/sap/bc/sec/oauth2/token",
+        "SAP_OAUTH_TOKEN_URL": "https://myXXXXXX.s4hana.cloud.sap/sap/bc/sec/oauth2/token",
         "SAP_OAUTH_CLIENT_ID": "<client id>",
         "SAP_OAUTH_CLIENT_SECRET": "<client secret>"
       }

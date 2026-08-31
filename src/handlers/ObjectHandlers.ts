@@ -65,7 +65,7 @@ export class ObjectHandlers extends BaseHandler {
             },
             {
                 name: 'objectTypes',
-                description: 'Retrieves object types.',
+                description: 'Retrieve the ADT object type catalog reported by the system. For picking an objtype to pass to createObject, prefer loadTypes (creatable types).',
                 inputSchema: {
                     type: 'object',
                     properties: {}
@@ -73,7 +73,7 @@ export class ObjectHandlers extends BaseHandler {
             },
             {
                 name: 'reentranceTicket',
-                description: 'Retrieves a reentrance ticket.',
+                description: 'Retrieves an SAP reentrance ticket. WARNING: the ticket is a live logon credential and will appear in the conversation/host logs. Disabled unless the server is started with SAP_ALLOW_REENTRANCE_TICKET=1.',
                 inputSchema: {
                     type: 'object',
                     properties: {}
@@ -216,6 +216,14 @@ export class ObjectHandlers extends BaseHandler {
     }
 
     async handleReentranceTicket(args: any): Promise<any> {
+        // A reentrance ticket is bearer credential material; emitting it into the
+        // model/host transcript is an exfiltration risk, so require explicit opt-in.
+        if (!/^(1|true|yes)$/i.test(process.env.SAP_ALLOW_REENTRANCE_TICKET || '')) {
+            throw new McpError(
+                ErrorCode.InvalidRequest,
+                'reentranceTicket is disabled: it returns a live SAP logon credential into the conversation. Start the server with SAP_ALLOW_REENTRANCE_TICKET=1 to enable it deliberately.'
+            );
+        }
         const startTime = performance.now();
         try {
             const ticket = await this.adtclient.reentranceTicket();
