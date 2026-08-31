@@ -1,23 +1,24 @@
 {
-  "_comment": "Copy to systems.json (gitignored). One entry per ABAP system (destination). Tools take a `destination` argument naming one of these keys.",
-
+  "_comment": "Copy to systems.json (gitignored) or point SAP_SYSTEMS_FILE at it. One entry per ABAP system (destination); tools take a `destination` argument naming one of these keys. Mark one entry with \"default\": true to use it when destination is omitted. Optional per-entry gitUser/gitPassword supply abapGit credentials so they never pass through the model.",
   "DEV": {
     "url": "https://myXXXXXX.s4hana.cloud.sap",
     "client": "080",
-    "authType": "sso"
+    "authType": "sso",
+    "default": true
   },
   "QAS": {
     "url": "https://myYYYYYY.s4hana.cloud.sap",
     "client": "100",
     "authType": "sso"
   },
-
   "OnPrem-Basic": {
     "url": "https://host:44300",
     "client": "100",
     "authType": "basic",
     "user": "DEVELOPER",
-    "password": "secret"
+    "password": "secret",
+    "gitUser": "<abapgit remote user (optional)>",
+    "gitPassword": "<abapgit remote token (optional)>"
   },
   "Cloud-OAuth": {
     "url": "https://myZZZZZZ.s4hana.cloud.sap",

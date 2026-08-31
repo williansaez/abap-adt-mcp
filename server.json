@@ -1,51 +1,83 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.mario-andreschak/mcp-abap-abap-adt-api",
-  "description": "MCP server wrapping abap-adt-api for ABAP ADT development workflows against SAP systems",
-  "version": "0.1.1",
+  "name": "io.github.williansaez/abap-adt-mcp",
+  "description": "Multi-destination MCP server wrapping abap-adt-api for ABAP ADT development workflows against SAP systems (basic/SSO/OAuth auth, transports, ATC, RAP generation)",
+  "version": "0.3.0",
   "repository": {
-    "url": "https://github.com/mario-andreschak/mcp-abap-abap-adt-api",
+    "url": "https://github.com/williansaez/abap-adt-mcp",
     "source": "github"
   },
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
-      "identifier": "mcp-abap-abap-adt-api",
-      "version": "0.1.1",
+      "identifier": "abap-adt-mcp",
+      "version": "0.3.0",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
+          "name": "SAP_SYSTEMS_FILE",
+          "description": "Path to a JSON file mapping destination names to system configs (url, client, authType basic/sso/oauth, credentials). Recommended; keep the file mode 0600. See systems.example.json",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_SYSTEMS",
+          "description": "Inline JSON map of destinations (same shape as SAP_SYSTEMS_FILE). Contains credentials — prefer SAP_SYSTEMS_FILE",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "SAP_DEFAULT_DESTINATION",
+          "description": "Destination name used when a tool call omits `destination` (alternatively mark an entry with \"default\": true)",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_AUTH_TYPE",
+          "description": "Default auth type for entries that don't specify one: sso (default), basic, or oauth",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_HTTP_PORT",
+          "description": "When set (1024-65535), serve Streamable HTTP on http://127.0.0.1:<port>/mcp with bearer-token auth instead of stdio",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_HTTP_TOKEN",
+          "description": "Bearer token for the HTTP transport; auto-generated and written to ~/.abap-adt-mcp/http-token when unset",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "SAP_ALLOW_REENTRANCE_TICKET",
+          "description": "Set to 1 to enable the reentranceTicket tool (disabled by default: it returns a live SAP logon credential into the conversation)",
+          "isRequired": false
+        },
+        {
           "name": "SAP_URL",
-          "description": "Base URL of the SAP system, e.g. https://host:44300",
-          "isRequired": true
+          "description": "Legacy single-system mode: base URL of the SAP system, e.g. https://host:44300",
+          "isRequired": false
         },
         {
           "name": "SAP_USER",
-          "description": "SAP username",
-          "isRequired": true
+          "description": "Legacy single-system mode: SAP username",
+          "isRequired": false
         },
         {
           "name": "SAP_PASSWORD",
-          "description": "SAP password",
-          "isRequired": true,
+          "description": "Legacy single-system mode: SAP password",
+          "isRequired": false,
           "isSecret": true
         },
         {
           "name": "SAP_CLIENT",
-          "description": "SAP client number, e.g. 100",
+          "description": "Legacy single-system mode: SAP client number, e.g. 100",
           "isRequired": false
         },
         {
           "name": "SAP_LANGUAGE",
-          "description": "Logon language, e.g. EN",
-          "isRequired": false
-        },
-        {
-          "name": "NODE_TLS_REJECT_UNAUTHORIZED",
-          "description": "Set to 0 to allow self-signed certificates (development only), 1 to enforce TLS verification",
+          "description": "Legacy single-system mode: logon language, e.g. EN",
           "isRequired": false
         }
       ]

@@ -1,18 +1,11 @@
 import type { ToolDefinition } from "../types/tools";
 import type { ADTClient } from "abap-adt-api";
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { performance } from 'perf_hooks';
 import { createLogger } from '../lib/logger';
-
-enum CustomErrorCode {
-  TooManyRequests = 429,
-  InvalidParameters = 400
-}
 
 export abstract class BaseHandler {
   protected readonly adtclient: ADTClient;
   protected readonly logger = createLogger(this.constructor.name);
-  private readonly rateLimiter = new Map<string, number>();
   private readonly metrics = {
     requestCount: 0,
     errorCount: 0,
@@ -40,21 +33,6 @@ export abstract class BaseHandler {
       success,
       metrics: this.getMetrics()
     });
-  }
-
-  protected checkRateLimit(ip: string): void {
-    const now = Date.now();
-    const lastRequest = this.rateLimiter.get(ip) || 0;
-    
-    if (now - lastRequest < 1000) { // 1 second rate limit
-      this.logger.warn('Rate limit exceeded', { ip });
-      throw new McpError(
-        CustomErrorCode.TooManyRequests,
-        'Rate limit exceeded. Please wait before making another request.'
-      );
-    }
-    
-    this.rateLimiter.set(ip, now);
   }
 
   protected getMetrics() {

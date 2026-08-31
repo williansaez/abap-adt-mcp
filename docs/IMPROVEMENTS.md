@@ -69,9 +69,14 @@ README still largely inherited from upstream (mario-andreschak branding, FLUJO, 
 
 ## Suggested execution order
 
-| Phase | Items | Effort |
-|---|---|---|
-| 1 | #1 bug fix, #4 descriptions+instructions, #5 agents.md, #6 security smalls | small |
-| 2 | #3 annotations, #2 RAP generators, #7 transportDetails+diff | medium |
-| 3 | #8, #9, #10 parity composites | small-medium |
-| 4 | #11 HTTP transport, #12 README rewrite | medium-large |
+| Phase | Items | Effort | Status |
+|---|---|---|---|
+| 1 | #1 bug fix, #4 descriptions+instructions, #5 agents.md, #6 security smalls | small | done |
+| 2 | #3 annotations, #2 RAP generators, #7 transportDetails+diff | medium | done |
+| 3 | #8, #9, #10 parity composites | small-medium | done |
+| 4 | #11 HTTP transport, #12 README rewrite | medium-large | done |
+
+All four phases are implemented on this branch (v0.3.0, 142 tools). Remaining
+open items beyond the original plan: expose per-object-type creation beyond the
+library's CreatableTypeIds union (library change), and a faithful server-side
+ATC quickfix REST wrapper (library change).

@@ -72,7 +72,7 @@ export class DiscoveryHandlers extends BaseHandler {
                 }
             },
             {
-                name: 'adtCompatibiliyGraph',
+                name: 'adtCompatibilityGraph',
                 description: 'Retrieves the ADT compatibility graph.',
                 inputSchema: {
                     type: 'object',
@@ -96,7 +96,8 @@ export class DiscoveryHandlers extends BaseHandler {
                 return this.handleAdtDiscovery(args);
             case 'adtCoreDiscovery':
                 return this.handleAdtCoreDiscovery(args);
-            case 'adtCompatibiliyGraph':
+            case 'adtCompatibilityGraph':
+            case 'adtCompatibiliyGraph': // legacy misspelled name kept for compatibility
                 return this.handleAdtCompatibilityGraph(args);
             default:
                 throw new McpError(ErrorCode.MethodNotFound, `Unknown discovery tool: ${toolName}`);

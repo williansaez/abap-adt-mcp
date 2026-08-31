@@ -1,6 +1,6 @@
 {
   "name": "mcp-abap-abap-adt-api",
-  "version": "0.1.1",
+  "version": "0.3.0",
   "mcpName": "io.github.mario-andreschak/mcp-abap-abap-adt-api",
   "main": "dist/index.js",
   "bin": {

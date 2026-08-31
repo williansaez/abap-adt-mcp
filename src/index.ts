@@ -3,6 +3,11 @@
 import { config } from 'dotenv';
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import http from 'http';
+import crypto from 'crypto';
+import os from 'os';
+import fs from 'fs';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -114,7 +119,7 @@ const TOOL_ROUTES: Record<keyof HandlerSet, string[]> = {
   objectRegistration: ['objectRegistrationInfo', 'validateNewObject', 'createObject', 'creatableTypeDetails'],
   node: ['nodeContents', 'mainPrograms'],
   discovery: ['featureDetails', 'collectionFeatureDetails', 'findCollectionByUrl', 'loadTypes',
-    'adtDiscovery', 'adtCoreDiscovery', 'adtCompatibiliyGraph'],
+    'adtDiscovery', 'adtCoreDiscovery', 'adtCompatibilityGraph', 'adtCompatibiliyGraph'],
   unitTest: ['unitTestRun', 'unitTestEvaluation', 'unitTestOccurrenceMarkers', 'createTestInclude'],
   prettyPrinter: ['prettyPrinterSetting', 'setPrettyPrinterSetting', 'prettyPrinter'],
   git: ['gitRepos', 'gitExternalRepoInfo', 'gitCreateRepo', 'gitPullRepo', 'gitUnlinkRepo', 'stageRepo',
@@ -157,7 +162,7 @@ const READ_ONLY_TOOLS = new Set([
   'fixProposals', 'fragmentMappings', 'abapDocumentation',
   // node / discovery
   'nodeContents', 'mainPrograms', 'featureDetails', 'collectionFeatureDetails', 'findCollectionByUrl',
-  'loadTypes', 'adtDiscovery', 'adtCoreDiscovery', 'adtCompatibiliyGraph',
+  'loadTypes', 'adtDiscovery', 'adtCoreDiscovery', 'adtCompatibilityGraph', 'adtCompatibiliyGraph',
   // unit test evaluation (read of results), pretty printer read
   'unitTestEvaluation', 'unitTestOccurrenceMarkers', 'prettyPrinterSetting', 'prettyPrinter',
   // git reads
@@ -204,7 +209,7 @@ export class AbapAdtServer extends Server {
 
   constructor() {
     super(
-      { name: "mcp-abap-abap-adt-api", version: "0.2.0" },
+      { name: "abap-adt-mcp", version: "0.3.0" },
       {
         capabilities: { tools: {} },
         instructions: [
@@ -262,7 +267,7 @@ export class AbapAdtServer extends Server {
     return { adtClient, cookieClient };
   }
 
-  private buildHandlers(adtClient: ADTClient): HandlerSet {
+  private buildHandlers(adtClient: ADTClient, system?: SystemConfig): HandlerSet {
     return {
       auth: new AuthHandlers(adtClient),
       transport: new TransportHandlers(adtClient),
@@ -278,7 +283,7 @@ export class AbapAdtServer extends Server {
       discovery: new DiscoveryHandlers(adtClient),
       unitTest: new UnitTestHandlers(adtClient),
       prettyPrinter: new PrettyPrinterHandlers(adtClient),
-      git: new GitHandlers(adtClient),
+      git: new GitHandlers(adtClient, { user: system?.gitUser, password: system?.gitPassword }),
       ddic: new DdicHandlers(adtClient),
       serviceBinding: new ServiceBindingHandlers(adtClient),
       query: new QueryHandlers(adtClient),
@@ -298,7 +303,7 @@ export class AbapAdtServer extends Server {
     if (!dest) {
       const system = this.systems.get(name)!;
       const { adtClient, cookieClient } = this.makeClient(system);
-      dest = { system, adtClient, cookieClient, handlers: this.buildHandlers(adtClient), loggedIn: false };
+      dest = { system, adtClient, cookieClient, handlers: this.buildHandlers(adtClient, system), loggedIn: false };
       this.pool.set(name, dest);
     }
     return dest;
@@ -467,13 +472,74 @@ export class AbapAdtServer extends Server {
   }
 
   async run() {
-    const transport = new StdioServerTransport();
-    await this.connect(transport);
-    console.error(`MCP ABAP ADT API server running on stdio — ${this.systems.size} destination(s): ${[...this.systems.keys()].join(', ')}`);
+    const httpPort = parseInt(process.env.MCP_HTTP_PORT || '', 10);
+    if (httpPort) {
+      await this.runHttp(httpPort);
+    } else {
+      const transport = new StdioServerTransport();
+      await this.connect(transport);
+      console.error(`MCP ABAP ADT API server running on stdio — ${this.systems.size} destination(s): ${[...this.systems.keys()].join(', ')}`);
+    }
 
     process.on('SIGINT', async () => { await this.close(); process.exit(0); });
     process.on('SIGTERM', async () => { await this.close(); process.exit(0); });
     this.onerror = (error) => { console.error('[MCP Error]', error); };
+  }
+
+  /**
+   * Streamable HTTP transport, mirroring SAP's official ADT MCP Server model:
+   * localhost-only endpoint at /mcp guarded by a bearer token. The token comes
+   * from MCP_HTTP_TOKEN or is generated at startup and written to
+   * ~/.abap-adt-mcp/http-token with 0600 permissions.
+   */
+  private async runHttp(port: number) {
+    if (port < 1024 || port > 65535) {
+      throw new Error(`MCP_HTTP_PORT must be between 1024 and 65535, got ${port}`);
+    }
+    let token = process.env.MCP_HTTP_TOKEN;
+    if (!token) {
+      token = crypto.randomBytes(32).toString('hex');
+      const dir = path.join(os.homedir(), '.abap-adt-mcp');
+      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+      const tokenFile = path.join(dir, 'http-token');
+      fs.writeFileSync(tokenFile, token, { mode: 0o600 });
+      console.error(`[abap-adt-mcp] Bearer token written to ${tokenFile}`);
+    }
+    const expected = token;
+
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => crypto.randomUUID(),
+    });
+    await this.connect(transport);
+
+    const httpServer = http.createServer(async (req, res) => {
+      if (!req.url || !req.url.startsWith('/mcp')) {
+        res.writeHead(404).end();
+        return;
+      }
+      const auth = req.headers.authorization || '';
+      const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+      const ok = provided.length === expected.length &&
+        crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+      if (!ok) {
+        res.writeHead(401, { 'Content-Type': 'application/json' })
+          .end(JSON.stringify({ error: 'Unauthorized: send Authorization: Bearer <token>' }));
+        return;
+      }
+      try {
+        await transport.handleRequest(req, res);
+      } catch (error) {
+        console.error('[abap-adt-mcp] HTTP request error:', error);
+        if (!res.headersSent) res.writeHead(500).end();
+      }
+    });
+
+    // Bind to loopback only; this transport is for local MCP hosts, never the network.
+    await new Promise<void>((resolve) => httpServer.listen(port, '127.0.0.1', resolve));
+    console.error(
+      `MCP ABAP ADT API server running on http://127.0.0.1:${port}/mcp (bearer auth) — ` +
+      `${this.systems.size} destination(s): ${[...this.systems.keys()].join(', ')}`
+    );
   }
 }
 

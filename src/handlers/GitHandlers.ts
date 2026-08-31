@@ -1,9 +1,29 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
-import { GitRepo, GitStaging } from 'abap-adt-api';
+import { ADTClient, GitRepo, GitStaging } from 'abap-adt-api';
+
+export interface GitCredentials {
+  user?: string;
+  password?: string;
+}
 
 export class GitHandlers extends BaseHandler {
+    /** Per-destination abapGit credentials used when the tool args omit them. */
+    private readonly gitCreds: GitCredentials;
+
+    constructor(adtclient: ADTClient, gitCreds: GitCredentials = {}) {
+        super(adtclient);
+        this.gitCreds = gitCreds;
+    }
+
+    /** Prefer configured credentials over args so secrets stay out of the conversation. */
+    private cred(args: any): { user?: string; password?: string } {
+        return {
+            user: args.user ?? this.gitCreds.user,
+            password: args.password ?? this.gitCreds.password,
+        };
+    }
     getTools(): ToolDefinition[] {
         return [
             {
@@ -317,8 +337,8 @@ export class GitHandlers extends BaseHandler {
         try {
             const repoInfo = await this.adtclient.gitExternalRepoInfo(
                 args.repourl,
-                args.user,
-                args.password
+                this.cred(args).user,
+                this.cred(args).password
             );
             this.trackRequest(startTime, true);
             return {
@@ -349,8 +369,8 @@ export class GitHandlers extends BaseHandler {
                 args.repourl,
                 args.branch,
                 args.transport,
-                args.user,
-                args.password
+                this.cred(args).user,
+                this.cred(args).password
             );
             this.trackRequest(startTime, true);
             return {
@@ -380,8 +400,8 @@ export class GitHandlers extends BaseHandler {
                 args.repoId,
                 args.branch,
                 args.transport,
-                args.user,
-                args.password
+                this.cred(args).user,
+                this.cred(args).password
             );
             this.trackRequest(startTime, true);
             return {
@@ -434,8 +454,8 @@ export class GitHandlers extends BaseHandler {
         try {
             const result = await this.adtclient.stageRepo(
                 args.repo,
-                args.user,
-                args.password
+                this.cred(args).user,
+                this.cred(args).password
             );
             this.trackRequest(startTime, true);
             return {
@@ -464,8 +484,8 @@ export class GitHandlers extends BaseHandler {
             const result = await this.adtclient.pushRepo(
                 args.repo,
                 args.staging,
-                args.user,
-                args.password
+                this.cred(args).user,
+                this.cred(args).password
             );
             this.trackRequest(startTime, true);
             return {
@@ -493,8 +513,8 @@ export class GitHandlers extends BaseHandler {
         try {
             const result = await this.adtclient.checkRepo(
                 args.repo,
-                args.user,
-                args.password
+                this.cred(args).user,
+                this.cred(args).password
             );
             this.trackRequest(startTime, true);
             return {
@@ -522,8 +542,8 @@ export class GitHandlers extends BaseHandler {
         try {
             const repoInfo = await this.adtclient.remoteRepoInfo(
                 args.repo,
-                args.user,
-                args.password
+                this.cred(args).user,
+                this.cred(args).password
             );
             this.trackRequest(startTime, true);
             return {
@@ -553,8 +573,8 @@ export class GitHandlers extends BaseHandler {
                 args.repo,
                 args.branch,
                 args.create,
-                args.user,
-                args.password
+                this.cred(args).user,
+                this.cred(args).password
             );
             this.trackRequest(startTime, true);
             return {

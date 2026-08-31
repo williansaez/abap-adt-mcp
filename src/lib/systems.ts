@@ -32,6 +32,12 @@ export interface SystemConfig {
   oauth?: OAuthConfig;
   // sso
   insecureTls?: boolean;
+  // abapGit remote credentials (backfilled into git tools when omitted, so
+  // they never have to pass through the model context)
+  gitUser?: string;
+  gitPassword?: string;
+  /** Marks this destination as the default when a tool call omits `destination`. */
+  default?: boolean;
 }
 
 function coerceAuthType(v: any, fallback: AuthType): AuthType {
@@ -54,6 +60,9 @@ function fromRawEntry(name: string, raw: any, defaultAuth: AuthType): SystemConf
     language: raw.language,
     authType,
     insecureTls: raw.insecureTls === true || /^(1|true|yes)$/i.test(String(raw.insecureTls || '')),
+    gitUser: raw.gitUser,
+    gitPassword: raw.gitPassword,
+    default: raw.default === true || /^(1|true|yes)$/i.test(String(raw.default || '')),
   };
   if (authType === 'basic') {
     cfg.user = raw.user;
@@ -76,6 +85,7 @@ function fromRawEntry(name: string, raw: any, defaultAuth: AuthType): SystemConf
 function parseMap(obj: Record<string, any>, defaultAuth: AuthType): Map<string, SystemConfig> {
   const map = new Map<string, SystemConfig>();
   for (const [name, raw] of Object.entries(obj)) {
+    if (name.startsWith('_')) continue; // comment/metadata keys like "_comment"
     map.set(name, fromRawEntry(name, raw, defaultAuth));
   }
   return map;
@@ -134,6 +144,9 @@ export function defaultDestination(
 ): string | undefined {
   if (env.SAP_DEFAULT_DESTINATION && systems.has(env.SAP_DEFAULT_DESTINATION)) {
     return env.SAP_DEFAULT_DESTINATION;
+  }
+  for (const [name, cfg] of systems) {
+    if (cfg.default) return name;
   }
   return systems.size === 1 ? [...systems.keys()][0] : undefined;
 }

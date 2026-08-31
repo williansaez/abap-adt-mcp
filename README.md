@@ -1,157 +1,105 @@
-DISCLAIMER: This server is still in experimental status! Use it with caution!
+# abap-adt-mcp
 
-# ABAP-ADT-API MCP-Server
+> Experimental — use with caution, and prefer development systems.
 
-## Description
+A single **Model Context Protocol (MCP) server** that gives AI agents full ABAP development capabilities over **multiple SAP systems at once**. It wraps [abap-adt-api](https://github.com/marcellourbani/abap-adt-api/) (the ADT REST protocol used by Eclipse ADT) and exposes **142 tools**: object creation and editing, transports (including unified diffs), activation, unit tests, ATC runs with deterministic quickfixes, RAP application generation, OData service inspection, abapGit, debugging, traces and more.
 
-The MCP-Server `mcp-abap-abap-adt-api` is a Model Context Protocol (MCP) server designed to facilitate seamless communication between ABAP systems and MCP clients. It is a wrapper for [abap-adt-api](https://github.com/marcellourbani/abap-adt-api/) and provides a suite of tools and resources for managing ABAP objects, handling transport requests, performing code analysis, and more, enhancing the efficiency and effectiveness of ABAP development workflows.
+Originally forked from [mario-andreschak/mcp-abap-abap-adt-api](https://github.com/mario-andreschak/mcp-abap-abap-adt-api); this fork adds multi-destination support, browser-SSO and OAuth2 authentication for S/4HANA Cloud, MCP tool annotations, an optional HTTP transport and workflow guidance aligned with SAP's official ADT MCP Server documentation.
 
-The server is published on npm as [`mcp-abap-abap-adt-api`](https://www.npmjs.com/package/mcp-abap-abap-adt-api) and listed in the [MCP Registry](https://registry.modelcontextprotocol.io) as `io.github.mario-andreschak/mcp-abap-abap-adt-api`, so most MCP clients can install it with a single command (or a single click — see [FLUJO](#integrating-with-flujo-recommended) below).
+## Highlights
 
-> **Related project:** For higher-level, read-oriented ABAP tools (`GetProgram`, `GetClass`, `GetTable`, …) see the separate [`mcp-abap-adt`](https://github.com/mario-andreschak/mcp-abap-adt) server. **This** server (`mcp-abap-abap-adt-api`) exposes the lower-level ADT API (lock/unlock, edit source, transports, activation, syntax checks, DDIC access, …) for full read/write development workflows.
-
-## Features
-
-- **Authentication**: Securely authenticate with ABAP systems using the `login` tool.
-- **Object Management**: Create, read, update, and delete ABAP objects seamlessly.
-- **Transport Handling**: Manage transport requests with tools like `createTransport` and `transportInfo`.
-- **Code Analysis**: Perform syntax checks and retrieve code completion suggestions.
-- **Extensibility**: Easily extend the server with additional tools and resources as needed.
-- **Session Management**: Handle session caching and termination using `dropSession` and `logout`.
+- **Multi-destination**: one server, many SAP systems. Every tool takes an optional `destination` parameter; `listSystems` shows what is configured.
+- **Three auth modes** per destination: `basic`, browser `sso` (S/4HANA Cloud / IAS), and `oauth` (client credentials). See [docs/AUTH.md](docs/AUTH.md).
+- **Agent-ready**: the server announces SAP's canonical create/edit workflows via the MCP `instructions` field, tool descriptions cross-reference the right sequence, and every tool carries `readOnlyHint`/`destructiveHint` annotations so hosts can gate approval by risk.
+- **SAP-parity tools**: transport unified diff, RAP generators (`rapGen*`), name-based OData service inspection (`fetchServiceDetails`), ATC quickfix execution (`atcApplyQuickfix`), creatable-type metadata (`creatableTypeDetails`) — mirroring SAP's official ADT MCP Server toolsets.
+- **stdio or HTTP**: stdio by default; set `MCP_HTTP_PORT` for a localhost Streamable HTTP endpoint guarded by a bearer token.
 
 ## Prerequisites
 
-- **An SAP ABAP System** reachable via ADT (ABAP Development Tools). You'll need the system URL, a username and password, and the client number. Ensure the `/sap/bc/adt` service is active in transaction `SICF` (your basis administrator can help).
-- **Node.js and npm** — download the LTS version from [nodejs.org](https://nodejs.org/). Verify with `node -v` and `npm -v`.
+- **An SAP ABAP system** reachable via ADT. Ensure the `/sap/bc/adt` service is active in transaction `SICF`.
+- **Node.js (LTS) and npm**.
 
-## Installation
+## Quick start (multi-destination)
 
-There are three ways to use this server, from easiest to most manual:
+Create a `systems.json` (see [systems.example.json](systems.example.json)) with your destinations:
 
-### Integrating with FLUJO (recommended)
+```json
+{
+  "DEV": { "url": "https://myXXXXXX.s4hana.cloud.sap", "client": "100", "authType": "sso", "default": true },
+  "ONPREM": { "url": "https://sap.example.com:44300", "client": "100", "authType": "basic",
+              "user": "DEVELOPER", "password": "***", "insecureTls": true }
+}
+```
 
-[FLUJO](https://github.com/mario-andreschak/FLUJO) is the easiest way to use this server — no cloning, building, or hand-editing JSON config:
-
-1. In FLUJO, navigate to **MCP**.
-2. Click **Add Server**.
-3. On the **Marketplace** tab, search for **`mcp-abap-abap-adt-api`** and select it.
-4. FLUJO fetches the npm package automatically and opens the **Local Server** tab. Enter your SAP **URL**, **User**, **Password** (and optionally client/language), then click **Save**.
-
-That's it — FLUJO downloads and runs the npm package for you and keeps your SAP credentials with the installed server.
-
-#### Streamable HTTP transport (via FLUJO)
-
-`mcp-abap-abap-adt-api` runs over **stdio**. If you need to reach it over **streamable HTTP** — for example from another app on your machine or a client that only speaks HTTP — let FLUJO re-host it: install the server in FLUJO as above, then toggle **"Expose to external apps"** on the server. FLUJO's built-in mcp-proxy then serves it over HTTP at `http://localhost:4200/mcp-proxy/mcp-abap-abap-adt-api`, and any HTTP-capable MCP client can connect with a config like:
+Then register the server in your MCP client (Claude Desktop, Claude Code, Cline, ...):
 
 ```json
 {
   "mcpServers": {
-    "mcp-abap-abap-adt-api": {
+    "abap-adt": {
+      "command": "node",
+      "args": ["PATH_TO/abap-adt-mcp/dist/index.js"],
+      "env": { "SAP_SYSTEMS_FILE": "PATH_TO/systems.json" }
+    }
+  }
+}
+```
+
+Configuration sources, in order of precedence: `SAP_SYSTEMS` (inline JSON in an env var), `SAP_SYSTEMS_FILE` (path to a JSON file — recommended for anything containing passwords; keep it mode `0600`), a `systems.json` next to the install, or the legacy single-system `SAP_URL`/`SAP_USER`/`SAP_PASSWORD`/`SAP_CLIENT`/`SAP_LANGUAGE` variables. Per-destination `gitUser`/`gitPassword` entries supply abapGit credentials so they never pass through the model. Full schema and auth details in [docs/AUTH.md](docs/AUTH.md).
+
+## HTTP transport (optional)
+
+By default the server speaks stdio. For MCP hosts that expect an HTTP endpoint (the model SAP's own ADT MCP Server uses), start with:
+
+```bash
+MCP_HTTP_PORT=2236 node dist/index.js
+```
+
+The server listens on `http://127.0.0.1:2236/mcp` (loopback only) and requires `Authorization: Bearer <token>` on every request. The token is auto-generated and written to `~/.abap-adt-mcp/http-token` (mode `0600`) — or set it yourself via `MCP_HTTP_TOKEN`. Host config:
+
+```json
+{
+  "mcpServers": {
+    "abap-adt": {
       "type": "http",
-      "url": "http://localhost:4200/mcp-proxy/mcp-abap-abap-adt-api"
+      "url": "http://127.0.0.1:2236/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
     }
   }
 }
 ```
 
-FLUJO keeps your SAP credentials with the installed server, so the HTTP config itself carries none.
+## Tool catalog (by domain)
 
-### Quick start with npx (any MCP client)
+| Domain | Tools |
+|---|---|
+| Destinations | `listSystems`, `healthcheck` |
+| Auth/session | `login`, `logout`, `dropSession` |
+| Discovery | `loadTypes`, `objectTypes`, `creatableTypeDetails`, `adtDiscovery`, `adtCoreDiscovery`, `adtCompatibilityGraph`, `featureDetails`, ... |
+| Objects | `searchObject`, `objectStructure`, `findObjectPath`, `nodeContents`, `mainPrograms`, `classIncludes`, `classComponents` |
+| Create | `validateNewObject`, `createObject`, `createTestInclude` |
+| Source | `getObjectSource`, `setObjectSource`, `lock`, `unLock`, `prettyPrinter`, `revisions` |
+| Activation | `activateObjects`, `activateByName`, `inactiveObjects` |
+| Transports | `transportInfo`, `createTransport`, `transportDetails`, `transportUnifiedDiff`, `userTransports`, `transportRelease`, ... |
+| Checks & tests | `syntaxCheckCode`, `unitTestRun`, `createAtcRun`, `atcWorklists`, `atcQuickfixProposals`, `atcApplyQuickfix`, ... |
+| RAP generation | `rapGenIsAvailable`, `rapGenGetSchema`, `rapGenGetContent`, `rapGenValidateContent`, `rapGenPreview`, `rapGenGenerate`, `rapGenPublishService` |
+| Business services | `fetchServiceDetails`, `bindingDetails`, `publishServiceBinding`, `unPublishServiceBinding` |
+| Refactoring | `renameEvaluate/Preview/Execute`, `extractMethodEvaluate/Preview/Execute`, `fixProposals`, `fixEdits` |
+| Data | `tableContents`, `runQuery`, `ddicElement`, `ddicRepositoryAccess` |
+| abapGit | `gitRepos`, `gitCreateRepo`, `gitPullRepo`, `stageRepo`, `pushRepo`, ... |
+| Debug & traces | `debugger*` (13 tools), `traces*` (9 tools), `dumps`, `feeds` |
 
-The server is published on npm, so you don't need to clone or build anything — most MCP clients can launch it directly via `npx`. Add it to your MCP client configuration (e.g. Cline, Claude Desktop, Claude Code):
+## Build from source
 
-```json
-{
-  "mcpServers": {
-    "mcp-abap-abap-adt-api": {
-      "command": "npx",
-      "args": ["-y", "mcp-abap-abap-adt-api"],
-      "env": {
-        "SAP_URL": "https://your-sap-server.com:44300",
-        "SAP_USER": "YOUR_SAP_USERNAME",
-        "SAP_PASSWORD": "YOUR_SAP_PASSWORD",
-        "SAP_CLIENT": "100",
-        "SAP_LANGUAGE": "EN"
-      }
-    }
-  }
-}
+```bash
+git clone https://github.com/williansaez/abap-adt-mcp.git
+cd abap-adt-mcp
+npm install
+npm run build
+npm run start
 ```
 
-If your SAP system uses a self-signed certificate, add `"NODE_TLS_REJECT_UNAUTHORIZED": "0"` to the `env` block (development only).
-
-> **Windows tip:** if `npx` isn't found, set `"command": "npx.cmd"`, or use the full path to `node` with the absolute path to `dist/index.js` from a source install (see below).
-
-### Build from source
-
-1. **Clone the Repository**
-
-   ```cmd
-   git clone https://github.com/mario-andreschak/mcp-abap-abap-adt-api.git
-   cd mcp-abap-abap-adt-api
-   ```
-
-2. **Install Dependencies**
-
-   ```cmd
-   npm install
-   ```
-
-3. **Configure Environment Variables**
-
-   An `.env.example` file is provided in the root directory as a template for the required environment variables. To set up your environment:
-
-   a. Copy the `.env.example` file and rename it to `.env`:
-      ```bash
-      cp .env.example .env
-      ```
-
-   b. Open the `.env` file and replace the placeholder values with your actual SAP connection details:
-
-      ```env
-      SAP_URL=https://your-sap-server.com:44300
-      SAP_USER=YOUR_SAP_USERNAME
-      SAP_PASSWORD=YOUR_SAP_PASSWORD
-      SAP_CLIENT=YOUR_SAP_CLIENT
-      SAP_LANGUAGE=YOUR_SAP_LANGUAGE
-      ```
-
-   Note: The SAP_CLIENT and SAP_LANGUAGE variables are optional but recommended.
-
-   If you're using self-signed certificates, you can also set:
-
-   ```env
-   NODE_TLS_REJECT_UNAUTHORIZED="0"
-   ```
-
-   IMPORTANT: Never commit your `.env` file to version control. It's already included in `.gitignore` to prevent accidental commits.
-
-4. **Build the Project**
-
-   ```cmd
-   npm run build
-   ```
-
-5. **Run the Server**
-
-   ```cmd
-   npm run start
-   ```
-
-   When integrating a source build into an MCP client, point `command` at `node` with an absolute path to the build output:
-
-   ```json
-   {
-     "mcpServers": {
-       "mcp-abap-abap-adt-api": {
-         "command": "node",
-         "args": ["PATH_TO_YOUR/mcp-abap-abap-adt-api/dist/index.js"],
-         "disabled": false,
-         "autoApprove": []
-       }
-     }
-   }
-   ```
+For single-system setups you can use a local `.env` (see `.env.example`) instead of `systems.json`. Never commit `.env` or `systems.json` — both are git-ignored.
 
 ## Custom Instruction
 Use this Custom Instruction to explain the tool to your model (a ready-to-fill
