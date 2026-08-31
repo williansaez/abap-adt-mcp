@@ -8,3 +8,5 @@ package-lock.json
 
 # local system/destination config (contains customer tenant URLs)
 systems.json
+
+.claude/settings.local.json
