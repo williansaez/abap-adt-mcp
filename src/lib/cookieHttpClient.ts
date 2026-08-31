@@ -39,7 +39,7 @@ export class CookieHttpClient {
   private jar = new Map<string, string>();
   private axiosInstance: AxiosInstance;
 
-  constructor(private baseURL: string, cookies: HarvestedCookie[], allowUnauthorized = false) {
+  constructor(private baseURL: string, cookies: HarvestedCookie[], allowUnauthorized = false, private sapClient?: string) {
     for (const c of cookies) this.jar.set(c.name, c.value);
     this.axiosInstance = axios.create({
       baseURL,
@@ -81,11 +81,16 @@ export class CookieHttpClient {
     // (empty) jar so the harvested SSO session authenticates the call.
     headers['Cookie'] = this.cookieHeader();
 
+    // Pin every call to the configured client: the harvested SSO cookies alone
+    // would land the session in the tenant's default client.
+    const params = { ...(options.qs || {}) };
+    if (this.sapClient && params['sap-client'] === undefined) params['sap-client'] = this.sapClient;
+
     const res = await this.axiosInstance.request({
       url: options.url,
       method: (options.method as any) || 'GET',
       headers,
-      params: options.qs,
+      params,
       data: options.body,
       timeout: options.timeout,
       httpsAgent: options.httpsAgent,

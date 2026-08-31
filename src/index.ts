@@ -256,7 +256,7 @@ export class AbapAdtServer extends Server {
     let cookieClient: CookieHttpClient | undefined;
 
     if (sys.authType === 'sso') {
-      cookieClient = new CookieHttpClient(sys.url, [], !!sys.insecureTls);
+      cookieClient = new CookieHttpClient(sys.url, [], !!sys.insecureTls, client || undefined);
       adtClient = new ADTClient(cookieClient as any, sys.user || 'sso', '', client, language);
     } else if (sys.authType === 'oauth') {
       adtClient = new ADTClient(sys.url, sys.oauth!.clientId || 'oauth', makeBearerFetcher(sys.oauth!), client, language);
