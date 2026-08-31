@@ -111,11 +111,20 @@ export class RenameHandlers extends BaseHandler {
         }
     }
 
+    private parseObjectArg<T>(value: unknown, name: string): T {
+        if (typeof value !== 'string') return value as T;
+        try {
+            return JSON.parse(value) as T;
+        } catch {
+            throw new McpError(ErrorCode.InvalidParams, `Parameter '${name}' is not valid JSON`);
+        }
+    }
+
     async handleRenamePreview(args: any): Promise<any> {
         const startTime = performance.now();
         try {
             const result = await this.adtclient.renamePreview(
-                args.renameRefactoring,
+                this.parseObjectArg(args.renameRefactoring, 'renameRefactoring'),
                 args.transport
             );
             this.trackRequest(startTime, true);
@@ -142,7 +151,7 @@ export class RenameHandlers extends BaseHandler {
     async handleRenameExecute(args: any): Promise<any> {
         const startTime = performance.now();
         try {
-            const result = await this.adtclient.renameExecute(args.refactoring);
+            const result = await this.adtclient.renameExecute(this.parseObjectArg(args.refactoring, 'refactoring'));
             this.trackRequest(startTime, true);
             return {
                 content: [
