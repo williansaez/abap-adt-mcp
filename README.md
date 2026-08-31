@@ -13,6 +13,8 @@ Originally forked from [mario-andreschak/mcp-abap-abap-adt-api](https://github.c
 - **Agent-ready**: the server announces SAP's canonical create/edit workflows via the MCP `instructions` field, tool descriptions cross-reference the right sequence, and every tool carries `readOnlyHint`/`destructiveHint` annotations so hosts can gate approval by risk.
 - **SAP-parity tools**: transport unified diff, RAP generators (`rapGen*`), name-based OData service inspection (`fetchServiceDetails`), ATC quickfix execution (`atcApplyQuickfix`), creatable-type metadata (`creatableTypeDetails`) — mirroring SAP's official ADT MCP Server toolsets.
 - **stdio or HTTP**: stdio by default; set `MCP_HTTP_PORT` for a localhost Streamable HTTP endpoint guarded by a bearer token.
+- **SSO that remembers you**: the browser login window uses a persistent per-host profile (`~/.abap-adt-mcp/sso/<host>`, mode `0700`) — tick "stay signed in" once and later logins are silent. Point `SAP_BROWSER_PROFILE_DIR` at a custom browser profile to reuse saved passwords/passkeys (the browser's default profile is rejected by design).
+- **Tested**: four-layer test plan with results in [docs/TESTPLAN.md](docs/TESTPLAN.md) — offline protocol/config/HTTP suites plus live read and write flows against a real S/4HANA Cloud tenant. The full SAP-doc-based improvement analysis lives in [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md).
 
 ## Prerequisites
 
