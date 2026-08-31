@@ -591,7 +591,11 @@ export class TransportHandlers extends BaseHandler {
     async handleGetTransportConfiguration(args: any): Promise<any> {
         const startTime = performance.now();
         try {
-            const configuration = await this.adtclient.getTransportConfiguration(args.url);
+            // Links returned by transportConfigurations can carry the echoed
+            // sap-client query mid-path (".../configurations?sap-client=NNN/<id>"),
+            // which lands the GET on the list endpoint. Strip it.
+            const url = String(args.url).replace(/\?sap-client=[^/]*(?=\/)/, '');
+            const configuration = await this.adtclient.getTransportConfiguration(url);
             this.trackRequest(startTime, true);
             return {
                 content: [
