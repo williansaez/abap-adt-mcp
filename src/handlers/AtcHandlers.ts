@@ -16,6 +16,44 @@ export class AtcHandlers extends BaseHandler {
                 }
             },
             {
+                name: 'atcQuickfixProposals',
+                description: 'List the quickfix proposals available at an ATC finding location. Pass the source URL and position from an atcWorklists finding. Apply a proposal with atcApplyQuickfix. Read-only.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        objectSourceUrl: {
+                            type: 'string',
+                            description: 'Source URL of the object with the finding, usually the object URL plus /source/main'
+                        },
+                        line: { type: 'number', description: 'Line of the finding (1-based)' },
+                        column: { type: 'number', description: 'Column of the finding (0-based, as reported by ADT)' }
+                    },
+                    required: ['objectSourceUrl', 'line', 'column']
+                }
+            },
+            {
+                name: 'atcApplyQuickfix',
+                description: 'Apply a deterministic quickfix at an ATC finding location: recomputes the proposals (see atcQuickfixProposals), applies the chosen one to the source and writes it back with setObjectSource. Requires the object to be locked (lock returns the lockHandle). Activate afterwards with activateByName and re-run ATC to confirm the finding is gone.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        objectSourceUrl: {
+                            type: 'string',
+                            description: 'Source URL of the object with the finding (object URL plus /source/main)'
+                        },
+                        line: { type: 'number', description: 'Line of the finding (1-based)' },
+                        column: { type: 'number', description: 'Column of the finding (0-based)' },
+                        proposalIndex: {
+                            type: 'number',
+                            description: 'Index of the proposal to apply, from atcQuickfixProposals (default 0)'
+                        },
+                        lockHandle: { type: 'string', description: 'Lock handle from lock' },
+                        transport: { type: 'string', description: 'Transport number for transportable packages', optional: true }
+                    },
+                    required: ['objectSourceUrl', 'line', 'column', 'lockHandle']
+                }
+            },
+            {
                 name: 'atcCheckVariant',
                 description: 'Retrieves information about an ATC check variant.',
                 inputSchema: {
@@ -168,6 +206,10 @@ export class AtcHandlers extends BaseHandler {
 
     async handle(toolName: string, args: any): Promise<any> {
         switch (toolName) {
+            case 'atcQuickfixProposals':
+                return this.handleAtcQuickfixProposals(args);
+            case 'atcApplyQuickfix':
+                return this.handleAtcApplyQuickfix(args);
             case 'atcCustomizing':
                 return this.handleAtcCustomizing(args);
             case 'atcCheckVariant':
@@ -191,6 +233,107 @@ export class AtcHandlers extends BaseHandler {
             default:
                 throw new McpError(ErrorCode.MethodNotFound, `Unknown ATC tool: ${toolName}`);
         }
+    }
+
+    async handleAtcQuickfixProposals(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            const source = await this.adtclient.getObjectSource(args.objectSourceUrl);
+            const proposals = await this.adtclient.fixProposals(args.objectSourceUrl, source, args.line, args.column);
+            this.trackRequest(startTime, true);
+            return {
+                content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                        status: 'success',
+                        proposals: (proposals || []).map((p: any, index: number) => ({
+                            index,
+                            name: p['adtcore:name'],
+                            description: p['adtcore:description'],
+                            type: p['adtcore:type']
+                        }))
+                    })
+                }]
+            };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            throw new McpError(
+                ErrorCode.InternalError,
+                `Failed to get quickfix proposals: ${error.message || 'Unknown error'}`
+            );
+        }
+    }
+
+    async handleAtcApplyQuickfix(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            const source = await this.adtclient.getObjectSource(args.objectSourceUrl);
+            const proposals = await this.adtclient.fixProposals(args.objectSourceUrl, source, args.line, args.column);
+            const index = args.proposalIndex ?? 0;
+            const proposal = (proposals || [])[index];
+            if (!proposal) {
+                throw new McpError(
+                    ErrorCode.InvalidParams,
+                    `No quickfix proposal at index ${index} (found ${proposals?.length || 0}); list them with atcQuickfixProposals`
+                );
+            }
+            const deltas = await this.adtclient.fixEdits(proposal, source);
+            if (!deltas || deltas.length === 0) {
+                throw new McpError(ErrorCode.InternalError, 'Quickfix produced no edits');
+            }
+            // Only apply edits that target the source we fetched; report the rest.
+            const applicable = deltas.filter((d: any) => args.objectSourceUrl.includes(d.uri) || d.uri.includes(args.objectSourceUrl.replace(/\/source\/main.*$/, '')));
+            const foreign = deltas.filter((d: any) => !applicable.includes(d));
+            if (applicable.length === 0) {
+                throw new McpError(
+                    ErrorCode.InternalError,
+                    `Quickfix edits target other objects (${deltas.map((d: any) => d.uri).join(', ')}); apply them manually with setObjectSource`
+                );
+            }
+            const newSource = AtcHandlers.applyDeltas(source, applicable);
+            await this.adtclient.setObjectSource(args.objectSourceUrl, newSource, args.lockHandle, args.transport);
+            this.trackRequest(startTime, true);
+            return {
+                content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                        status: 'success',
+                        applied: { name: proposal['adtcore:name'], description: proposal['adtcore:description'] },
+                        editsApplied: applicable.length,
+                        editsSkipped: foreign.map((d: any) => ({ uri: d.uri, content: d.content })),
+                        message: 'Source updated. Activate with activateByName and re-run ATC to confirm.'
+                    })
+                }]
+            };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
+            throw new McpError(
+                ErrorCode.InternalError,
+                `Failed to apply quickfix: ${error.message || 'Unknown error'}`
+            );
+        }
+    }
+
+    /** Apply ADT deltas (1-based lines, 0-based columns) to a source string. */
+    private static applyDeltas(source: string, deltas: any[]): string {
+        const lines = source.split('\n');
+        const offsetOf = (line: number, column: number) => {
+            let off = 0;
+            for (let i = 0; i < line - 1 && i < lines.length; i++) off += lines[i].length + 1;
+            return off + column;
+        };
+        // Apply bottom-up so earlier offsets stay valid.
+        const sorted = [...deltas].sort((a, b) =>
+            offsetOf(b.range.start.line, b.range.start.column) - offsetOf(a.range.start.line, a.range.start.column)
+        );
+        let result = source;
+        for (const d of sorted) {
+            const start = offsetOf(d.range.start.line, d.range.start.column);
+            const end = offsetOf(d.range.end.line, d.range.end.column);
+            result = result.slice(0, start) + d.content + result.slice(end);
+        }
+        return result;
     }
 
     async handleAtcCustomizing(args: any): Promise<any> {

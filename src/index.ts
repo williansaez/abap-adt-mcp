@@ -111,7 +111,7 @@ const TOOL_ROUTES: Record<keyof HandlerSet, string[]> = {
   objectSource: ['getObjectSource', 'setObjectSource'],
   objectDeletion: ['deleteObject'],
   objectManagement: ['activateObjects', 'activateByName', 'inactiveObjects'],
-  objectRegistration: ['objectRegistrationInfo', 'validateNewObject', 'createObject'],
+  objectRegistration: ['objectRegistrationInfo', 'validateNewObject', 'createObject', 'creatableTypeDetails'],
   node: ['nodeContents', 'mainPrograms'],
   discovery: ['featureDetails', 'collectionFeatureDetails', 'findCollectionByUrl', 'loadTypes',
     'adtDiscovery', 'adtCoreDiscovery', 'adtCompatibiliyGraph'],
@@ -120,7 +120,7 @@ const TOOL_ROUTES: Record<keyof HandlerSet, string[]> = {
   git: ['gitRepos', 'gitExternalRepoInfo', 'gitCreateRepo', 'gitPullRepo', 'gitUnlinkRepo', 'stageRepo',
     'pushRepo', 'checkRepo', 'remoteRepoInfo', 'switchRepoBranch'],
   ddic: ['annotationDefinitions', 'ddicElement', 'ddicRepositoryAccess', 'packageSearchHelp'],
-  serviceBinding: ['publishServiceBinding', 'unPublishServiceBinding', 'bindingDetails'],
+  serviceBinding: ['publishServiceBinding', 'unPublishServiceBinding', 'bindingDetails', 'fetchServiceDetails'],
   query: ['tableContents', 'runQuery'],
   feed: ['feeds', 'dumps'],
   debug: ['debuggerListeners', 'debuggerListen', 'debuggerDeleteListener', 'debuggerSetBreakpoints',
@@ -129,7 +129,8 @@ const TOOL_ROUTES: Record<keyof HandlerSet, string[]> = {
     'debuggerSetVariableValue'],
   rename: ['renameEvaluate', 'renamePreview', 'renameExecute'],
   atc: ['atcCustomizing', 'atcCheckVariant', 'createAtcRun', 'atcWorklists', 'atcUsers',
-    'atcExemptProposal', 'atcRequestExemption', 'isProposalMessage', 'atcContactUri', 'atcChangeContact'],
+    'atcExemptProposal', 'atcRequestExemption', 'isProposalMessage', 'atcContactUri', 'atcChangeContact',
+    'atcQuickfixProposals', 'atcApplyQuickfix'],
   trace: ['tracesList', 'tracesListRequests', 'tracesHitList', 'tracesDbAccess', 'tracesStatements',
     'tracesSetParameters', 'tracesCreateConfiguration', 'tracesDeleteConfiguration', 'tracesDelete'],
   refactor: ['extractMethodEvaluate', 'extractMethodPreview', 'extractMethodExecute'],
@@ -149,7 +150,7 @@ const READ_ONLY_TOOLS = new Set([
   // object / class / source
   'objectStructure', 'searchObject', 'findObjectPath', 'objectTypes', 'reentranceTicket',
   'classIncludes', 'classComponents', 'getObjectSource', 'inactiveObjects', 'objectRegistrationInfo',
-  'validateNewObject',
+  'validateNewObject', 'creatableTypeDetails',
   // code analysis
   'syntaxCheckCode', 'syntaxCheckCdsUrl', 'codeCompletion', 'findDefinition', 'usageReferences',
   'syntaxCheckTypes', 'codeCompletionFull', 'codeCompletionElement', 'usageReferenceSnippets',
@@ -163,13 +164,14 @@ const READ_ONLY_TOOLS = new Set([
   'gitRepos', 'gitExternalRepoInfo', 'checkRepo', 'remoteRepoInfo',
   // ddic / services / data
   'annotationDefinitions', 'ddicElement', 'ddicRepositoryAccess', 'packageSearchHelp',
-  'bindingDetails', 'tableContents', 'runQuery', 'feeds', 'dumps',
+  'bindingDetails', 'fetchServiceDetails', 'tableContents', 'runQuery', 'feeds', 'dumps',
   // debug reads
   'debuggerListeners', 'debuggerStackTrace', 'debuggerVariables', 'debuggerChildVariables',
   // refactoring previews
   'renameEvaluate', 'renamePreview', 'extractMethodEvaluate', 'extractMethodPreview',
   // atc reads
   'atcCustomizing', 'atcCheckVariant', 'atcWorklists', 'atcUsers', 'isProposalMessage', 'atcContactUri',
+  'atcQuickfixProposals',
   // traces reads
   'tracesList', 'tracesListRequests', 'tracesHitList', 'tracesDbAccess', 'tracesStatements',
   // misc
@@ -178,7 +180,7 @@ const READ_ONLY_TOOLS = new Set([
 ]);
 
 const DESTRUCTIVE_TOOLS = new Set([
-  'deleteObject', 'transportDelete', 'transportRelease', 'setObjectSource', 'gitUnlinkRepo',
+  'deleteObject', 'transportDelete', 'transportRelease', 'setObjectSource', 'atcApplyQuickfix', 'gitUnlinkRepo',
   'pushRepo', 'runClass', 'renameExecute', 'extractMethodExecute', 'debuggerSetVariableValue',
   'tracesDelete', 'tracesDeleteConfiguration', 'unPublishServiceBinding', 'dropSession',
 ]);

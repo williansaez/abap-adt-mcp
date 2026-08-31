@@ -1,6 +1,7 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler';
 import type { ToolDefinition } from '../types/tools';
+import { CreatableTypes } from 'abap-adt-api';
 
 export class ObjectRegistrationHandlers extends BaseHandler {
   getTools(): ToolDefinition[] {
@@ -14,6 +15,16 @@ export class ObjectRegistrationHandlers extends BaseHandler {
             objectUrl: { type: 'string' }
           },
           required: ['objectUrl']
+        }
+      },
+      {
+        name: 'creatableTypeDetails',
+        description: 'List the object types createObject supports, with per-type required fields, label and max name length (SAP-style get_object_type_details). Filter with typeId. For the system-reported creatable catalog see loadTypes.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            typeId: { type: 'string', description: 'Optional type id filter, e.g. CLAS/OC', optional: true }
+          }
         }
       },
       {
@@ -55,6 +66,8 @@ export class ObjectRegistrationHandlers extends BaseHandler {
     switch (toolName) {
       case 'objectRegistrationInfo':
         return this.handleObjectRegistrationInfo(args);
+      case 'creatableTypeDetails':
+        return this.handleCreatableTypeDetails(args);
       case 'validateNewObject':
         return this.handleValidateNewObject(args);
       case 'createObject':
@@ -85,6 +98,30 @@ export class ObjectRegistrationHandlers extends BaseHandler {
         `Failed to get registration info: ${error.message || 'Unknown error'}`
       );
     }
+  }
+
+  handleCreatableTypeDetails(args: any): any {
+    const requiredFieldsFor = (typeId: string): string[] => {
+      const base = ['objtype', 'objname', 'description'];
+      if (typeId === 'DEVC/K') return [...base, 'packagename', 'swcomp', 'transportLayer', 'packagetype'];
+      if (typeId === 'FUGR/FF' || typeId === 'FUGR/I') return [...base, 'fugrname'];
+      if (typeId === 'SRVB/SVB') return [...base, 'package', 'serviceDefinition', 'serviceBindingVersion'];
+      return [...base, 'packagename'];
+    };
+    let types = [...CreatableTypes.values()].map((t: any) => ({
+      typeId: t.typeId,
+      label: t.label,
+      maxNameLength: t.maxLen,
+      requiredValidationFields: requiredFieldsFor(t.typeId),
+      createWith: 'createObject (objtype, name, parentName=package, description, parentPath)'
+    }));
+    if (args.typeId) types = types.filter((t) => t.typeId === args.typeId);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({ status: 'success', types })
+      }]
+    };
   }
 
   async handleValidateNewObject(args: any): Promise<any> {
