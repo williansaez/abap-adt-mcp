@@ -52,13 +52,31 @@ export async function browserLogin(
 ): Promise<HarvestedCookie[]> {
   const host = new URL(sapUrl).host;
   const executablePath = detectBrowser();
-  // Dedicated profile per host so "keep me signed in" persists across restarts
-  // without touching the user's own browser profile. Lives under the user's home
-  // (not tmp) with 0700 perms: the profile holds long-lived IdP session cookies.
-  const userDataDir = path.join(os.homedir(), '.abap-adt-mcp', 'sso', host);
-  fs.mkdirSync(userDataDir, { recursive: true, mode: 0o700 });
-  fs.chmodSync(path.dirname(userDataDir), 0o700);
-  fs.chmodSync(userDataDir, 0o700);
+  // Profile for the login window. Default: a dedicated persistent profile per
+  // host, so "keep me signed in" survives restarts without touching the user's
+  // own browser profile. SAP_BROWSER_PROFILE_DIR overrides it with a custom
+  // profile directory (e.g. a separate Chrome profile kept for SAP work, with
+  // saved passwords/passkeys). The browser's own DEFAULT profile cannot be used:
+  // Chrome 136+ refuses DevTools automation on it, it is locked while the
+  // browser is open, and the CDP session would expose cookies of every site in
+  // it — a dedicated directory keeps the blast radius to SAP/IdP cookies only.
+  let userDataDir = process.env.SAP_BROWSER_PROFILE_DIR;
+  if (userDataDir) {
+    const chromeDefault = path.join(os.homedir(), 'Library', 'Application Support', 'Google', 'Chrome');
+    if (path.resolve(userDataDir) === chromeDefault) {
+      throw new Error(
+        'SAP_BROWSER_PROFILE_DIR must not point at the browser\'s default profile directory: ' +
+        'Chrome blocks automation on it and the login window would expose all its cookies. ' +
+        'Use a dedicated profile directory instead.'
+      );
+    }
+    fs.mkdirSync(userDataDir, { recursive: true });
+  } else {
+    userDataDir = path.join(os.homedir(), '.abap-adt-mcp', 'sso', host);
+    fs.mkdirSync(userDataDir, { recursive: true, mode: 0o700 });
+    fs.chmodSync(path.dirname(userDataDir), 0o700);
+    fs.chmodSync(userDataDir, 0o700);
+  }
 
   const browser = await puppeteer.launch({
     executablePath,

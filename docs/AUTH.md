@@ -56,6 +56,13 @@ Requirements & behaviour:
 - A local **Chromium browser** (Chrome, Edge, or Brave) must be installed. Paths are
   auto-detected on macOS; override with `SAP_BROWSER_PATH`. Driven via `puppeteer-core`
   (no browser is downloaded).
+- The login window is **not incognito**: it uses a dedicated persistent profile per
+  host (`~/.abap-adt-mcp/sso/<host>`), so ticking "stay signed in" at the IdP makes
+  subsequent logins silent. It only *looks* empty on first use. To reuse a custom
+  browser profile (e.g. a separate Chrome profile with saved SAP passwords/passkeys),
+  set `SAP_BROWSER_PROFILE_DIR` to its directory. The browser's *default* profile is
+  rejected on purpose: Chrome 136+ blocks automation on it, it is locked while your
+  browser is open, and the cookie harvest would see every site's cookies in it.
 - Login is triggered by the `login` tool, and automatically before the first call.
   When the session expires, run `login` again.
 - The session cookie (`SAP_SESSIONID_*` / `MYSAPSSO2`) is HttpOnly and is read over
