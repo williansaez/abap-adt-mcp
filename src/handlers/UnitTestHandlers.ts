@@ -133,7 +133,21 @@ export class UnitTestHandlers extends BaseHandler {
         const startTime = performance.now();
         try {
             const evalFlags = typeof args.flags === 'string' ? JSON.parse(args.flags) : args.flags;
-            const result = await this.adtclient.unitTestEvaluation(args.clas, evalFlags);
+            // unitTestEvaluation needs a UnitTestClass object from unitTestRun;
+            // when given a class name, run the tests first and evaluate the
+            // first test class of the result.
+            let testClass = args.clas;
+            if (typeof testClass === 'string') {
+                const runUrl = testClass.startsWith('/')
+                    ? testClass
+                    : `/sap/bc/adt/oo/classes/${encodeURIComponent(testClass.toLowerCase())}`;
+                const run = await this.adtclient.unitTestRun(runUrl, evalFlags);
+                if (!run || run.length === 0) {
+                    throw new McpError(ErrorCode.InvalidParams, `No test classes found for '${args.clas}' (unitTestRun returned no results)`);
+                }
+                testClass = run[0];
+            }
+            const result = await this.adtclient.unitTestEvaluation(testClass, evalFlags);
             this.trackRequest(startTime, true);
             return {
                 content: [
