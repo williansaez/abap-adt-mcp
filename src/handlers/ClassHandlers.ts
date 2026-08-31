@@ -51,7 +51,12 @@ export class ClassHandlers extends BaseHandler {
     async handleClassIncludes(args: any): Promise<any> {
         const startTime = performance.now();
         try {
-            const result = await ADTClient.classIncludes(args.clas);
+            // ADTClient.classIncludes is static and expects the parsed class
+            // structure, not the class name: fetch the structure first.
+            const objectUrl = `/sap/bc/adt/oo/classes/${encodeURIComponent(String(args.clas).toLowerCase())}`;
+            const structure = await this.adtclient.objectStructure(objectUrl);
+            const includesMap = ADTClient.classIncludes(structure as any);
+            const result = Object.fromEntries(includesMap);
             this.trackRequest(startTime, true);
             return {
                 content: [
