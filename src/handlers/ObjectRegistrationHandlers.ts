@@ -37,7 +37,10 @@ export class ObjectRegistrationHandlers extends BaseHandler {
             objname: { type: 'string', description: 'Name of the object to create' },
             description: { type: 'string', description: 'Object description' },
             packagename: { type: 'string', description: 'Target ABAP package (required for most object types; use $TMP for local objects)' },
-            fugrname: { type: 'string', description: 'Function group name (only for function group members like FUGR/FF)' }
+            fugrname: { type: 'string', description: 'Function group name (only for function group members like FUGR/FF)' },
+            swcomp: { type: 'string', description: 'Software component (DEVC/K only), e.g. HOME or ZLOCAL' },
+            transportLayer: { type: 'string', description: 'Transport layer (DEVC/K only); empty for local/cloud packages' },
+            packagetype: { type: 'string', description: 'Package type (DEVC/K only): development, structure or main' }
           },
           required: ['objtype', 'objname', 'description']
         }
@@ -54,7 +57,12 @@ export class ObjectRegistrationHandlers extends BaseHandler {
             description: { type: 'string' },
             parentPath: { type: 'string', description: 'ADT path of the parent, e.g. /sap/bc/adt/packages/$TMP' },
             responsible: { type: 'string', optional: true },
-            transport: { type: 'string', optional: true, description: 'Transport request number; required for objects in transportable (non-$TMP) packages. Create one with createTransport' }
+            transport: { type: 'string', optional: true, description: 'Transport request number; required for objects in transportable (non-$TMP) packages. Create one with createTransport' },
+            swcomp: { type: 'string', optional: true, description: 'Software component; required when objtype is DEVC/K (e.g. HOME, ZLOCAL, ZCUSTOM_DEVELOPMENT)' },
+            transportLayer: { type: 'string', optional: true, description: 'Transport layer for DEVC/K (e.g. YDEV); omit or empty for local packages' },
+            packagetype: { type: 'string', optional: true, description: 'Package type for DEVC/K: development (default), structure or main' },
+            recordChanges: { type: 'boolean', optional: true, description: 'DEVC/K only: record changes in transport requests (default true when a transportLayer is given; cloud systems require it)' },
+            abapLanguageVersion: { type: 'string', optional: true, description: 'DEVC/K only: ABAP language version attribute, e.g. 5 = ABAP for Cloud Development. Omit to let the system decide' }
           },
           required: ['objtype', 'name', 'parentName', 'description', 'parentPath']
         }
@@ -113,7 +121,9 @@ export class ObjectRegistrationHandlers extends BaseHandler {
       label: t.label,
       maxNameLength: t.maxLen,
       requiredValidationFields: requiredFieldsFor(t.typeId),
-      createWith: 'createObject (objtype, name, parentName=package, description, parentPath)'
+      createWith: t.typeId === 'DEVC/K'
+        ? 'createObject (objtype, name, parentName=superpackage, description, parentPath, swcomp, transportLayer?, packagetype?)'
+        : 'createObject (objtype, name, parentName=package, description, parentPath)'
     }));
     if (args.typeId) types = types.filter((t) => t.typeId === args.typeId);
     return {
@@ -139,7 +149,7 @@ export class ObjectRegistrationHandlers extends BaseHandler {
           );
         }
       }
-      const { objtype, objname, description, packagename, fugrname } = options;
+      const { objtype, objname, description, packagename, fugrname, swcomp, transportLayer, packagetype } = options;
       if (!objtype || !objname || !description) {
         throw new McpError(
           ErrorCode.InvalidParams,
@@ -151,7 +161,12 @@ export class ObjectRegistrationHandlers extends BaseHandler {
         objname,
         description,
         ...(packagename ? { packagename } : {}),
-        ...(fugrname ? { fugrname } : {})
+        ...(fugrname ? { fugrname } : {}),
+        ...(objtype === 'DEVC/K' ? {
+          swcomp: swcomp ?? '',
+          transportLayer: transportLayer ?? '',
+          packagetype: packagetype ?? 'development'
+        } : {})
       } as any);
       this.trackRequest(startTime, true);
       return {
@@ -173,18 +188,75 @@ export class ObjectRegistrationHandlers extends BaseHandler {
     }
   }
 
-  async handleCreateObject(args: any): Promise<any> {    
+  /**
+   * Create a DEVC/K package with a hand-built ADT body. abap-adt-api's own
+   * package body omits pak:recordChanges, which transportable packages on
+   * S/4HANA Cloud reject ("Change recording must be activated").
+   */
+  private async createPackage(args: any): Promise<void> {
+    const xmlEsc = (s: string) => String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+    const h = (this.adtclient as any).httpClient;
+    // Only args.responsible: the SSO flow logs in with a placeholder username
+    // ("sso"), which SAP rejects as the person responsible; omitting the
+    // attribute makes the backend default to the actual session user.
+    const responsible = (args.responsible || '').toUpperCase();
+    const recordChanges = args.recordChanges ?? !!args.transportLayer;
+    const attrs = [
+      `pak:packageType="${xmlEsc(args.packagetype ?? 'development')}"`,
+      `pak:recordChanges="${recordChanges ? 'true' : 'false'}"`,
+      ...(args.abapLanguageVersion ? [`pak:languageVersion="${xmlEsc(args.abapLanguageVersion)}"`] : [])
+    ].join(' ');
+    const body = `<?xml version="1.0" encoding="UTF-8"?>
+<pak:package xmlns:pak="http://www.sap.com/adt/packages" xmlns:adtcore="http://www.sap.com/adt/core"
+ adtcore:description="${xmlEsc(args.description)}" adtcore:name="${xmlEsc(args.name)}"
+ adtcore:type="DEVC/K" adtcore:version="active"${responsible ? ` adtcore:responsible="${xmlEsc(responsible)}"` : ''}>
+<pak:attributes ${attrs}/>
+<pak:superPackage${args.parentName ? ` adtcore:name="${xmlEsc(args.parentName)}"` : ''}/>
+<pak:applicationComponent/>
+<pak:transport>
+ <pak:softwareComponent pak:name="${xmlEsc(args.swcomp)}"/>
+ <pak:transportLayer pak:name="${xmlEsc(args.transportLayer ?? '')}"/>
+</pak:transport>
+<pak:translation/>
+<pak:useAccesses/>
+<pak:packageInterfaces/>
+<pak:subPackages/>
+</pak:package>`;
+    const qs: Record<string, string> = {};
+    if (args.transport) qs.corrNr = args.transport;
+    await h.request('/sap/bc/adt/packages', {
+      body,
+      headers: { 'Content-Type': 'application/*' },
+      method: 'POST',
+      qs
+    });
+  }
+
+  async handleCreateObject(args: any): Promise<any> {
     const startTime = performance.now();
     try {
-      const result = await this.adtclient.createObject(
-        args.objtype,
-        args.name,
-        args.parentName,
-        args.description,
-        args.parentPath,
-        args.responsible,
-        args.transport
-      );
+      let result;
+      if (args.objtype === 'DEVC/K') {
+        if (!args.swcomp) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            'createObject for DEVC/K (package) requires swcomp (software component, e.g. HOME or ZLOCAL); transportLayer and packagetype are optional (defaults: empty transport layer, packagetype development)'
+          );
+        }
+        result = await this.createPackage(args);
+      } else {
+        result = await this.adtclient.createObject(
+          args.objtype,
+          args.name,
+          args.parentName,
+          args.description,
+          args.parentPath,
+          args.responsible,
+          args.transport
+        );
+      }
       this.trackRequest(startTime, true);
       return {
         content: [{
@@ -197,6 +269,7 @@ export class ObjectRegistrationHandlers extends BaseHandler {
       };
     } catch (error: any) {
       this.trackRequest(startTime, false);
+      if (error instanceof McpError) throw error;
       throw new McpError(
         ErrorCode.InternalError,
         `Failed to create object: ${error.message || 'Unknown error'}`
