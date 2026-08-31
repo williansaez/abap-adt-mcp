@@ -69,13 +69,13 @@ export class AtcHandlers extends BaseHandler {
             },
             {
                 name: 'createAtcRun',
-                description: 'Creates an ATC run.',
+                description: 'Creates an ATC run. Flow: atcCustomizing (system check variant name) -> atcCheckVariant (returns a worklistId) -> createAtcRun -> atcWorklists (findings). Passing a check variant NAME here also works: it is resolved to a worklistId via atcCheckVariant automatically.',
                 inputSchema: {
                     type: 'object',
                     properties: {
                         variant: {
                             type: 'string',
-                            description: 'The name of the ATC check variant.'
+                            description: 'Worklist id returned by atcCheckVariant (32-char hex). A check variant name (e.g. ABAP_CLOUD_DEVELOPMENT_DEFAULT) is accepted and resolved automatically.'
                         },
                         mainUrl: {
                             type: 'string',
@@ -389,7 +389,13 @@ export class AtcHandlers extends BaseHandler {
     async handleCreateAtcRun(args: { variant: string, mainUrl: string, maxResults?: number }): Promise<any> {
         const startTime = performance.now();
         try {
-            const result = await this.adtclient.createAtcRun(args.variant, args.mainUrl, args.maxResults);
+            // The backend wants a worklist id; resolve a check variant NAME
+            // (anything that is not a 32-char hex id) via atcCheckVariant first.
+            let worklistId = args.variant;
+            if (!/^[0-9A-Fa-f]{32}$/.test(worklistId)) {
+                worklistId = await this.adtclient.atcCheckVariant(args.variant);
+            }
+            const result = await this.adtclient.createAtcRun(worklistId, args.mainUrl, args.maxResults);
             this.trackRequest(startTime, true);
             return {
                 content: [
