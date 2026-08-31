@@ -165,7 +165,36 @@ export class ServiceBindingHandlers extends BaseHandler {
                 }
             });
             const binding: ServiceBinding = parseServiceBinding(resp.body as string);
-            const details = await this.adtclient.bindingDetails(binding, args.index);
+            const bindingSummary = {
+                name: binding.name,
+                published: binding.published,
+                type: binding.binding?.type,
+                version: binding.binding?.version,
+                services: binding.services
+            };
+            // bindingDetails indexes into the binding's service queries and throws
+            // when the library cannot derive them (seen with OData V4 bindings) —
+            // degrade to the binding summary instead of failing the whole call.
+            let details: any;
+            try {
+                if (!binding.services || binding.services.length === 0) {
+                    throw new Error('no service entries parsed from binding');
+                }
+                details = await this.adtclient.bindingDetails(binding, args.index);
+            } catch (detailErr: any) {
+                this.trackRequest(startTime, true);
+                return {
+                    content: [{
+                        type: 'text',
+                        text: JSON.stringify({
+                            status: 'success',
+                            binding: bindingSummary,
+                            details: null,
+                            note: `Binding resolved but service details are unavailable (${detailErr.message}); this can happen with OData V4 bindings not fully supported by abap-adt-api`
+                        })
+                    }]
+                };
+            }
             // Enrich each service's entity sets with a ready-to-open preview URL.
             const services = (details.services || []).map((service: any) => ({
                 ...service,
@@ -180,13 +209,7 @@ export class ServiceBindingHandlers extends BaseHandler {
                     type: 'text',
                     text: JSON.stringify({
                         status: 'success',
-                        binding: {
-                            name: binding.name,
-                            published: binding.published,
-                            type: binding.binding?.type,
-                            version: binding.binding?.version,
-                            services: binding.services
-                        },
+                        binding: bindingSummary,
                         details: { ...details, services }
                     })
                 }]

@@ -54,7 +54,8 @@ export class AuthHandlers extends BaseHandler {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(loginResult)
+            // login() can resolve with no value; JSON.stringify(undefined) is not a string
+            text: JSON.stringify({ status: 'success', result: loginResult ?? null })
           }
         ]
       };
