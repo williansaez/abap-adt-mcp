@@ -116,7 +116,7 @@ transport release; no deletions of pre-existing objects.
 | 0 | **passed** (3/3) — 2026-08-31 |
 | 1 | **passed** (23/23) — 2026-08-31 |
 | 2 | **passed** (9/10, 1 skip) against DEV — 2026-08-31. Skipped: 2.6 (tenant had no open transport on the sampled Z object; re-run with a known transport number). Notes: 2.9 ATC run id not parsed from createAtcRun result (worklist step untested); 2.10 cloud tenants redirect basic auth to IAS instead of 401, so the redaction check reduces to "no credential material in responses" (full redaction is unit-tested in 1.21) |
-| 3 | pending — needs explicit go-ahead (writes in $TMP) |
+| 3 | **blocked by authorization** on DEV — 2026-08-31. `createObject` correctly surfaced SAP's own error: "You are not authorized to make changes (authorization object S_DEVELOP)" — the SSO business user lacks developer authorization in the ADT client (see the client note in AUTH.md: the SSO session lands on the tenant's logon client, which may not be the developer-extensibility client). 3.3/3.4 cascade from the missing object; 3.5 skipped (rapGen unavailable on tenant). The server-side error path behaved correctly. Re-run after assigning the user a developer business role in the dev client, or against a tenant where the user can develop. Independent finding fixed: `syntaxCheckCode` failed with "mainUrl and content are required" when `mainUrl` was omitted — handler now defaults mainUrl to the object URL (verified live) |
 | 4 | pending — needs Desktop restart |
 
 Bugs found by this plan and fixed during execution:

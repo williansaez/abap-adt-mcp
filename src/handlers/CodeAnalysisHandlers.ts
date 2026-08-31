@@ -275,7 +275,9 @@ export class CodeAnalysisHandlers extends BaseHandler {
 
         const startTime = performance.now();
         try {
-            const result = await this.adtclient.syntaxCheck(args.url, args?.mainUrl, code, args?.mainProgram, args?.version);
+            // The library's 5-arg overload requires mainUrl; for standalone sources
+            // the object's own URL is the correct main context.
+            const result = await this.adtclient.syntaxCheck(args.url, args?.mainUrl || args.url, code, args?.mainProgram, args?.version);
             this.trackRequest(startTime, true);
             return {
                 content: [
