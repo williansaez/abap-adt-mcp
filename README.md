@@ -71,25 +71,33 @@ The server listens on `http://127.0.0.1:2236/mcp` (loopback only) and requires `
 }
 ```
 
-## Tool catalog (by domain)
+## Tool catalog (all 142 tools, by domain)
+
+The complete per-tool reference — description, parameters, and read-only/destructive annotations for every tool — lives in [docs/TOOLS.md](docs/TOOLS.md), generated from the server's live `tools/list` response.
+
+**How to use the tools**: every tool (except `listSystems`/`healthcheck`) accepts an optional `destination` parameter naming the configured system; without it the default destination is used. A typical session: `listSystems` → `searchObject` to find an object → `getObjectSource` to read it → (`lock` → `setObjectSource` → `unLock` → `activateObjects`) to change it, with `transportInfo`/`createTransport` when a transport is required. The server also announces these canonical workflows to MCP hosts via its `instructions` field.
 
 | Domain | Tools |
 |---|---|
-| Destinations | `listSystems`, `healthcheck` |
-| Auth/session | `login`, `logout`, `dropSession` |
-| Discovery | `loadTypes`, `objectTypes`, `creatableTypeDetails`, `adtDiscovery`, `adtCoreDiscovery`, `adtCompatibilityGraph`, `featureDetails`, ... |
-| Objects | `searchObject`, `objectStructure`, `findObjectPath`, `nodeContents`, `mainPrograms`, `classIncludes`, `classComponents` |
-| Create | `validateNewObject`, `createObject`, `createTestInclude` |
-| Source | `getObjectSource`, `setObjectSource`, `lock`, `unLock`, `prettyPrinter`, `revisions` |
-| Activation | `activateObjects`, `activateByName`, `inactiveObjects` |
-| Transports | `transportInfo`, `createTransport`, `transportDetails`, `transportUnifiedDiff`, `userTransports`, `transportRelease`, ... |
-| Checks & tests | `syntaxCheckCode`, `unitTestRun`, `createAtcRun`, `atcWorklists`, `atcQuickfixProposals`, `atcApplyQuickfix`, ... |
-| RAP generation | `rapGenIsAvailable`, `rapGenGetSchema`, `rapGenGetContent`, `rapGenValidateContent`, `rapGenPreview`, `rapGenGenerate`, `rapGenPublishService` |
-| Business services | `fetchServiceDetails`, `bindingDetails`, `publishServiceBinding`, `unPublishServiceBinding` |
-| Refactoring | `renameEvaluate/Preview/Execute`, `extractMethodEvaluate/Preview/Execute`, `fixProposals`, `fixEdits` |
-| Data | `tableContents`, `runQuery`, `ddicElement`, `ddicRepositoryAccess` |
-| abapGit | `gitRepos`, `gitCreateRepo`, `gitPullRepo`, `stageRepo`, `pushRepo`, ... |
-| Debug & traces | `debugger*` (13 tools), `traces*` (9 tools), `dumps`, `feeds` |
+| Destinations & health (2) | `listSystems`, `healthcheck` |
+| Auth & session (4) | `login`, `logout`, `dropSession`, `reentranceTicket` (disabled by default) |
+| Discovery & metadata (13) | `loadTypes`, `objectTypes`, `creatableTypeDetails`, `adtDiscovery`, `adtCoreDiscovery`, `adtCompatibilityGraph`, `featureDetails`, `collectionFeatureDetails`, `findCollectionByUrl`, `objectRegistrationInfo`, `feeds`, `dumps`, `systemUsers` |
+| Object navigation (9) | `searchObject`, `objectStructure`, `findObjectPath`, `nodeContents`, `mainPrograms`, `classIncludes`, `classComponents`, `packageSearchHelp`, `annotationDefinitions` |
+| Create & delete (4) | `validateNewObject`, `createObject`, `createTestInclude`, `deleteObject` |
+| Source code (8) | `getObjectSource`, `setObjectSource`, `lock`, `unLock`, `prettyPrinter`, `prettyPrinterSetting`, `setPrettyPrinterSetting`, `revisions` |
+| Activation (3) | `activateObjects`, `activateByName`, `inactiveObjects` |
+| Transports (16) | `transportInfo`, `createTransport`, `transportDetails`, `transportUnifiedDiff`, `userTransports`, `transportsByConfig`, `transportRelease`, `transportDelete`, `transportAddUser`, `transportSetOwner`, `transportReference`, `transportConfigurations`, `getTransportConfiguration`, `setTransportsConfig`, `createTransportsConfig`, `hasTransportConfig` |
+| Syntax & code analysis (13) | `syntaxCheckCode`, `syntaxCheckCdsUrl`, `syntaxCheckTypes`, `codeCompletion`, `codeCompletionFull`, `codeCompletionElement`, `findDefinition`, `usageReferences`, `usageReferenceSnippets`, `fixProposals`, `fixEdits`, `fragmentMappings`, `abapDocumentation` |
+| Unit tests (3) | `unitTestRun`, `unitTestEvaluation`, `unitTestOccurrenceMarkers` |
+| ATC (12) | `atcCustomizing`, `atcCheckVariant`, `createAtcRun`, `atcWorklists`, `atcUsers`, `atcExemptProposal`, `atcRequestExemption`, `isProposalMessage`, `atcContactUri`, `atcChangeContact`, `atcQuickfixProposals`, `atcApplyQuickfix` |
+| RAP generation (8) | `rapGenIsAvailable`, `rapGenGetSchema`, `rapGenGetContent`, `rapGenValidateInitial`, `rapGenValidateContent`, `rapGenPreview`, `rapGenGenerate`, `rapGenPublishService` |
+| Business services (4) | `fetchServiceDetails`, `bindingDetails`, `publishServiceBinding`, `unPublishServiceBinding` |
+| Refactoring (6) | `renameEvaluate`, `renamePreview`, `renameExecute`, `extractMethodEvaluate`, `extractMethodPreview`, `extractMethodExecute` |
+| Data access (4) | `tableContents`, `runQuery`, `ddicElement`, `ddicRepositoryAccess` |
+| Run & execute (1) | `runClass` |
+| abapGit (10) | `gitRepos`, `gitCreateRepo`, `gitPullRepo`, `gitUnlinkRepo`, `checkRepo`, `pushRepo`, `stageRepo`, `switchRepoBranch`, `remoteRepoInfo`, `gitExternalRepoInfo` |
+| Debugger (13) | `debuggerListen`, `debuggerListeners`, `debuggerDeleteListener`, `debuggerSetBreakpoints`, `debuggerDeleteBreakpoints`, `debuggerAttach`, `debuggerSaveSettings`, `debuggerStackTrace`, `debuggerVariables`, `debuggerChildVariables`, `debuggerStep`, `debuggerGoToStack`, `debuggerSetVariableValue` |
+| Traces (9) | `tracesList`, `tracesListRequests`, `tracesHitList`, `tracesDbAccess`, `tracesStatements`, `tracesSetParameters`, `tracesCreateConfiguration`, `tracesDeleteConfiguration`, `tracesDelete` |
 
 ## Build from source
 
