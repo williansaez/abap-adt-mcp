@@ -99,7 +99,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
                         source: { type: 'string' },
                         line: { type: 'number' },
                         column: { type: 'number' },
-                        patternKey: { type: 'string' }
+                        patternKey: { type: 'string', description: 'IDENTIFIER of a completion proposal previously returned by codeCompletion at the same position (the insertion endpoint completes that proposal); arbitrary values raise an exception' }
                     },
                     required: ['sourceUrl', 'source', 'line', 'column', 'patternKey']
                 }
