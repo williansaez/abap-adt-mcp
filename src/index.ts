@@ -11,6 +11,10 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { ADTClient, session_types } from "abap-adt-api";
 import path from 'path';
+import { makeBearerFetcher } from './lib/oauth.js';
+import { CookieHttpClient } from './lib/cookieHttpClient.js';
+import { browserLogin } from './lib/browserLogin.js';
+import { readSystems, defaultDestination, SystemConfig } from './lib/systems.js';
 import { AuthHandlers } from './handlers/AuthHandlers.js';
 import { TransportHandlers } from './handlers/TransportHandlers.js';
 import { ObjectHandlers } from './handlers/ObjectHandlers.js';
@@ -39,100 +43,189 @@ import { RevisionHandlers } from './handlers/RevisionHandlers.js';
 
 config({ path: path.resolve(__dirname, '../.env') });
 
+/** All per-domain handlers, one set bound to a single system's ADTClient. */
+interface HandlerSet {
+  auth: AuthHandlers;
+  transport: TransportHandlers;
+  object: ObjectHandlers;
+  class: ClassHandlers;
+  codeAnalysis: CodeAnalysisHandlers;
+  objectLock: ObjectLockHandlers;
+  objectSource: ObjectSourceHandlers;
+  objectDeletion: ObjectDeletionHandlers;
+  objectManagement: ObjectManagementHandlers;
+  objectRegistration: ObjectRegistrationHandlers;
+  node: NodeHandlers;
+  discovery: DiscoveryHandlers;
+  unitTest: UnitTestHandlers;
+  prettyPrinter: PrettyPrinterHandlers;
+  git: GitHandlers;
+  ddic: DdicHandlers;
+  serviceBinding: ServiceBindingHandlers;
+  query: QueryHandlers;
+  feed: FeedHandlers;
+  debug: DebugHandlers;
+  rename: RenameHandlers;
+  atc: AtcHandlers;
+  trace: TraceHandlers;
+  refactor: RefactorHandlers;
+  revision: RevisionHandlers;
+}
+
+/** A live, per-destination connection: its client, handlers and login state. */
+interface Destination {
+  system: SystemConfig;
+  adtClient: ADTClient;
+  cookieClient?: CookieHttpClient;
+  handlers: HandlerSet;
+  loggedIn: boolean;
+}
+
+// tool name -> HandlerSet key
+const TOOL_ROUTES: Record<keyof HandlerSet, string[]> = {
+  auth: ['login', 'logout', 'dropSession'],
+  transport: ['transportInfo', 'createTransport', 'hasTransportConfig', 'transportConfigurations',
+    'getTransportConfiguration', 'setTransportsConfig', 'createTransportsConfig', 'userTransports',
+    'transportsByConfig', 'transportDelete', 'transportRelease', 'transportSetOwner', 'transportAddUser',
+    'systemUsers', 'transportReference'],
+  objectLock: ['lock', 'unLock'],
+  object: ['objectStructure', 'searchObject', 'findObjectPath', 'objectTypes', 'reentranceTicket'],
+  class: ['classIncludes', 'classComponents'],
+  codeAnalysis: ['syntaxCheckCode', 'syntaxCheckCdsUrl', 'codeCompletion', 'findDefinition',
+    'usageReferences', 'syntaxCheckTypes', 'codeCompletionFull', 'runClass', 'codeCompletionElement',
+    'usageReferenceSnippets', 'fixProposals', 'fixEdits', 'fragmentMappings', 'abapDocumentation'],
+  objectSource: ['getObjectSource', 'setObjectSource'],
+  objectDeletion: ['deleteObject'],
+  objectManagement: ['activateObjects', 'activateByName', 'inactiveObjects'],
+  objectRegistration: ['objectRegistrationInfo', 'validateNewObject', 'createObject'],
+  node: ['nodeContents', 'mainPrograms'],
+  discovery: ['featureDetails', 'collectionFeatureDetails', 'findCollectionByUrl', 'loadTypes',
+    'adtDiscovery', 'adtCoreDiscovery', 'adtCompatibiliyGraph'],
+  unitTest: ['unitTestRun', 'unitTestEvaluation', 'unitTestOccurrenceMarkers', 'createTestInclude'],
+  prettyPrinter: ['prettyPrinterSetting', 'setPrettyPrinterSetting', 'prettyPrinter'],
+  git: ['gitRepos', 'gitExternalRepoInfo', 'gitCreateRepo', 'gitPullRepo', 'gitUnlinkRepo', 'stageRepo',
+    'pushRepo', 'checkRepo', 'remoteRepoInfo', 'switchRepoBranch'],
+  ddic: ['annotationDefinitions', 'ddicElement', 'ddicRepositoryAccess', 'packageSearchHelp'],
+  serviceBinding: ['publishServiceBinding', 'unPublishServiceBinding', 'bindingDetails'],
+  query: ['tableContents', 'runQuery'],
+  feed: ['feeds', 'dumps'],
+  debug: ['debuggerListeners', 'debuggerListen', 'debuggerDeleteListener', 'debuggerSetBreakpoints',
+    'debuggerDeleteBreakpoints', 'debuggerAttach', 'debuggerSaveSettings', 'debuggerStackTrace',
+    'debuggerVariables', 'debuggerChildVariables', 'debuggerStep', 'debuggerGoToStack',
+    'debuggerSetVariableValue'],
+  rename: ['renameEvaluate', 'renamePreview', 'renameExecute'],
+  atc: ['atcCustomizing', 'atcCheckVariant', 'createAtcRun', 'atcWorklists', 'atcUsers',
+    'atcExemptProposal', 'atcRequestExemption', 'isProposalMessage', 'atcContactUri', 'atcChangeContact'],
+  trace: ['tracesList', 'tracesListRequests', 'tracesHitList', 'tracesDbAccess', 'tracesStatements',
+    'tracesSetParameters', 'tracesCreateConfiguration', 'tracesDeleteConfiguration', 'tracesDelete'],
+  refactor: ['extractMethodEvaluate', 'extractMethodPreview', 'extractMethodExecute'],
+  revision: ['revisions'],
+};
+
 export class AbapAdtServer extends Server {
-  private adtClient: ADTClient;
-  private authHandlers: AuthHandlers;
-  private transportHandlers: TransportHandlers;
-  private objectHandlers: ObjectHandlers;
-  private classHandlers: ClassHandlers;
-  private codeAnalysisHandlers: CodeAnalysisHandlers;
-  private objectLockHandlers: ObjectLockHandlers;
-  private objectSourceHandlers: ObjectSourceHandlers;
-  private objectDeletionHandlers: ObjectDeletionHandlers;
-  private objectManagementHandlers: ObjectManagementHandlers;
-  private objectRegistrationHandlers: ObjectRegistrationHandlers;
-    private nodeHandlers: NodeHandlers;
-    private discoveryHandlers: DiscoveryHandlers;
-    private unitTestHandlers: UnitTestHandlers;
-    private prettyPrinterHandlers: PrettyPrinterHandlers;
-    private gitHandlers: GitHandlers;
-    private ddicHandlers: DdicHandlers;
-    private serviceBindingHandlers: ServiceBindingHandlers;
-    private queryHandlers: QueryHandlers;
-    private feedHandlers: FeedHandlers;
-    private debugHandlers: DebugHandlers;
-    private renameHandlers: RenameHandlers;
-    private atcHandlers: AtcHandlers;
-    private traceHandlers: TraceHandlers;
-    private refactorHandlers: RefactorHandlers;
-    private revisionHandlers: RevisionHandlers;
+  private systems: Map<string, SystemConfig>;
+  private defaultDest?: string;
+  private pool = new Map<string, Destination>();
+  private toolToHandlerKey = new Map<string, keyof HandlerSet>();
+  private schemaHandlers: HandlerSet;
 
-    constructor() {
+  constructor() {
     super(
-      {
-        name: "mcp-abap-abap-adt-api",
-        version: "0.1.0",
-      },
-      {
-        capabilities: {
-          tools: {},
-        },
-      }
+      { name: "mcp-abap-abap-adt-api", version: "0.2.0" },
+      { capabilities: { tools: {} } }
     );
 
-    const missingVars = ['SAP_URL', 'SAP_USER', 'SAP_PASSWORD'].filter(v => !process.env[v]);
-    if (missingVars.length > 0) {
-      throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    this.systems = readSystems();
+    this.defaultDest = defaultDestination(this.systems);
+
+    for (const key of Object.keys(TOOL_ROUTES) as (keyof HandlerSet)[]) {
+      for (const tool of TOOL_ROUTES[key]) this.toolToHandlerKey.set(tool, key);
     }
-    
-    this.adtClient = new ADTClient(
-      process.env.SAP_URL as string,
-      process.env.SAP_USER as string,
-      process.env.SAP_PASSWORD as string,
-      process.env.SAP_CLIENT as string,
-      process.env.SAP_LANGUAGE as string
-    );
-    this.adtClient.stateful = session_types.stateful
-    
-    // Initialize handlers
-    this.authHandlers = new AuthHandlers(this.adtClient);
-    this.transportHandlers = new TransportHandlers(this.adtClient);
-    this.objectHandlers = new ObjectHandlers(this.adtClient);
-    this.classHandlers = new ClassHandlers(this.adtClient);
-    this.codeAnalysisHandlers = new CodeAnalysisHandlers(this.adtClient);
-    this.objectLockHandlers = new ObjectLockHandlers(this.adtClient);
-    this.objectSourceHandlers = new ObjectSourceHandlers(this.adtClient);
-    this.objectDeletionHandlers = new ObjectDeletionHandlers(this.adtClient);
-    this.objectManagementHandlers = new ObjectManagementHandlers(this.adtClient);
-    this.objectRegistrationHandlers = new ObjectRegistrationHandlers(this.adtClient);
-    this.nodeHandlers = new NodeHandlers(this.adtClient);
-    this.discoveryHandlers = new DiscoveryHandlers(this.adtClient);
-    this.unitTestHandlers = new UnitTestHandlers(this.adtClient);
-    this.prettyPrinterHandlers = new PrettyPrinterHandlers(this.adtClient);
-    this.gitHandlers = new GitHandlers(this.adtClient);
-    this.ddicHandlers = new DdicHandlers(this.adtClient);
-    this.serviceBindingHandlers = new ServiceBindingHandlers(this.adtClient);
-    this.queryHandlers = new QueryHandlers(this.adtClient);
-    this.feedHandlers = new FeedHandlers(this.adtClient);
-    this.debugHandlers = new DebugHandlers(this.adtClient);
-    this.renameHandlers = new RenameHandlers(this.adtClient);
-    this.atcHandlers = new AtcHandlers(this.adtClient);
-    this.traceHandlers = new TraceHandlers(this.adtClient);
-    this.refactorHandlers = new RefactorHandlers(this.adtClient);
-    this.revisionHandlers = new RevisionHandlers(this.adtClient);
 
+    // Handlers used only to enumerate tool schemas (never connected).
+    const firstSystem = [...this.systems.values()][0];
+    this.schemaHandlers = this.buildHandlers(this.makeClient(firstSystem).adtClient);
 
-        // Setup tool handlers
     this.setupToolHandlers();
   }
 
+  // --- connection / destination management -------------------------------
+
+  private makeClient(sys: SystemConfig): { adtClient: ADTClient; cookieClient?: CookieHttpClient } {
+    const client = sys.client || '';
+    const language = sys.language || '';
+    let adtClient: ADTClient;
+    let cookieClient: CookieHttpClient | undefined;
+
+    if (sys.authType === 'sso') {
+      cookieClient = new CookieHttpClient(sys.url, [], !!sys.insecureTls);
+      adtClient = new ADTClient(cookieClient as any, sys.user || 'sso', '', client, language);
+    } else if (sys.authType === 'oauth') {
+      adtClient = new ADTClient(sys.url, sys.oauth!.clientId || 'oauth', makeBearerFetcher(sys.oauth!), client, language);
+    } else {
+      adtClient = new ADTClient(sys.url, sys.user || '', sys.password || '', client, language);
+    }
+    adtClient.stateful = session_types.stateful;
+    return { adtClient, cookieClient };
+  }
+
+  private buildHandlers(adtClient: ADTClient): HandlerSet {
+    return {
+      auth: new AuthHandlers(adtClient),
+      transport: new TransportHandlers(adtClient),
+      object: new ObjectHandlers(adtClient),
+      class: new ClassHandlers(adtClient),
+      codeAnalysis: new CodeAnalysisHandlers(adtClient),
+      objectLock: new ObjectLockHandlers(adtClient),
+      objectSource: new ObjectSourceHandlers(adtClient),
+      objectDeletion: new ObjectDeletionHandlers(adtClient),
+      objectManagement: new ObjectManagementHandlers(adtClient),
+      objectRegistration: new ObjectRegistrationHandlers(adtClient),
+      node: new NodeHandlers(adtClient),
+      discovery: new DiscoveryHandlers(adtClient),
+      unitTest: new UnitTestHandlers(adtClient),
+      prettyPrinter: new PrettyPrinterHandlers(adtClient),
+      git: new GitHandlers(adtClient),
+      ddic: new DdicHandlers(adtClient),
+      serviceBinding: new ServiceBindingHandlers(adtClient),
+      query: new QueryHandlers(adtClient),
+      feed: new FeedHandlers(adtClient),
+      debug: new DebugHandlers(adtClient),
+      rename: new RenameHandlers(adtClient),
+      atc: new AtcHandlers(adtClient),
+      trace: new TraceHandlers(adtClient),
+      refactor: new RefactorHandlers(adtClient),
+      revision: new RevisionHandlers(adtClient),
+    };
+  }
+
+  private getDestination(name: string): Destination {
+    let dest = this.pool.get(name);
+    if (!dest) {
+      const system = this.systems.get(name)!;
+      const { adtClient, cookieClient } = this.makeClient(system);
+      dest = { system, adtClient, cookieClient, handlers: this.buildHandlers(adtClient), loggedIn: false };
+      this.pool.set(name, dest);
+    }
+    return dest;
+  }
+
+  /** Ensure the destination is authenticated. SSO opens a browser; other modes
+   *  authenticate lazily on the first request, so this is a no-op for them. */
+  private async ensureLogin(name: string, force: boolean): Promise<void> {
+    const dest = this.getDestination(name);
+    if (dest.system.authType !== 'sso') return;
+    if (dest.loggedIn && !force) return;
+    const cookies = await browserLogin(dest.system.url, dest.system.client);
+    dest.cookieClient!.setCookies(cookies);
+    await dest.adtClient.login();
+    dest.loggedIn = true;
+  }
+
+  // --- serialization helpers (unchanged) ---------------------------------
+
   private serializeResult(result: any) {
     try {
-      // Handlers already return a well-formed MCP tool result
-      // ({ content: [...] }). Re-wrapping it would double-serialize the payload
-      // (every quote in the data gets escaped again), needlessly inflating large
-      // responses such as object source (issue #4). Pass those through as-is and
-      // only wrap raw values (e.g. the healthcheck object).
       if (result && Array.isArray(result.content)) {
         return result;
       }
@@ -145,10 +238,7 @@ export class AbapAdtServer extends Server {
         }]
       };
     } catch (error) {
-      return this.handleError(new McpError(
-        ErrorCode.InternalError,
-        'Failed to serialize result'
-      ));
+      return this.handleError(new McpError(ErrorCode.InternalError, 'Failed to serialize result'));
     }
   }
 
@@ -158,257 +248,117 @@ export class AbapAdtServer extends Server {
     }
     if (error instanceof McpError) {
       return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            error: error.message,
-            code: error.code
-          })
-        }],
+        content: [{ type: 'text', text: JSON.stringify({ error: error.message, code: error.code }) }],
         isError: true
       };
     }
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({
-          error: 'Internal server error',
-          code: ErrorCode.InternalError
-        })
+        text: JSON.stringify({ error: (error as Error).message || 'Internal server error', code: ErrorCode.InternalError })
       }],
       isError: true
     };
   }
 
+  // --- tool registration --------------------------------------------------
+
+  /** Add a `destination` parameter to a tool's input schema. */
+  private withDestination(tool: any) {
+    const destNames = [...this.systems.keys()];
+    const schema = tool.inputSchema || { type: 'object', properties: {} };
+    const properties = {
+      destination: {
+        type: 'string',
+        enum: destNames,
+        description: this.defaultDest
+          ? `Target ABAP system. Defaults to "${this.defaultDest}" if omitted.`
+          : 'Target ABAP system (one of the configured destinations). Required.',
+      },
+      ...(schema.properties || {}),
+    };
+    const required = Array.isArray(schema.required) ? [...schema.required] : [];
+    if (!this.defaultDest && !required.includes('destination')) required.unshift('destination');
+    return { ...tool, inputSchema: { ...schema, type: schema.type || 'object', properties, required } };
+  }
+
+  private allDomainTools(): any[] {
+    const h = this.schemaHandlers;
+    const sets: HandlerSet[keyof HandlerSet][] = [
+      h.auth, h.transport, h.object, h.class, h.codeAnalysis, h.objectLock, h.objectSource,
+      h.objectDeletion, h.objectManagement, h.objectRegistration, h.node, h.discovery, h.unitTest,
+      h.prettyPrinter, h.git, h.ddic, h.serviceBinding, h.query, h.feed, h.debug, h.rename, h.atc,
+      h.trace, h.refactor, h.revision,
+    ];
+    return sets.flatMap((s) => s.getTools());
+  }
+
   private setupToolHandlers() {
     this.setRequestHandler(ListToolsRequestSchema, async () => {
-      return {
-        tools: [
-          ...this.authHandlers.getTools(),
-          ...this.transportHandlers.getTools(),
-          ...this.objectHandlers.getTools(),
-          ...this.classHandlers.getTools(),
-          ...this.codeAnalysisHandlers.getTools(),
-          ...this.objectLockHandlers.getTools(),
-          ...this.objectSourceHandlers.getTools(),
-          ...this.objectDeletionHandlers.getTools(),
-          ...this.objectManagementHandlers.getTools(),
-          ...this.objectRegistrationHandlers.getTools(),
-            ...this.nodeHandlers.getTools(),
-            ...this.discoveryHandlers.getTools(),
-            ...this.unitTestHandlers.getTools(),
-            ...this.prettyPrinterHandlers.getTools(),
-            ...this.gitHandlers.getTools(),
-            ...this.ddicHandlers.getTools(),
-            ...this.serviceBindingHandlers.getTools(),
-            ...this.queryHandlers.getTools(),
-            ...this.feedHandlers.getTools(),
-            ...this.debugHandlers.getTools(),
-            ...this.renameHandlers.getTools(),
-            ...this.atcHandlers.getTools(),
-            ...this.traceHandlers.getTools(),
-            ...this.refactorHandlers.getTools(),
-            ...this.revisionHandlers.getTools(),
-            {
-            name: 'healthcheck',
-            description: 'Check server health and connectivity',
-            inputSchema: {
-              type: 'object',
-              properties: {}
-            }
-          }
-        ]
-      };
+      const tools = this.allDomainTools().map((t) => this.withDestination(t));
+      tools.push({
+        name: 'listSystems',
+        description: 'List the configured ABAP systems (destinations) this server can reach.',
+        inputSchema: { type: 'object', properties: {} },
+      });
+      tools.push({
+        name: 'healthcheck',
+        description: 'Check server health and list configured destinations.',
+        inputSchema: { type: 'object', properties: {} },
+      });
+      return { tools };
     });
 
     this.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
-        let result: any;
-        
-        switch (request.params.name) {
-            case 'login':
-            case 'logout':
-            case 'dropSession':
-                result = await this.authHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'transportInfo':
-            case 'createTransport':
-            case 'hasTransportConfig':
-            case 'transportConfigurations':
-            case 'getTransportConfiguration':
-            case 'setTransportsConfig':
-            case 'createTransportsConfig':
-            case 'userTransports':
-            case 'transportsByConfig':
-            case 'transportDelete':
-            case 'transportRelease':
-            case 'transportSetOwner':
-            case 'transportAddUser':
-            case 'systemUsers':
-            case 'transportReference':
-                result = await this.transportHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'lock':
-            case 'unLock':
-                result = await this.objectLockHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'objectStructure':
-            case 'searchObject':
-            case 'findObjectPath':
-            case 'objectTypes':
-            case 'reentranceTicket':
-                result = await this.objectHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'classIncludes':
-            case 'classComponents':
-                result = await this.classHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'syntaxCheckCode':
-            case 'syntaxCheckCdsUrl':
-            case 'codeCompletion':
-            case 'findDefinition':
-            case 'usageReferences':
-            case 'syntaxCheckTypes':
-            case 'codeCompletionFull':
-            case 'runClass':
-            case 'codeCompletionElement':
-            case 'usageReferenceSnippets':
-            case 'fixProposals':
-            case 'fixEdits':
-            case 'fragmentMappings':
-            case 'abapDocumentation':
-                result = await this.codeAnalysisHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'getObjectSource':
-            case 'setObjectSource':
-                result = await this.objectSourceHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'deleteObject':
-                result = await this.objectDeletionHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'activateObjects':
-            case 'activateByName':
-            case 'inactiveObjects':
-                result = await this.objectManagementHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'objectRegistrationInfo':
-            case 'validateNewObject':
-            case 'createObject':
-                result = await this.objectRegistrationHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'nodeContents':
-            case 'mainPrograms':
-                result = await this.nodeHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'featureDetails':
-            case 'collectionFeatureDetails':
-            case 'findCollectionByUrl':
-            case 'loadTypes':
-            case 'adtDiscovery':
-            case 'adtCoreDiscovery':
-            case 'adtCompatibiliyGraph':
-                result = await this.discoveryHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'unitTestRun':
-            case 'unitTestEvaluation':
-            case 'unitTestOccurrenceMarkers':
-            case 'createTestInclude':
-                result = await this.unitTestHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'prettyPrinterSetting':
-            case 'setPrettyPrinterSetting':
-            case 'prettyPrinter':
-                result = await this.prettyPrinterHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'gitRepos':
-            case 'gitExternalRepoInfo':
-            case 'gitCreateRepo':
-            case 'gitPullRepo':
-            case 'gitUnlinkRepo':
-            case 'stageRepo':
-            case 'pushRepo':
-            case 'checkRepo':
-            case 'remoteRepoInfo':
-            case 'switchRepoBranch':
-                result = await this.gitHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'annotationDefinitions':
-            case 'ddicElement':
-            case 'ddicRepositoryAccess':
-            case 'packageSearchHelp':
-                result = await this.ddicHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'publishServiceBinding':
-            case 'unPublishServiceBinding':
-            case 'bindingDetails':
-                result = await this.serviceBindingHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'tableContents':
-            case 'runQuery':
-                result = await this.queryHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'feeds':
-            case 'dumps':
-                result = await this.feedHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'debuggerListeners':
-            case 'debuggerListen':
-            case 'debuggerDeleteListener':
-            case 'debuggerSetBreakpoints':
-            case 'debuggerDeleteBreakpoints':
-            case 'debuggerAttach':
-            case 'debuggerSaveSettings':
-            case 'debuggerStackTrace':
-            case 'debuggerVariables':
-            case 'debuggerChildVariables':
-            case 'debuggerStep':
-            case 'debuggerGoToStack':
-            case 'debuggerSetVariableValue':
-                result = await this.debugHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'renameEvaluate':
-            case 'renamePreview':
-            case 'renameExecute':
-                result = await this.renameHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'atcCustomizing':
-            case 'atcCheckVariant':
-            case 'createAtcRun':
-            case 'atcWorklists':
-            case 'atcUsers':
-            case 'atcExemptProposal':
-            case 'atcRequestExemption':
-            case 'isProposalMessage':
-            case 'atcContactUri':
-            case 'atcChangeContact':
-                result = await this.atcHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'tracesList':
-            case 'tracesListRequests':
-            case 'tracesHitList':
-            case 'tracesDbAccess':
-            case 'tracesStatements':
-            case 'tracesSetParameters':
-            case 'tracesCreateConfiguration':
-            case 'tracesDeleteConfiguration':
-            case 'tracesDelete':
-                result = await this.traceHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'extractMethodEvaluate':
-            case 'extractMethodPreview':
-            case 'extractMethodExecute':
-                result = await this.refactorHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'revisions':
-                result = await this.revisionHandlers.handle(request.params.name, request.params.arguments);
-                break;
-            case 'healthcheck':
-                result = { status: 'healthy', timestamp: new Date().toISOString() };
-                break;
-            default:
-                throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${request.params.name}`);
+        const name = request.params.name;
+        const rawArgs: any = request.params.arguments || {};
+
+        if (name === 'listSystems') {
+          return this.serializeResult({
+            systems: [...this.systems.values()].map((s) => ({
+              destination: s.name, url: s.url, client: s.client, authType: s.authType,
+            })),
+            default: this.defaultDest,
+          });
+        }
+        if (name === 'healthcheck') {
+          return this.serializeResult({
+            status: 'healthy',
+            destinations: [...this.systems.keys()],
+            default: this.defaultDest,
+          });
         }
 
+        // Resolve destination.
+        const destination = rawArgs.destination || this.defaultDest;
+        if (!destination) {
+          throw new McpError(ErrorCode.InvalidParams,
+            `Missing "destination". Configured systems: ${[...this.systems.keys()].join(', ')}`);
+        }
+        if (!this.systems.has(destination)) {
+          throw new McpError(ErrorCode.InvalidParams,
+            `Unknown destination "${destination}". Configured: ${[...this.systems.keys()].join(', ')}`);
+        }
+
+        const dest = this.getDestination(destination);
+        const { destination: _d, ...args } = rawArgs;
+
+        // Explicit login for SSO destinations.
+        if (name === 'login' && dest.system.authType === 'sso') {
+          await this.ensureLogin(destination, true);
+          return this.serializeResult({ status: `logged in to ${destination} via browser SSO` });
+        }
+        // Otherwise ensure the SSO session exists before the call.
+        if (name !== 'logout') {
+          await this.ensureLogin(destination, false);
+        }
+
+        const handlerKey = this.toolToHandlerKey.get(name);
+        if (!handlerKey) {
+          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+        }
+        const result = await dest.handlers[handlerKey].handle(name, args);
         return this.serializeResult(result);
       } catch (error) {
         return this.handleError(error);
@@ -419,29 +369,17 @@ export class AbapAdtServer extends Server {
   async run() {
     const transport = new StdioServerTransport();
     await this.connect(transport);
-    console.error('MCP ABAP ADT API server running on stdio');
-    
-    // Handle shutdown
-    process.on('SIGINT', async () => {
-      await this.close();
-      process.exit(0);
-    });
-    
-    process.on('SIGTERM', async () => {
-      await this.close();
-      process.exit(0);
-    });
-    
-    // Handle errors
-    this.onerror = (error) => {
-      console.error('[MCP Error]', error);
-    };
+    console.error(`MCP ABAP ADT API server running on stdio — ${this.systems.size} destination(s): ${[...this.systems.keys()].join(', ')}`);
+
+    process.on('SIGINT', async () => { await this.close(); process.exit(0); });
+    process.on('SIGTERM', async () => { await this.close(); process.exit(0); });
+    this.onerror = (error) => { console.error('[MCP Error]', error); };
   }
 }
 
 // Create and run server instance
 const server = new AbapAdtServer();
 server.run().catch((error) => {
-  console.error('Failed to start MCP server:', error);
+  console.error('Fatal error running server:', error);
   process.exit(1);
 });

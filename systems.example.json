@@ -1,0 +1,32 @@
+{
+  "_comment": "Copy to systems.json (gitignored). One entry per ABAP system (destination). Tools take a `destination` argument naming one of these keys.",
+
+  "DEV": {
+    "url": "https://myXXXXXX.s4hana.cloud.sap",
+    "client": "080",
+    "authType": "sso"
+  },
+  "QAS": {
+    "url": "https://myYYYYYY.s4hana.cloud.sap",
+    "client": "100",
+    "authType": "sso"
+  },
+
+  "OnPrem-Basic": {
+    "url": "https://host:44300",
+    "client": "100",
+    "authType": "basic",
+    "user": "DEVELOPER",
+    "password": "secret"
+  },
+  "Cloud-OAuth": {
+    "url": "https://myZZZZZZ.s4hana.cloud.sap",
+    "client": "100",
+    "authType": "oauth",
+    "oauth": {
+      "tokenUrl": "https://myZZZZZZ.s4hana.cloud.sap/sap/bc/sec/oauth2/token",
+      "clientId": "<client id>",
+      "clientSecret": "<client secret>"
+    }
+  }
+}
