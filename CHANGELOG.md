@@ -6,7 +6,7 @@
 ## [0.1.1] - Better unified response structure
 - Improved and unified the response structure.
 
-## [0.3.1] - Unreleased - Live E2E hardening on S/4HANA Public Cloud
+## [0.3.1] - 2026-09-01 - Live E2E hardening on S/4HANA Public Cloud
 Fixes driven by a full live test round against a Public Cloud tenant (95/142 tools exercised, 87 OK; see docs/TESTPLAN.md Layer 3):
 - `createObject` supports DEVC/K packages (hand-built ADT body with `pak:recordChanges`, `swcomp`/`transportLayer`/`packagetype`/`abapLanguageVersion` inputs; explicit `responsible` required by cloud backends).
 - SSO sessions are pinned to the configured client: `sap-client` is sent on every request (previously the harvested cookies landed on the tenant's default client).
