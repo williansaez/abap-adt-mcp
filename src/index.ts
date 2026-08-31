@@ -40,6 +40,7 @@ import { AtcHandlers } from './handlers/AtcHandlers.js';
 import { TraceHandlers } from './handlers/TraceHandlers.js';
 import { RefactorHandlers } from './handlers/RefactorHandlers.js';
 import { RevisionHandlers } from './handlers/RevisionHandlers.js';
+import { RapGeneratorHandlers } from './handlers/RapGeneratorHandlers.js';
 
 config({ path: path.resolve(__dirname, '../.env') });
 
@@ -82,6 +83,7 @@ interface HandlerSet {
   trace: TraceHandlers;
   refactor: RefactorHandlers;
   revision: RevisionHandlers;
+  rapGenerator: RapGeneratorHandlers;
 }
 
 /** A live, per-destination connection: its client, handlers and login state. */
@@ -99,7 +101,7 @@ const TOOL_ROUTES: Record<keyof HandlerSet, string[]> = {
   transport: ['transportInfo', 'createTransport', 'hasTransportConfig', 'transportConfigurations',
     'getTransportConfiguration', 'setTransportsConfig', 'createTransportsConfig', 'userTransports',
     'transportsByConfig', 'transportDelete', 'transportRelease', 'transportSetOwner', 'transportAddUser',
-    'systemUsers', 'transportReference'],
+    'systemUsers', 'transportReference', 'transportDetails', 'transportUnifiedDiff'],
   objectLock: ['lock', 'unLock'],
   object: ['objectStructure', 'searchObject', 'findObjectPath', 'objectTypes', 'reentranceTicket'],
   class: ['classIncludes', 'classComponents'],
@@ -132,7 +134,64 @@ const TOOL_ROUTES: Record<keyof HandlerSet, string[]> = {
     'tracesSetParameters', 'tracesCreateConfiguration', 'tracesDeleteConfiguration', 'tracesDelete'],
   refactor: ['extractMethodEvaluate', 'extractMethodPreview', 'extractMethodExecute'],
   revision: ['revisions'],
+  rapGenerator: ['rapGenIsAvailable', 'rapGenGetSchema', 'rapGenGetContent', 'rapGenValidateInitial',
+    'rapGenValidateContent', 'rapGenPreview', 'rapGenGenerate', 'rapGenPublishService'],
 };
+
+// MCP tool annotations (readOnlyHint/destructiveHint) so hosts can gate approval.
+// Tools absent from both sets are writes that create or modify state but are
+// recoverable (annotated readOnlyHint:false, destructiveHint:false).
+const READ_ONLY_TOOLS = new Set([
+  // transport
+  'transportInfo', 'hasTransportConfig', 'transportConfigurations', 'getTransportConfiguration',
+  'userTransports', 'transportsByConfig', 'systemUsers', 'transportReference', 'transportDetails',
+  'transportUnifiedDiff',
+  // object / class / source
+  'objectStructure', 'searchObject', 'findObjectPath', 'objectTypes', 'reentranceTicket',
+  'classIncludes', 'classComponents', 'getObjectSource', 'inactiveObjects', 'objectRegistrationInfo',
+  'validateNewObject',
+  // code analysis
+  'syntaxCheckCode', 'syntaxCheckCdsUrl', 'codeCompletion', 'findDefinition', 'usageReferences',
+  'syntaxCheckTypes', 'codeCompletionFull', 'codeCompletionElement', 'usageReferenceSnippets',
+  'fixProposals', 'fragmentMappings', 'abapDocumentation',
+  // node / discovery
+  'nodeContents', 'mainPrograms', 'featureDetails', 'collectionFeatureDetails', 'findCollectionByUrl',
+  'loadTypes', 'adtDiscovery', 'adtCoreDiscovery', 'adtCompatibiliyGraph',
+  // unit test evaluation (read of results), pretty printer read
+  'unitTestEvaluation', 'unitTestOccurrenceMarkers', 'prettyPrinterSetting', 'prettyPrinter',
+  // git reads
+  'gitRepos', 'gitExternalRepoInfo', 'checkRepo', 'remoteRepoInfo',
+  // ddic / services / data
+  'annotationDefinitions', 'ddicElement', 'ddicRepositoryAccess', 'packageSearchHelp',
+  'bindingDetails', 'tableContents', 'runQuery', 'feeds', 'dumps',
+  // debug reads
+  'debuggerListeners', 'debuggerStackTrace', 'debuggerVariables', 'debuggerChildVariables',
+  // refactoring previews
+  'renameEvaluate', 'renamePreview', 'extractMethodEvaluate', 'extractMethodPreview',
+  // atc reads
+  'atcCustomizing', 'atcCheckVariant', 'atcWorklists', 'atcUsers', 'isProposalMessage', 'atcContactUri',
+  // traces reads
+  'tracesList', 'tracesListRequests', 'tracesHitList', 'tracesDbAccess', 'tracesStatements',
+  // misc
+  'revisions', 'rapGenIsAvailable', 'rapGenGetSchema', 'rapGenGetContent', 'rapGenValidateInitial',
+  'rapGenValidateContent', 'rapGenPreview', 'listSystems', 'healthcheck',
+]);
+
+const DESTRUCTIVE_TOOLS = new Set([
+  'deleteObject', 'transportDelete', 'transportRelease', 'setObjectSource', 'gitUnlinkRepo',
+  'pushRepo', 'runClass', 'renameExecute', 'extractMethodExecute', 'debuggerSetVariableValue',
+  'tracesDelete', 'tracesDeleteConfiguration', 'unPublishServiceBinding', 'dropSession',
+]);
+
+function toolAnnotations(name: string) {
+  const readOnly = READ_ONLY_TOOLS.has(name);
+  return {
+    readOnlyHint: readOnly,
+    destructiveHint: DESTRUCTIVE_TOOLS.has(name),
+    idempotentHint: readOnly,
+    openWorldHint: false,
+  };
+}
 
 export class AbapAdtServer extends Server {
   private systems: Map<string, SystemConfig>;
@@ -228,6 +287,7 @@ export class AbapAdtServer extends Server {
       trace: new TraceHandlers(adtClient),
       refactor: new RefactorHandlers(adtClient),
       revision: new RevisionHandlers(adtClient),
+      rapGenerator: new RapGeneratorHandlers(adtClient),
     };
   }
 
@@ -311,7 +371,11 @@ export class AbapAdtServer extends Server {
     };
     const required = Array.isArray(schema.required) ? [...schema.required] : [];
     if (!this.defaultDest && !required.includes('destination')) required.unshift('destination');
-    return { ...tool, inputSchema: { ...schema, type: schema.type || 'object', properties, required } };
+    return {
+      ...tool,
+      annotations: tool.annotations ?? toolAnnotations(tool.name),
+      inputSchema: { ...schema, type: schema.type || 'object', properties, required }
+    };
   }
 
   private allDomainTools(): any[] {
@@ -320,7 +384,7 @@ export class AbapAdtServer extends Server {
       h.auth, h.transport, h.object, h.class, h.codeAnalysis, h.objectLock, h.objectSource,
       h.objectDeletion, h.objectManagement, h.objectRegistration, h.node, h.discovery, h.unitTest,
       h.prettyPrinter, h.git, h.ddic, h.serviceBinding, h.query, h.feed, h.debug, h.rename, h.atc,
-      h.trace, h.refactor, h.revision,
+      h.trace, h.refactor, h.revision, h.rapGenerator,
     ];
     return sets.flatMap((s) => s.getTools());
   }
@@ -332,11 +396,13 @@ export class AbapAdtServer extends Server {
         name: 'listSystems',
         description: 'List the configured ABAP systems (destinations) this server can reach. Call this first to pick the destination to pass to all other tools.',
         inputSchema: { type: 'object', properties: {} },
+        annotations: toolAnnotations('listSystems'),
       });
       tools.push({
         name: 'healthcheck',
         description: 'Check server health and list configured destinations.',
         inputSchema: { type: 'object', properties: {} },
+        annotations: toolAnnotations('healthcheck'),
       });
       return { tools };
     });

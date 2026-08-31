@@ -46,10 +46,12 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.4.1",
     "abap-adt-api": "^8.4.1",
+    "diff": "^7.0.0",
     "dotenv": "^16.4.7",
     "puppeteer-core": "^25.9.0"
   },
   "devDependencies": {
+    "@types/diff": "^7.0.2",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.10.10",
     "jest": "^29.7.0",

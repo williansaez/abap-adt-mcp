@@ -2,10 +2,44 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
 import { ADTClient } from "abap-adt-api";
+import { createTwoFilesPatch } from 'diff';
 
 export class TransportHandlers extends BaseHandler {
     getTools(): ToolDefinition[] {
         return [
+            {
+                name: 'transportDetails',
+                description: 'Get the contents of a transport request: tasks, owners, status and the full list of objects it records. Use transportInfo / userTransports to find transport numbers first.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        transportNumber: {
+                            type: 'string',
+                            description: 'Transport request number, e.g. DEVK900123'
+                        }
+                    },
+                    required: ['transportNumber']
+                }
+            },
+            {
+                name: 'transportUnifiedDiff',
+                description: 'Generate a unified diff of the source-code objects recorded on a transport request: for each object it compares the version predating the transport against the current source. Useful for reviewing what a transport changes. Non-source objects (tables, customizing) are listed but not diffed.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        transportNumber: {
+                            type: 'string',
+                            description: 'Transport request number, e.g. DEVK900123'
+                        },
+                        maxObjects: {
+                            type: 'number',
+                            description: 'Maximum number of objects to diff (default 20)',
+                            optional: true
+                        }
+                    },
+                    required: ['transportNumber']
+                }
+            },
             {
                 name: 'transportInfo',
                 description: 'Get transport information for an object source',
@@ -269,6 +303,10 @@ export class TransportHandlers extends BaseHandler {
 
     async handle(toolName: string, args: any): Promise<any> {
         switch (toolName) {
+            case 'transportDetails':
+                return this.handleTransportDetails(args);
+            case 'transportUnifiedDiff':
+                return this.handleTransportUnifiedDiff(args);
             case 'transportInfo':
                 return this.handleTransportInfo(args);
             case 'createTransport':
@@ -302,6 +340,142 @@ export class TransportHandlers extends BaseHandler {
             default:
                 throw new McpError(ErrorCode.MethodNotFound, `Unknown transport tool: ${toolName}`);
         }
+    }
+
+    async handleTransportDetails(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            const details = await this.adtclient.transportDetails(args.transportNumber);
+            this.trackRequest(startTime, true);
+            return {
+                content: [{
+                    type: 'text',
+                    text: JSON.stringify({ status: 'success', details })
+                }]
+            };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            throw new McpError(
+                ErrorCode.InternalError,
+                `Failed to get transport details: ${error.message || 'Unknown error'}`
+            );
+        }
+    }
+
+    // R3TR object types whose main source can be fetched and diffed as text.
+    private static readonly DIFFABLE_TYPES: Record<string, string> = {
+        CLAS: 'CLAS', PROG: 'PROG', INTF: 'INTF', FUGR: 'FUGR',
+        DDLS: 'DDLS', BDEF: 'BDEF', DCLS: 'DCLS', DDLX: 'DDLX', SRVD: 'SRVD'
+    };
+
+    async handleTransportUnifiedDiff(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            const transportNumber: string = args.transportNumber;
+            const maxObjects: number = args.maxObjects || 20;
+            const details = await this.adtclient.transportDetails(transportNumber);
+
+            // Collect objects from the request itself and all of its tasks.
+            const seen = new Set<string>();
+            const objects: any[] = [];
+            const collect = (objs: any[] = []) => {
+                for (const o of objs) {
+                    const key = `${o['tm:pgmid']}|${o['tm:type']}|${o['tm:name']}`;
+                    if (!seen.has(key)) { seen.add(key); objects.push(o); }
+                }
+            };
+            collect((details as any).objects);
+            for (const task of (details as any).tasks || []) collect(task.objects);
+
+            const diffs: any[] = [];
+            const skipped: any[] = [];
+            let diffed = 0;
+            for (const obj of objects) {
+                const type = obj['tm:type'];
+                const name = obj['tm:name'];
+                if (obj['tm:pgmid'] !== 'R3TR' || !TransportHandlers.DIFFABLE_TYPES[type]) {
+                    skipped.push({ pgmid: obj['tm:pgmid'], type, name, reason: 'not a diffable source object' });
+                    continue;
+                }
+                if (diffed >= maxObjects) {
+                    skipped.push({ pgmid: obj['tm:pgmid'], type, name, reason: `maxObjects (${maxObjects}) reached` });
+                    continue;
+                }
+                diffed++;
+                try {
+                    diffs.push(await this.diffObjectAgainstTransport(type, name, transportNumber));
+                } catch (error: any) {
+                    diffs.push({ type, name, error: error.message || 'diff failed' });
+                }
+            }
+
+            this.trackRequest(startTime, true);
+            return {
+                content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                        status: 'success',
+                        transport: transportNumber,
+                        totalObjects: objects.length,
+                        diffs,
+                        skipped
+                    })
+                }]
+            };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            throw new McpError(
+                ErrorCode.InternalError,
+                `Failed to build transport diff: ${error.message || 'Unknown error'}`
+            );
+        }
+    }
+
+    /**
+     * Diff one object: current source vs the newest revision that predates the
+     * transport (identified by revisions tagged with the transport number).
+     */
+    private async diffObjectAgainstTransport(type: string, name: string, transportNumber: string) {
+        const search = await this.adtclient.searchObject(name, type, 5);
+        const hit = (search || []).find(
+            (r: any) => (r['adtcore:name'] || '').toUpperCase() === name.toUpperCase()
+        ) || (search || [])[0];
+        if (!hit) return { type, name, error: 'object not found via searchObject' };
+        const uri = hit['adtcore:uri'];
+
+        const revs = await this.adtclient.revisions(uri);
+        if (!revs || revs.length === 0) return { type, name, uri, error: 'no revisions available' };
+        // Newest first, defensively.
+        const sorted = [...revs].sort((a, b) => (a.date < b.date ? 1 : -1));
+
+        // Baseline: first revision older than the newest one tagged with this transport.
+        const inTransport = (r: any) =>
+            (r.version || '').includes(transportNumber) || (r.versionTitle || '').includes(transportNumber);
+        let baseline = null as any;
+        const lastIdx = sorted.map(inTransport).lastIndexOf(true);
+        if (lastIdx >= 0 && lastIdx + 1 < sorted.length) {
+            baseline = sorted[lastIdx + 1];
+        } else if (lastIdx < 0 && sorted.length > 1) {
+            // Transport tag not found in revision metadata; fall back to previous revision.
+            baseline = sorted[1];
+        }
+
+        const current = await this.adtclient.getObjectSource(sorted[0].uri);
+        const previous = baseline ? await this.adtclient.getObjectSource(baseline.uri) : '';
+        const patch = createTwoFilesPatch(
+            `${name} (${baseline ? baseline.version || baseline.date : 'new object'})`,
+            `${name} (current)`,
+            previous,
+            current
+        );
+        return {
+            type,
+            name,
+            uri,
+            baselineRevision: baseline ? { version: baseline.version, date: baseline.date, title: baseline.versionTitle } : null,
+            exactTransportMatch: lastIdx >= 0,
+            diff: patch
+        };
     }
 
     async handleTransportInfo(args: any): Promise<any> {
