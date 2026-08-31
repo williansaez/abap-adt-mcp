@@ -227,7 +227,33 @@ export class ServiceBindingHandlers extends BaseHandler {
     async handleBindingDetails(args: any): Promise<any> {
         const startTime = performance.now();
         try {
-            const details = await this.adtclient.bindingDetails(args.binding, args.index);
+            // bindingDetails needs a parsed ServiceBinding; resolve a plain
+            // binding name the same way fetchServiceDetails does.
+            let binding = args.binding;
+            if (typeof binding === 'string') {
+                const search = await this.adtclient.searchObject(binding, 'SRVB', 5);
+                const hit = (search || []).find(
+                    (r: any) => (r['adtcore:name'] || '').toUpperCase() === String(binding).toUpperCase()
+                ) || (search || [])[0];
+                if (!hit) {
+                    throw new McpError(ErrorCode.InvalidParams, `Service binding '${binding}' not found (searchObject SRVB)`);
+                }
+                const resp = await this.adtclient.httpClient.request(hit['adtcore:uri'], {
+                    headers: {
+                        Accept: 'application/vnd.sap.adt.businessservices.servicebinding.v4+xml, application/vnd.sap.adt.businessservices.servicebinding.v2+xml, application/xml'
+                    }
+                });
+                binding = parseServiceBinding(resp.body as string);
+            }
+            let details: any = null;
+            let note: string | undefined;
+            try {
+                details = await this.adtclient.bindingDetails(binding, args.index);
+            } catch (detailErr: any) {
+                // abap-adt-api cannot derive service queries for some bindings
+                // (seen with OData V4): degrade to the binding summary.
+                note = `Binding resolved but service details are unavailable (${detailErr.message}); this can happen with OData V4 bindings not fully supported by abap-adt-api`;
+            }
             this.trackRequest(startTime, true);
             return {
                 content: [
@@ -235,13 +261,22 @@ export class ServiceBindingHandlers extends BaseHandler {
                         type: 'text',
                         text: JSON.stringify({
                             status: 'success',
-                            details
+                            binding: typeof args.binding === 'string' ? {
+                                name: (binding as any).name,
+                                published: (binding as any).published,
+                                type: (binding as any).binding?.type,
+                                version: (binding as any).binding?.version,
+                                services: (binding as any).services
+                            } : undefined,
+                            details,
+                            ...(note ? { note } : {})
                         })
                     }
                 ]
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
             throw new McpError(
                 ErrorCode.InternalError,
                 `Failed to get binding details: ${error.message || 'Unknown error'}`
