@@ -8,7 +8,7 @@ export const HANDLER_KEYS = [
   'auth', 'transport', 'object', 'class', 'codeAnalysis', 'objectLock', 'objectSource', 'objectDeletion',
   'objectManagement', 'objectRegistration', 'node', 'discovery', 'unitTest', 'prettyPrinter', 'git', 'ddic',
   'serviceBinding', 'query', 'feed', 'debug', 'rename', 'atc', 'trace', 'refactor', 'revision', 'rapGenerator',
-  'navigation', 'textElements',
+  'navigation', 'textElements', 'search',
 ] as const;
 export type HandlerKey = typeof HANDLER_KEYS[number];
 
@@ -60,6 +60,7 @@ export const TOOL_ROUTES: Record<HandlerKey, string[]> = {
     'rapGenValidateContent', 'rapGenPreview', 'rapGenGenerate', 'rapGenPublishService'],
   navigation: ['typeHierarchy', 'objectStructureElements', 'objectEnhancements'],
   textElements: ['getTextElements', 'setTextElements'],
+  search: ['sourceTextSearch', 'grepPackage'],
 };
 
 // MCP tool annotations (readOnlyHint/destructiveHint) so hosts can gate approval.
@@ -88,7 +89,7 @@ export const READ_ONLY_TOOLS = new Set([
   // ddic / services / data
   'annotationDefinitions', 'ddicElement', 'ddicRepositoryAccess', 'packageSearchHelp',
   'getDomainProperties', 'getDataElementProperties', 'typeHierarchy', 'objectStructureElements', 'objectEnhancements',
-  'getTextElements', 'atcDocumentation', 'changePackagePreview',
+  'getTextElements', 'atcDocumentation', 'changePackagePreview', 'sourceTextSearch', 'grepPackage',
   'bindingDetails', 'fetchServiceDetails', 'tableContents', 'runQuery', 'feeds', 'dumps', 'dumpDetails',
   // debug reads
   'debuggerListeners', 'debuggerStackTrace', 'debuggerVariables', 'debuggerChildVariables',
@@ -128,7 +129,7 @@ export function toolAnnotations(name: string) {
 export const TOOLSETS: Record<string, { title: string; handlers: HandlerKey[]; description: string }> = {
   core:        { title: 'Destinations, health & session', handlers: ['auth'], description: 'listSystems, healthcheck, systemProfile, login/logout/dropSession (always enabled)' },
   source:      { title: 'Source code', handlers: ['objectSource', 'objectLock', 'prettyPrinter', 'revision', 'textElements'], description: 'read/write/edit source, lock/unlock, pretty printer, revisions, text elements' },
-  objects:     { title: 'Objects & navigation', handlers: ['object', 'class', 'node', 'navigation', 'objectRegistration', 'objectDeletion', 'objectManagement'], description: 'search, structure, create/delete/activate objects, class components, hierarchy, enhancements' },
+  objects:     { title: 'Objects & navigation', handlers: ['object', 'class', 'node', 'navigation', 'search', 'objectRegistration', 'objectDeletion', 'objectManagement'], description: 'search by name and by content (text search, grep), structure, create/delete/activate objects, class components, hierarchy, enhancements' },
   transports:  { title: 'Transports', handlers: ['transport'], description: 'transport requests, diffs, release' },
   analysis:    { title: 'Syntax & code analysis', handlers: ['codeAnalysis'], description: 'syntax check, completion, where-used, fixes, ABAP docs, runClass' },
   tests:       { title: 'Unit tests', handlers: ['unitTest'], description: 'ABAP Unit runs and evaluation' },

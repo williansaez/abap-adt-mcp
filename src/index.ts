@@ -53,6 +53,7 @@ import { RevisionHandlers } from './handlers/RevisionHandlers.js';
 import { RapGeneratorHandlers } from './handlers/RapGeneratorHandlers.js';
 import { NavigationHandlers } from './handlers/NavigationHandlers.js';
 import { TextElementHandlers } from './handlers/TextElementHandlers.js';
+import { SearchHandlers } from './handlers/SearchHandlers.js';
 
 // Single source of truth for the version announced to MCP hosts (dist/ sits one level below package.json).
 const PACKAGE_VERSION: string = require("../package.json").version;
@@ -101,6 +102,7 @@ interface HandlerSet {
   rapGenerator: RapGeneratorHandlers;
   navigation: NavigationHandlers;
   textElements: TextElementHandlers;
+  search: SearchHandlers;
 }
 
 /** A live, per-destination connection: its client, handlers and login state. */
@@ -142,6 +144,8 @@ export class AbapAdtServer extends Server {
           'Editing an existing object: searchObject / findObjectPath -> getObjectSource -> resolveTransport (for non-local packages) -> editObjectSource (replacements or line range) or setObjectSource, with activate=true -> unitTestRun. Write tools lock and unlock by themselves; call lock/unLock only to hold a lock across several writes, and listLocks/forceUnlock if a write left an object locked. syntaxCheckCode before writing catches errors early.',
           '',
           'Always run unit tests after adding tests or changing source code. Unit tests belong in the testclass include (createTestInclude). Use $TMP for local throwaway development; transportable packages require a transport request (resolveTransport picks it for you).',
+          '',
+          'Finding code: sourceTextSearch (server index) or grepPackage (client grep with context) locate usages of tables, messages, methods or literals; read whole sources only for the hits.',
           '',
           'Errors carry kind/hint/nextTools: follow the hint instead of retrying blindly. systemProfile(destination) tells which toolsets the backend supports (S/4HANA Cloud lacks some); dumps/dumpDetails are the root-cause path where the debugger is unavailable.',
         ].join('\n'),
@@ -226,6 +230,7 @@ export class AbapAdtServer extends Server {
       rapGenerator: new RapGeneratorHandlers(adtClient),
       navigation: new NavigationHandlers(adtClient),
       textElements: new TextElementHandlers(adtClient),
+      search: new SearchHandlers(adtClient),
     };
   }
 
@@ -347,7 +352,7 @@ export class AbapAdtServer extends Server {
       h.auth, h.transport, h.object, h.class, h.codeAnalysis, h.objectLock, h.objectSource,
       h.objectDeletion, h.objectManagement, h.objectRegistration, h.node, h.discovery, h.unitTest,
       h.prettyPrinter, h.git, h.ddic, h.serviceBinding, h.query, h.feed, h.debug, h.rename, h.atc,
-      h.trace, h.refactor, h.revision, h.rapGenerator, h.navigation, h.textElements,
+      h.trace, h.refactor, h.revision, h.rapGenerator, h.navigation, h.textElements, h.search,
     ];
     return sets.flatMap((s) => s.getTools());
   }

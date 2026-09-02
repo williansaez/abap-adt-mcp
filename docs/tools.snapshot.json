@@ -1,6 +1,6 @@
 {
   "version": "0.3.1",
-  "count": 160,
+  "count": 162,
   "toolsets": {
     "core": [
       "login",
@@ -45,7 +45,9 @@
       "mainPrograms",
       "typeHierarchy",
       "objectStructureElements",
-      "objectEnhancements"
+      "objectEnhancements",
+      "sourceTextSearch",
+      "grepPackage"
     ],
     "transports": [
       "transportDetails",
@@ -2386,6 +2388,43 @@
         "elements",
         "lockHandle",
         "transport"
+      ]
+    },
+    {
+      "name": "sourceTextSearch",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "searchString"
+      ],
+      "params": [
+        "searchString",
+        "packages",
+        "objectTypes",
+        "objectName",
+        "maxResults"
+      ]
+    },
+    {
+      "name": "grepPackage",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "packageName",
+        "pattern"
+      ],
+      "params": [
+        "packageName",
+        "pattern",
+        "regex",
+        "caseSensitive",
+        "recursive",
+        "objectTypes",
+        "contextLines",
+        "maxObjects",
+        "maxMatches"
       ]
     },
     {
