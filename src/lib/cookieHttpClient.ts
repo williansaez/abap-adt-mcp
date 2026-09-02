@@ -124,7 +124,8 @@ export class CookieHttpClient {
     // session-expired error instead of handing HTML to the ADT parser (or,
     // worse, returning it as "source code").
     const body = typeof res.data === 'string' ? res.data : String(res.data ?? '');
-    if (CookieHttpClient.looksLikeLoginPage(res.status, res.headers?.['content-type'], body)) {
+    const isLogoff = /\/icf\/logoff\b/i.test(String(options.url || ''));
+    if (!isLogoff && CookieHttpClient.looksLikeLoginPage(res.status, res.headers?.['content-type'], body)) {
       const err: any = new Error('SSO session expired: the identity provider returned a login page instead of an ADT response. Re-authenticate (login) and retry.');
       err.code = 'SESSION_EXPIRED';
       err.status = 401;

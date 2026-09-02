@@ -127,7 +127,7 @@ Enable a subset with `MCP_TOOLSETS` (comma list, or a preset: `all`, `focused`) 
 | 📖 `fragmentMappings` | Retrieves fragment mappings. | `url`*, `type`*, `name`* |
 | 📖 `abapDocumentation` | Retrieves ABAP documentation. | `objectUri`*, `body`*, `line`*, `column`*, `language` |
 | 📖 `apiReleaseState` | Release state of SAP objects for ABAP Cloud / Clean Core, from SAP's official cloudification repository (released, deprecated with successors, classicAPI, noAPI) plus, when objectUrl is given, the backend's own /sap/bc/adt/apireleases answer. Check APIs bef... | `names`, `objectUrl`, `source`, `sourceUrl`, `edition`, `refresh` |
-| ⚠️ `runSnippet` | Run a piece of ABAP once and return its console output: wraps the code in a temporary IF_OO_ADT_CLASSRUN class (the "out" parameter is available: out->write( ... )), creates it in $TMP (or packageName), activates, runs it, and deletes it again unless keep=t... | `code`*, `packageName`, `className`, `transport`, `responsible`, `keep` |
+| ⚠️ `runSnippet` | Run a piece of ABAP once and return its console output: wraps the code in a temporary IF_OO_ADT_CLASSRUN class (the "out" parameter is available: out->write( ... )), creates it in packageName (default $TMP; on S/4HANA Cloud use a customer package with ABAP... | `code`*, `packageName`, `className`, `transport`, `responsible`, `keep` |
 
 ## Unit tests (4) · toolset `tests`
 

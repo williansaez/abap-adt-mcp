@@ -80,9 +80,25 @@ export class SearchHandlers extends BaseHandler {
             if (objectTypes.length) qs.objectType = objectTypes;
             if (args.objectName) qs.objectName = String(args.objectName).toUpperCase();
             const headers = { Accept: 'application/xml, application/*+xml;q=0.9, */*;q=0.5' };
-            let response = await this.adtclient.httpClient.request(TEXTSEARCH_PATH, { method: 'POST', qs, headers, body: '' });
+            // The library throws on >= 400, so both the status and the thrown
+            // error are checked: some releases answer POST with "Resource
+            // controller does not support method POST".
+            const attempt = async (method: 'POST' | 'GET') => {
+                try {
+                    return await this.adtclient.httpClient.request(TEXTSEARCH_PATH, method === 'POST' ? { method, qs, headers, body: '' } : { method, qs, headers });
+                } catch (e: any) {
+                    const status = Number(e?.status ?? e?.err ?? e?.response?.status);
+                    const text = String(e?.message || '');
+                    if (status === 405 || /does not support method/i.test(text)) return { status: 405, body: '', headers: {}, statusText: 'Method Not Allowed' } as any;
+                    // Tenants can expose the resource but keep source search switched off
+                    // ("Source Search is not supported", SRIS_SEARCH 006 on S/4HANA Cloud).
+                    if (status === 404 || status === 501 || /search is not supported|SRIS_SEARCH/i.test(text)) return { status: 501, body: '', headers: {}, statusText: 'Not Supported' } as any;
+                    throw e;
+                }
+            };
+            let response = await attempt('POST');
             if (response.status === 405) {
-                response = await this.adtclient.httpClient.request(TEXTSEARCH_PATH, { method: 'GET', qs, headers });
+                response = await attempt('GET');
             }
             if (response.status === 404 || response.status === 405 || response.status === 501) {
                 if (packages.length) {
@@ -92,7 +108,7 @@ export class SearchHandlers extends BaseHandler {
                     this.trackRequest(startTime, true);
                     return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
                 }
-                throw new McpError(ErrorCode.InvalidRequest, `Text search is not available on this system (HTTP ${response.status}). Use grepPackage(packageName, pattern) instead.`);
+                throw new McpError(ErrorCode.InvalidRequest, `Text search is not available on this system (${response.status === 501 ? 'source search not supported by the backend' : 'HTTP ' + response.status}). Use grepPackage(packageName, pattern) instead, or pass packages to let this tool fall back automatically.`);
             }
             if (response.status >= 400) {
                 throw new McpError(ErrorCode.InternalError, `Text search failed (HTTP ${response.status}): ${String(response.body || '').slice(0, 300)}`);

@@ -543,7 +543,7 @@ export class AbapAdtServer extends Server {
           // the old session is gone; the retry then fails with a staleLockHandle
           // hint, which is the honest outcome.
           const cls = classifyAdtError(error);
-          if (cls.kind !== 'sessionExpired' && cls.kind !== 'csrf') throw error;
+          if (name === 'logout' || (cls.kind !== 'sessionExpired' && cls.kind !== 'csrf')) throw error;
           console.error(`[abap-adt-mcp] session for ${destination} expired during ${name} (${cls.kind}); re-authenticating and retrying once`);
           await this.reauthenticate(destination);
           result = await dest.handlers[handlerKey].handle(name, args);

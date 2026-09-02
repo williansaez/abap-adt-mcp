@@ -127,3 +127,7 @@ Bugs found by this plan and fixed during execution:
   `bindingDetails` cannot derive service queries ("Cannot destructure property
   'query'"); now degrades to a binding summary with an explanatory note. Found
   by 2.7 against ZAPI_EXAMPLE_O4.
+
+## Layer 3 addendum — 2026-09-02 (0.3.2 tools, DEV, S/4HANA Public Cloud)
+Live over stdio with the real `systems.json`: `login` (silent SSO, ~6 s) · `systemProfile` (platform cloud, 976 collections, only the `rap` toolset unavailable) · `dumps` compact (1 dump, termination point and stack parsed) · `sourceTextSearch` (tenant answers "Source Search is not supported", SRIS_SEARCH 006, now mapped to the grepPackage fallback) · `grepPackage` on ZSANDBOX · `apiReleaseState` (repository verdicts plus the backend `apireleases` answer: `state=RELEASED`, `contract=C4`) · `resolveTransport` (transport lock DEVK900123 detected) · `runSnippet` in ZSANDBOX with that transport (created → written → activated → ran → deleted, output `snippet ok DEVELOPER 20260902`) · `listLocks` empty · `logout` clean. `$TMP` is refused on this tenant with S_ABPLNGVS; runSnippet now hints at a customer package.
+

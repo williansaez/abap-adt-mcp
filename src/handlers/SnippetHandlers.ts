@@ -40,7 +40,7 @@ export class SnippetHandlers extends BaseHandler {
         return [
             {
                 name: 'runSnippet',
-                description: 'Run a piece of ABAP once and return its console output: wraps the code in a temporary IF_OO_ADT_CLASSRUN class (the "out" parameter is available: out->write( ... )), creates it in $TMP (or packageName), activates, runs it, and deletes it again unless keep=true. A full CLASS … DEFINITION/IMPLEMENTATION implementing if_oo_adt_classrun is accepted as well. Activation errors are returned with messages instead of running. On S/4HANA Cloud pass responsible (your SAP user) when the system demands it.',
+                description: 'Run a piece of ABAP once and return its console output: wraps the code in a temporary IF_OO_ADT_CLASSRUN class (the "out" parameter is available: out->write( ... )), creates it in packageName (default $TMP; on S/4HANA Cloud use a customer package with ABAP for Cloud Development plus its transport, $TMP is refused there), activates, runs it, and deletes it again unless keep=true. A full CLASS … DEFINITION/IMPLEMENTATION implementing if_oo_adt_classrun is accepted as well. Activation errors are returned with messages instead of running. Pass responsible (your SAP user) on cloud systems.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -115,7 +115,11 @@ export class SnippetHandlers extends BaseHandler {
             const cleanupError = await cleanup();
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(ErrorCode.InternalError, `runSnippet failed after ${steps.join(', ') || 'nothing'}: ${this.formatAdtError(error)}${cleanupError ? ` (${cleanupError})` : ''}`);
+            const detail = this.formatAdtError(error);
+            const hint = /S_ABPLNGVS|language version/i.test(detail) && packageName === '$TMP'
+                ? ' Hint: on S/4HANA Cloud objects in $TMP get the Standard ABAP language version, which cloud users may not change. Pass packageName with a customer package (ABAP for Cloud Development) and, if it is transportable, the transport from resolveTransport.'
+                : '';
+            throw new McpError(ErrorCode.InternalError, `runSnippet failed after ${steps.join(', ') || 'nothing'}: ${detail}${cleanupError ? ` (${cleanupError})` : ''}${hint}`);
         }
     }
 }

@@ -73,6 +73,14 @@ describe('sourceTextSearch', () => {
     expect(res.results[0].line).toBe(12);
   });
 
+  it('retries with GET when POST is rejected by a thrown ADT exception', async () => {
+    const { client, handler } = makeHandler();
+    client.httpClient.request.mockRejectedValueOnce(Object.assign(new Error('Resource controller does not support method POST'), { err: 405 }));
+    const res = parse(await handler.handle('sourceTextSearch', { searchString: 'x' }));
+    expect(client.httpClient.request.mock.calls[1][1].method).toBe('GET');
+    expect(res.totalItems).toBe(4);
+  });
+
   it('retries with GET on 405', async () => {
     const { client, handler } = makeHandler();
     client.httpClient.request.mockResolvedValueOnce({ status: 405, body: '', headers: {} });
@@ -85,6 +93,14 @@ describe('sourceTextSearch', () => {
     const res = parse(await handler.handle('sourceTextSearch', { searchString: 't000', packages: 'ZPKG' }));
     expect(res.fallback).toMatch(/grepPackage/);
     expect(res.totalMatches).toBe(2);
+  });
+
+  it('treats "Source Search is not supported" as unavailable and falls back', async () => {
+    const { client, handler } = makeHandler();
+    client.httpClient.request.mockRejectedValue(Object.assign(new Error('Source Search is not supported. | type: ABAP Text Search Resource Error | details: [T100KEY-ID: SRIS_SEARCH, T100KEY-NO: 6]'), { err: 400 }));
+    const res = parse(await handler.handle('sourceTextSearch', { searchString: 't000', packages: 'ZPKG' }));
+    expect(res.fallback).toMatch(/grepPackage/);
+    await expect(handler.handle('sourceTextSearch', { searchString: 't000' })).rejects.toThrow(/source search not supported/);
   });
 
   it('explains when the endpoint is missing and no package is given', async () => {

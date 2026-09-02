@@ -25,6 +25,12 @@ describe('CookieHttpClient', () => {
     await expect(client.request({ url: '/sap/bc/adt/oo/classes/zcl/source/main' })).rejects.toMatchObject({ code: 'SESSION_EXPIRED', status: 401 });
   });
 
+  it('lets the logoff redirect page through instead of flagging an expired session', async () => {
+    const { client } = makeClient([{ status: 200, data: LOGIN_HTML, headers: { 'content-type': 'text/html' } }]);
+    const res = await client.request({ url: '/sap/public/bc/icf/logoff' });
+    expect(res.status).toBe(200);
+  });
+
   it('does not mistake ADT HTML payloads (dump text, docs) for a login page', () => {
     expect(CookieHttpClient.looksLikeLoginPage(200, 'text/html', '<html><body><h4>Header Information</h4><table><tr><td>Runtime Error</td></tr></table></body></html>')).toBe(false);
     expect(CookieHttpClient.looksLikeLoginPage(401, 'text/html', LOGIN_HTML)).toBe(false);

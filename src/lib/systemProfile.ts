@@ -15,7 +15,6 @@ export const FEATURE_COLLECTIONS: Record<string, string> = {
   apiReleases: '/sap/bc/adt/apireleases',
   systemInformation: '/sap/bc/adt/system/information',
   feeds: '/sap/bc/adt/feeds',
-  dumps: '/sap/bc/adt/runtime/dump',
   dataPreview: '/sap/bc/adt/datapreview',
   unitTests: '/sap/bc/adt/abapunit',
   refactorings: '/sap/bc/adt/refactorings',
@@ -86,11 +85,12 @@ export function parseSystemInformation(body: string | undefined): Record<string,
     } catch { /* fall through */ }
   }
   const flat: Record<string, string> = {};
+  const NOISE = new Set(['version', 'encoding', 'xmlns', 'schemaLocation']);
   const attrRe = /\b([\w:.-]+)="([^"]*)"/g;
   let m: RegExpExecArray | null;
   while ((m = attrRe.exec(text)) && Object.keys(flat).length < 60) {
     const key = m[1].replace(/^.*:/, '');
-    if (!/^xmlns/.test(m[1]) && !(key in flat)) flat[key] = m[2];
+    if (!/^xmlns/.test(m[1]) && !NOISE.has(key) && !(key in flat)) flat[key] = m[2];
   }
   const elRe = /<([\w:.-]+)[^>]*>([^<]{1,200})<\/\1>/g;
   while ((m = elRe.exec(text)) && Object.keys(flat).length < 80) {

@@ -48,5 +48,6 @@ describe('systemProfile', () => {
     expect(parseSystemInformation('{"systemId":"CZ0","release":"2508"}')).toEqual({ systemId: 'CZ0', release: '2508' });
     expect(parseSystemInformation('<sysinfo:info xmlns:sysinfo="x" sysinfo:sid="CZ0"><sysinfo:release>2508</sysinfo:release></sysinfo:info>')).toMatchObject({ sid: 'CZ0', release: '2508' });
     expect(parseSystemInformation('')).toBeUndefined();
+    expect(parseSystemInformation('<?xml version="1.0" encoding="utf-8"?><feed><title>System Information</title></feed>')).toEqual({ title: 'System Information' });
   });
 });
