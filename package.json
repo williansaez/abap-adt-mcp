@@ -16,7 +16,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node ./dist/index.js",
     "dev": "npx @modelcontextprotocol/inspector ./dist/index.js",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "tools:docs": "npm run build && node scripts/gen-tools-docs.js"
   },
   "keywords": [
     "abap",

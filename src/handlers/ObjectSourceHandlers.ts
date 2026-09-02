@@ -104,8 +104,8 @@ export class ObjectSourceHandlers extends BaseHandler {
               description: 'Optional safety check: exact current text of lines [startLine, endLine] joined with \\n. If it does not match what SAP currently has, the edit is rejected instead of applied.',
               optional: true
             },
-            lockHandle: { type: 'string' },
-            transport: { type: 'string', optional: true }
+            lockHandle: { type: 'string', description: 'Lock handle obtained from the lock tool' },
+            transport: { type: 'string', description: 'Transport number for objects in transportable packages (see resolveTransport)', optional: true }
           },
           required: ['objectSourceUrl', 'lockHandle']
         }

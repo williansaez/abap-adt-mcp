@@ -1,0 +1,2401 @@
+{
+  "version": "0.3.1",
+  "count": 158,
+  "toolsets": {
+    "core": [
+      "login",
+      "logout",
+      "dropSession",
+      "listSystems",
+      "healthcheck",
+      "systemProfile"
+    ],
+    "source": [
+      "lock",
+      "unLock",
+      "getObjectSource",
+      "setObjectSource",
+      "editObjectSource",
+      "prettyPrinterSetting",
+      "setPrettyPrinterSetting",
+      "prettyPrinter",
+      "revisions",
+      "getTextElements",
+      "setTextElements"
+    ],
+    "objects": [
+      "objectStructure",
+      "searchObject",
+      "findObjectPath",
+      "objectTypes",
+      "reentranceTicket",
+      "classIncludes",
+      "classComponents",
+      "deleteObject",
+      "activateObjects",
+      "activateByName",
+      "inactiveObjects",
+      "objectRegistrationInfo",
+      "creatableTypeDetails",
+      "validateNewObject",
+      "createObject",
+      "nodeContents",
+      "mainPrograms",
+      "typeHierarchy",
+      "objectStructureElements",
+      "objectEnhancements"
+    ],
+    "transports": [
+      "transportDetails",
+      "transportUnifiedDiff",
+      "transportInfo",
+      "resolveTransport",
+      "createTransport",
+      "hasTransportConfig",
+      "transportConfigurations",
+      "getTransportConfiguration",
+      "setTransportsConfig",
+      "createTransportsConfig",
+      "userTransports",
+      "transportsByConfig",
+      "transportDelete",
+      "transportRelease",
+      "transportSetOwner",
+      "transportAddUser",
+      "systemUsers",
+      "transportReference"
+    ],
+    "analysis": [
+      "syntaxCheckCode",
+      "syntaxCheckCdsUrl",
+      "codeCompletion",
+      "findDefinition",
+      "usageReferences",
+      "syntaxCheckTypes",
+      "codeCompletionFull",
+      "runClass",
+      "codeCompletionElement",
+      "usageReferenceSnippets",
+      "fixProposals",
+      "fixEdits",
+      "fragmentMappings",
+      "abapDocumentation"
+    ],
+    "tests": [
+      "unitTestRun",
+      "unitTestEvaluation",
+      "unitTestOccurrenceMarkers",
+      "createTestInclude"
+    ],
+    "atc": [
+      "atcCustomizing",
+      "atcQuickfixProposals",
+      "atcApplyQuickfix",
+      "atcCheckVariant",
+      "createAtcRun",
+      "atcWorklists",
+      "atcUsers",
+      "atcExemptProposal",
+      "atcRequestExemption",
+      "isProposalMessage",
+      "atcContactUri",
+      "atcChangeContact",
+      "atcDocumentation"
+    ],
+    "data": [
+      "annotationDefinitions",
+      "ddicElement",
+      "ddicRepositoryAccess",
+      "packageSearchHelp",
+      "getDomainProperties",
+      "setDomainProperties",
+      "getDataElementProperties",
+      "setDataElementProperties",
+      "tableContents",
+      "runQuery"
+    ],
+    "discovery": [
+      "featureDetails",
+      "collectionFeatureDetails",
+      "findCollectionByUrl",
+      "loadTypes",
+      "adtDiscovery",
+      "adtCoreDiscovery",
+      "adtCompatibilityGraph"
+    ],
+    "runtime": [
+      "feeds",
+      "dumps",
+      "dumpDetails"
+    ],
+    "refactoring": [
+      "renameEvaluate",
+      "renamePreview",
+      "renameExecute",
+      "extractMethodEvaluate",
+      "extractMethodPreview",
+      "extractMethodExecute",
+      "changePackagePreview",
+      "changePackageExecute"
+    ],
+    "rap": [
+      "rapGenIsAvailable",
+      "rapGenGetSchema",
+      "rapGenGetContent",
+      "rapGenValidateInitial",
+      "rapGenValidateContent",
+      "rapGenPreview",
+      "rapGenGenerate",
+      "rapGenPublishService"
+    ],
+    "services": [
+      "publishServiceBinding",
+      "unPublishServiceBinding",
+      "fetchServiceDetails",
+      "bindingDetails"
+    ],
+    "git": [
+      "gitRepos",
+      "gitExternalRepoInfo",
+      "gitCreateRepo",
+      "gitPullRepo",
+      "gitUnlinkRepo",
+      "stageRepo",
+      "pushRepo",
+      "checkRepo",
+      "remoteRepoInfo",
+      "switchRepoBranch"
+    ],
+    "debugger": [
+      "debuggerListeners",
+      "debuggerListen",
+      "debuggerDeleteListener",
+      "debuggerSetBreakpoints",
+      "debuggerDeleteBreakpoints",
+      "debuggerAttach",
+      "debuggerSaveSettings",
+      "debuggerStackTrace",
+      "debuggerVariables",
+      "debuggerChildVariables",
+      "debuggerStep",
+      "debuggerGoToStack",
+      "debuggerSetVariableValue"
+    ],
+    "traces": [
+      "tracesList",
+      "tracesListRequests",
+      "tracesHitList",
+      "tracesDbAccess",
+      "tracesStatements",
+      "tracesSetParameters",
+      "tracesCreateConfiguration",
+      "tracesDeleteConfiguration",
+      "tracesDelete"
+    ]
+  },
+  "tools": [
+    {
+      "name": "login",
+      "toolset": "core",
+      "readOnly": false,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "logout",
+      "toolset": "core",
+      "readOnly": false,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "dropSession",
+      "toolset": "core",
+      "readOnly": false,
+      "destructive": true,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "transportDetails",
+      "toolset": "transports",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "transportNumber"
+      ],
+      "params": [
+        "transportNumber"
+      ]
+    },
+    {
+      "name": "transportUnifiedDiff",
+      "toolset": "transports",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "transportNumber"
+      ],
+      "params": [
+        "transportNumber",
+        "maxObjects"
+      ]
+    },
+    {
+      "name": "transportInfo",
+      "toolset": "transports",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objSourceUrl"
+      ],
+      "params": [
+        "objSourceUrl",
+        "devClass",
+        "operation"
+      ]
+    },
+    {
+      "name": "resolveTransport",
+      "toolset": "transports",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "objSourceUrl"
+      ],
+      "params": [
+        "objSourceUrl",
+        "devClass",
+        "preferTransport",
+        "createIfMissing",
+        "requestText"
+      ]
+    },
+    {
+      "name": "createTransport",
+      "toolset": "transports",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "objSourceUrl",
+        "REQUEST_TEXT",
+        "DEVCLASS"
+      ],
+      "params": [
+        "objSourceUrl",
+        "REQUEST_TEXT",
+        "DEVCLASS",
+        "transportLayer"
+      ]
+    },
+    {
+      "name": "hasTransportConfig",
+      "toolset": "transports",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "transportConfigurations",
+      "toolset": "transports",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "getTransportConfiguration",
+      "toolset": "transports",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "url"
+      ],
+      "params": [
+        "url"
+      ]
+    },
+    {
+      "name": "setTransportsConfig",
+      "toolset": "transports",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "uri",
+        "etag",
+        "config"
+      ],
+      "params": [
+        "uri",
+        "etag",
+        "config"
+      ]
+    },
+    {
+      "name": "createTransportsConfig",
+      "toolset": "transports",
+      "readOnly": false,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "userTransports",
+      "toolset": "transports",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "user"
+      ],
+      "params": [
+        "user",
+        "targets",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "transportsByConfig",
+      "toolset": "transports",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "configUri"
+      ],
+      "params": [
+        "configUri",
+        "targets",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "transportDelete",
+      "toolset": "transports",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "transportNumber"
+      ],
+      "params": [
+        "transportNumber"
+      ]
+    },
+    {
+      "name": "transportRelease",
+      "toolset": "transports",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "transportNumber"
+      ],
+      "params": [
+        "transportNumber",
+        "ignoreLocks",
+        "IgnoreATC"
+      ]
+    },
+    {
+      "name": "transportSetOwner",
+      "toolset": "transports",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "transportNumber",
+        "targetuser"
+      ],
+      "params": [
+        "transportNumber",
+        "targetuser"
+      ]
+    },
+    {
+      "name": "transportAddUser",
+      "toolset": "transports",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "transportNumber",
+        "user"
+      ],
+      "params": [
+        "transportNumber",
+        "user"
+      ]
+    },
+    {
+      "name": "systemUsers",
+      "toolset": "transports",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "transportReference",
+      "toolset": "transports",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "pgmid",
+        "obj_wbtype",
+        "obj_name"
+      ],
+      "params": [
+        "pgmid",
+        "obj_wbtype",
+        "obj_name",
+        "tr_number"
+      ]
+    },
+    {
+      "name": "objectStructure",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objectUrl"
+      ],
+      "params": [
+        "objectUrl",
+        "version",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "searchObject",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "query"
+      ],
+      "params": [
+        "query",
+        "objType",
+        "max"
+      ]
+    },
+    {
+      "name": "findObjectPath",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objectUrl"
+      ],
+      "params": [
+        "objectUrl"
+      ]
+    },
+    {
+      "name": "objectTypes",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "reentranceTicket",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "classIncludes",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "clas"
+      ],
+      "params": [
+        "clas"
+      ]
+    },
+    {
+      "name": "classComponents",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "url"
+      ],
+      "params": [
+        "url",
+        "startIndex",
+        "maxComponents"
+      ]
+    },
+    {
+      "name": "syntaxCheckCode",
+      "toolset": "analysis",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "url"
+      ],
+      "params": [
+        "code",
+        "url",
+        "mainUrl",
+        "mainProgram",
+        "version"
+      ]
+    },
+    {
+      "name": "syntaxCheckCdsUrl",
+      "toolset": "analysis",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "cdsUrl"
+      ],
+      "params": [
+        "cdsUrl"
+      ]
+    },
+    {
+      "name": "codeCompletion",
+      "toolset": "analysis",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "sourceUrl",
+        "source",
+        "line",
+        "column"
+      ],
+      "params": [
+        "sourceUrl",
+        "source",
+        "line",
+        "column"
+      ]
+    },
+    {
+      "name": "findDefinition",
+      "toolset": "analysis",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "url",
+        "source",
+        "line",
+        "startCol",
+        "endCol"
+      ],
+      "params": [
+        "url",
+        "source",
+        "line",
+        "startCol",
+        "endCol",
+        "implementation",
+        "mainProgram"
+      ]
+    },
+    {
+      "name": "usageReferences",
+      "toolset": "analysis",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "url"
+      ],
+      "params": [
+        "url",
+        "line",
+        "column",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "syntaxCheckTypes",
+      "toolset": "analysis",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "codeCompletionFull",
+      "toolset": "analysis",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "sourceUrl",
+        "source",
+        "line",
+        "column",
+        "patternKey"
+      ],
+      "params": [
+        "sourceUrl",
+        "source",
+        "line",
+        "column",
+        "patternKey"
+      ]
+    },
+    {
+      "name": "runClass",
+      "toolset": "analysis",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "className"
+      ],
+      "params": [
+        "className"
+      ]
+    },
+    {
+      "name": "codeCompletionElement",
+      "toolset": "analysis",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "sourceUrl",
+        "source",
+        "line",
+        "column"
+      ],
+      "params": [
+        "sourceUrl",
+        "source",
+        "line",
+        "column"
+      ]
+    },
+    {
+      "name": "usageReferenceSnippets",
+      "toolset": "analysis",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "references"
+      ],
+      "params": [
+        "references",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "fixProposals",
+      "toolset": "analysis",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "url",
+        "source",
+        "line",
+        "column"
+      ],
+      "params": [
+        "url",
+        "source",
+        "line",
+        "column"
+      ]
+    },
+    {
+      "name": "fixEdits",
+      "toolset": "analysis",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "proposal",
+        "source"
+      ],
+      "params": [
+        "proposal",
+        "source"
+      ]
+    },
+    {
+      "name": "fragmentMappings",
+      "toolset": "analysis",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "url",
+        "type",
+        "name"
+      ],
+      "params": [
+        "url",
+        "type",
+        "name"
+      ]
+    },
+    {
+      "name": "abapDocumentation",
+      "toolset": "analysis",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objectUri",
+        "body",
+        "line",
+        "column"
+      ],
+      "params": [
+        "objectUri",
+        "body",
+        "line",
+        "column",
+        "language"
+      ]
+    },
+    {
+      "name": "lock",
+      "toolset": "source",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "objectUrl"
+      ],
+      "params": [
+        "objectUrl",
+        "accessMode"
+      ]
+    },
+    {
+      "name": "unLock",
+      "toolset": "source",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "objectUrl",
+        "lockHandle"
+      ],
+      "params": [
+        "objectUrl",
+        "lockHandle"
+      ]
+    },
+    {
+      "name": "getObjectSource",
+      "toolset": "source",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objectSourceUrl"
+      ],
+      "params": [
+        "objectSourceUrl",
+        "version",
+        "startLine",
+        "maxLines"
+      ]
+    },
+    {
+      "name": "setObjectSource",
+      "toolset": "source",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "objectSourceUrl",
+        "source",
+        "lockHandle"
+      ],
+      "params": [
+        "objectSourceUrl",
+        "source",
+        "lockHandle",
+        "transport"
+      ]
+    },
+    {
+      "name": "editObjectSource",
+      "toolset": "source",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "objectSourceUrl",
+        "lockHandle"
+      ],
+      "params": [
+        "objectSourceUrl",
+        "replacements",
+        "startLine",
+        "endLine",
+        "newText",
+        "expectedText",
+        "lockHandle",
+        "transport"
+      ]
+    },
+    {
+      "name": "deleteObject",
+      "toolset": "objects",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "objectUrl",
+        "lockHandle"
+      ],
+      "params": [
+        "objectUrl",
+        "lockHandle",
+        "transport"
+      ]
+    },
+    {
+      "name": "activateObjects",
+      "toolset": "objects",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "objects"
+      ],
+      "params": [
+        "objects",
+        "preauditRequested"
+      ]
+    },
+    {
+      "name": "activateByName",
+      "toolset": "objects",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "objectName",
+        "objectUrl"
+      ],
+      "params": [
+        "objectName",
+        "objectUrl",
+        "mainInclude",
+        "preauditRequested"
+      ]
+    },
+    {
+      "name": "inactiveObjects",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "objectRegistrationInfo",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objectUrl"
+      ],
+      "params": [
+        "objectUrl"
+      ]
+    },
+    {
+      "name": "creatableTypeDetails",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "typeId"
+      ]
+    },
+    {
+      "name": "validateNewObject",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objtype",
+        "objname",
+        "description"
+      ],
+      "params": [
+        "objtype",
+        "objname",
+        "description",
+        "packagename",
+        "fugrname",
+        "swcomp",
+        "transportLayer",
+        "packagetype"
+      ]
+    },
+    {
+      "name": "createObject",
+      "toolset": "objects",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "objtype",
+        "name",
+        "parentName",
+        "description",
+        "parentPath"
+      ],
+      "params": [
+        "objtype",
+        "name",
+        "parentName",
+        "description",
+        "parentPath",
+        "responsible",
+        "transport",
+        "swcomp",
+        "transportLayer",
+        "packagetype",
+        "recordChanges",
+        "abapLanguageVersion"
+      ]
+    },
+    {
+      "name": "nodeContents",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "parent_type"
+      ],
+      "params": [
+        "parent_type",
+        "parent_name",
+        "user_name",
+        "parent_tech_name",
+        "rebuild_tree",
+        "parentnodes",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "mainPrograms",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "includeUrl"
+      ],
+      "params": [
+        "includeUrl"
+      ]
+    },
+    {
+      "name": "featureDetails",
+      "toolset": "discovery",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "title"
+      ],
+      "params": [
+        "title"
+      ]
+    },
+    {
+      "name": "collectionFeatureDetails",
+      "toolset": "discovery",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "url"
+      ],
+      "params": [
+        "url"
+      ]
+    },
+    {
+      "name": "findCollectionByUrl",
+      "toolset": "discovery",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "url"
+      ],
+      "params": [
+        "url"
+      ]
+    },
+    {
+      "name": "loadTypes",
+      "toolset": "discovery",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "adtDiscovery",
+      "toolset": "discovery",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "adtCoreDiscovery",
+      "toolset": "discovery",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "adtCompatibilityGraph",
+      "toolset": "discovery",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "unitTestRun",
+      "toolset": "tests",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "url"
+      ],
+      "params": [
+        "url",
+        "flags",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "unitTestEvaluation",
+      "toolset": "tests",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "clas"
+      ],
+      "params": [
+        "clas",
+        "flags",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "unitTestOccurrenceMarkers",
+      "toolset": "tests",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "url",
+        "source"
+      ],
+      "params": [
+        "url",
+        "source"
+      ]
+    },
+    {
+      "name": "createTestInclude",
+      "toolset": "tests",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "clas",
+        "lockHandle"
+      ],
+      "params": [
+        "clas",
+        "lockHandle",
+        "transport"
+      ]
+    },
+    {
+      "name": "prettyPrinterSetting",
+      "toolset": "source",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "setPrettyPrinterSetting",
+      "toolset": "source",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "indent",
+        "style"
+      ],
+      "params": [
+        "indent",
+        "style"
+      ]
+    },
+    {
+      "name": "prettyPrinter",
+      "toolset": "source",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "source"
+      ],
+      "params": [
+        "source",
+        "startLine",
+        "maxLines"
+      ]
+    },
+    {
+      "name": "gitRepos",
+      "toolset": "git",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "gitExternalRepoInfo",
+      "toolset": "git",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "repourl"
+      ],
+      "params": [
+        "repourl",
+        "user",
+        "password"
+      ]
+    },
+    {
+      "name": "gitCreateRepo",
+      "toolset": "git",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "packageName",
+        "repourl"
+      ],
+      "params": [
+        "packageName",
+        "repourl",
+        "branch",
+        "transport",
+        "user",
+        "password"
+      ]
+    },
+    {
+      "name": "gitPullRepo",
+      "toolset": "git",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "repoId"
+      ],
+      "params": [
+        "repoId",
+        "branch",
+        "transport",
+        "user",
+        "password",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "gitUnlinkRepo",
+      "toolset": "git",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "repoId"
+      ],
+      "params": [
+        "repoId"
+      ]
+    },
+    {
+      "name": "stageRepo",
+      "toolset": "git",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "repo"
+      ],
+      "params": [
+        "repo",
+        "user",
+        "password",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "pushRepo",
+      "toolset": "git",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "repo",
+        "staging"
+      ],
+      "params": [
+        "repo",
+        "staging",
+        "user",
+        "password"
+      ]
+    },
+    {
+      "name": "checkRepo",
+      "toolset": "git",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "repo"
+      ],
+      "params": [
+        "repo",
+        "user",
+        "password"
+      ]
+    },
+    {
+      "name": "remoteRepoInfo",
+      "toolset": "git",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "repo"
+      ],
+      "params": [
+        "repo",
+        "user",
+        "password"
+      ]
+    },
+    {
+      "name": "switchRepoBranch",
+      "toolset": "git",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "repo",
+        "branch"
+      ],
+      "params": [
+        "repo",
+        "branch",
+        "create",
+        "user",
+        "password"
+      ]
+    },
+    {
+      "name": "annotationDefinitions",
+      "toolset": "data",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "ddicElement",
+      "toolset": "data",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "path"
+      ],
+      "params": [
+        "path",
+        "getTargetForAssociation",
+        "getExtensionViews",
+        "getSecondaryObjects",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "ddicRepositoryAccess",
+      "toolset": "data",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "path"
+      ],
+      "params": [
+        "path",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "packageSearchHelp",
+      "toolset": "data",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "type"
+      ],
+      "params": [
+        "type",
+        "name",
+        "startIndex",
+        "maxResults"
+      ]
+    },
+    {
+      "name": "getDomainProperties",
+      "toolset": "data",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "domainUrl"
+      ],
+      "params": [
+        "domainUrl",
+        "version"
+      ]
+    },
+    {
+      "name": "setDomainProperties",
+      "toolset": "data",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "domainUrl",
+        "properties",
+        "metaData",
+        "lockHandle"
+      ],
+      "params": [
+        "domainUrl",
+        "properties",
+        "metaData",
+        "lockHandle",
+        "transport"
+      ]
+    },
+    {
+      "name": "getDataElementProperties",
+      "toolset": "data",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "dataElementUrl"
+      ],
+      "params": [
+        "dataElementUrl",
+        "version"
+      ]
+    },
+    {
+      "name": "setDataElementProperties",
+      "toolset": "data",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "dataElementUrl",
+        "properties",
+        "metaData",
+        "lockHandle"
+      ],
+      "params": [
+        "dataElementUrl",
+        "properties",
+        "metaData",
+        "lockHandle",
+        "transport"
+      ]
+    },
+    {
+      "name": "publishServiceBinding",
+      "toolset": "services",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "params": [
+        "name",
+        "version"
+      ]
+    },
+    {
+      "name": "unPublishServiceBinding",
+      "toolset": "services",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "name",
+        "version"
+      ],
+      "params": [
+        "name",
+        "version"
+      ]
+    },
+    {
+      "name": "fetchServiceDetails",
+      "toolset": "services",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "name"
+      ],
+      "params": [
+        "name",
+        "index"
+      ]
+    },
+    {
+      "name": "bindingDetails",
+      "toolset": "services",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "binding"
+      ],
+      "params": [
+        "binding",
+        "index"
+      ]
+    },
+    {
+      "name": "tableContents",
+      "toolset": "data",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "ddicEntityName"
+      ],
+      "params": [
+        "ddicEntityName",
+        "rowNumber",
+        "decode",
+        "sqlQuery",
+        "startRow",
+        "maxRows"
+      ]
+    },
+    {
+      "name": "runQuery",
+      "toolset": "data",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "sqlQuery"
+      ],
+      "params": [
+        "sqlQuery",
+        "rowNumber",
+        "decode",
+        "startRow",
+        "maxRows"
+      ]
+    },
+    {
+      "name": "feeds",
+      "toolset": "runtime",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "dumps",
+      "toolset": "runtime",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "query",
+        "from",
+        "to",
+        "user",
+        "contains",
+        "includeHtml",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "dumpDetails",
+      "toolset": "runtime",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "dumpId"
+      ],
+      "params": [
+        "dumpId",
+        "startLine",
+        "maxLines"
+      ]
+    },
+    {
+      "name": "debuggerListeners",
+      "toolset": "debugger",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "debuggingMode",
+        "terminalId",
+        "ideId",
+        "user"
+      ],
+      "params": [
+        "debuggingMode",
+        "terminalId",
+        "ideId",
+        "user",
+        "checkConflict"
+      ]
+    },
+    {
+      "name": "debuggerListen",
+      "toolset": "debugger",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "debuggingMode",
+        "terminalId",
+        "ideId",
+        "user"
+      ],
+      "params": [
+        "debuggingMode",
+        "terminalId",
+        "ideId",
+        "user",
+        "checkConflict",
+        "isNotifiedOnConflict"
+      ]
+    },
+    {
+      "name": "debuggerDeleteListener",
+      "toolset": "debugger",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "debuggingMode",
+        "terminalId",
+        "ideId",
+        "user"
+      ],
+      "params": [
+        "debuggingMode",
+        "terminalId",
+        "ideId",
+        "user"
+      ]
+    },
+    {
+      "name": "debuggerSetBreakpoints",
+      "toolset": "debugger",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "debuggingMode",
+        "terminalId",
+        "ideId",
+        "clientId",
+        "breakpoints",
+        "user"
+      ],
+      "params": [
+        "debuggingMode",
+        "terminalId",
+        "ideId",
+        "clientId",
+        "breakpoints",
+        "user",
+        "scope",
+        "systemDebugging",
+        "deactivated",
+        "syncScupeUrl"
+      ]
+    },
+    {
+      "name": "debuggerDeleteBreakpoints",
+      "toolset": "debugger",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "breakpoint",
+        "debuggingMode",
+        "terminalId",
+        "ideId",
+        "requestUser"
+      ],
+      "params": [
+        "breakpoint",
+        "debuggingMode",
+        "terminalId",
+        "ideId",
+        "requestUser",
+        "scope"
+      ]
+    },
+    {
+      "name": "debuggerAttach",
+      "toolset": "debugger",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "debuggingMode",
+        "debuggeeId",
+        "user"
+      ],
+      "params": [
+        "debuggingMode",
+        "debuggeeId",
+        "user",
+        "dynproDebugging"
+      ]
+    },
+    {
+      "name": "debuggerSaveSettings",
+      "toolset": "debugger",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "settings"
+      ],
+      "params": [
+        "settings"
+      ]
+    },
+    {
+      "name": "debuggerStackTrace",
+      "toolset": "debugger",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "semanticURIs"
+      ]
+    },
+    {
+      "name": "debuggerVariables",
+      "toolset": "debugger",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "parents"
+      ],
+      "params": [
+        "parents",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "debuggerChildVariables",
+      "toolset": "debugger",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "parent",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "debuggerStep",
+      "toolset": "debugger",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "steptype"
+      ],
+      "params": [
+        "steptype",
+        "url"
+      ]
+    },
+    {
+      "name": "debuggerGoToStack",
+      "toolset": "debugger",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "urlOrPosition"
+      ],
+      "params": [
+        "urlOrPosition"
+      ]
+    },
+    {
+      "name": "debuggerSetVariableValue",
+      "toolset": "debugger",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "variableName",
+        "value"
+      ],
+      "params": [
+        "variableName",
+        "value"
+      ]
+    },
+    {
+      "name": "renameEvaluate",
+      "toolset": "refactoring",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "uri",
+        "line",
+        "startColumn",
+        "endColumn"
+      ],
+      "params": [
+        "uri",
+        "line",
+        "startColumn",
+        "endColumn"
+      ]
+    },
+    {
+      "name": "renamePreview",
+      "toolset": "refactoring",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "renameRefactoring"
+      ],
+      "params": [
+        "renameRefactoring",
+        "transport"
+      ]
+    },
+    {
+      "name": "renameExecute",
+      "toolset": "refactoring",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "refactoring"
+      ],
+      "params": [
+        "refactoring"
+      ]
+    },
+    {
+      "name": "atcCustomizing",
+      "toolset": "atc",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "atcQuickfixProposals",
+      "toolset": "atc",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objectSourceUrl",
+        "line",
+        "column"
+      ],
+      "params": [
+        "objectSourceUrl",
+        "line",
+        "column"
+      ]
+    },
+    {
+      "name": "atcApplyQuickfix",
+      "toolset": "atc",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "objectSourceUrl",
+        "line",
+        "column",
+        "lockHandle"
+      ],
+      "params": [
+        "objectSourceUrl",
+        "line",
+        "column",
+        "proposalIndex",
+        "lockHandle",
+        "transport"
+      ]
+    },
+    {
+      "name": "atcCheckVariant",
+      "toolset": "atc",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "variant"
+      ],
+      "params": [
+        "variant"
+      ]
+    },
+    {
+      "name": "createAtcRun",
+      "toolset": "atc",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "variant",
+        "mainUrl"
+      ],
+      "params": [
+        "variant",
+        "mainUrl",
+        "maxResults"
+      ]
+    },
+    {
+      "name": "atcWorklists",
+      "toolset": "atc",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "runResultId"
+      ],
+      "params": [
+        "runResultId",
+        "timestamp",
+        "usedObjectSet",
+        "includeExempted",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "atcUsers",
+      "toolset": "atc",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "atcExemptProposal",
+      "toolset": "atc",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "markerId"
+      ],
+      "params": [
+        "markerId"
+      ]
+    },
+    {
+      "name": "atcRequestExemption",
+      "toolset": "atc",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "proposal"
+      ],
+      "params": [
+        "proposal"
+      ]
+    },
+    {
+      "name": "isProposalMessage",
+      "toolset": "atc",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "proposal"
+      ],
+      "params": [
+        "proposal"
+      ]
+    },
+    {
+      "name": "atcContactUri",
+      "toolset": "atc",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "findingUri"
+      ],
+      "params": [
+        "findingUri"
+      ]
+    },
+    {
+      "name": "atcChangeContact",
+      "toolset": "atc",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "itemUri",
+        "userId"
+      ],
+      "params": [
+        "itemUri",
+        "userId"
+      ]
+    },
+    {
+      "name": "atcDocumentation",
+      "toolset": "atc",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "docUri"
+      ],
+      "params": [
+        "docUri"
+      ]
+    },
+    {
+      "name": "tracesList",
+      "toolset": "traces",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "user"
+      ]
+    },
+    {
+      "name": "tracesListRequests",
+      "toolset": "traces",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "user"
+      ]
+    },
+    {
+      "name": "tracesHitList",
+      "toolset": "traces",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "id"
+      ],
+      "params": [
+        "id",
+        "withSystemEvents",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "tracesDbAccess",
+      "toolset": "traces",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "id"
+      ],
+      "params": [
+        "id",
+        "withSystemEvents",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "tracesStatements",
+      "toolset": "traces",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "id"
+      ],
+      "params": [
+        "id",
+        "options",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "tracesSetParameters",
+      "toolset": "traces",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "parameters"
+      ],
+      "params": [
+        "parameters"
+      ]
+    },
+    {
+      "name": "tracesCreateConfiguration",
+      "toolset": "traces",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "config"
+      ],
+      "params": [
+        "config"
+      ]
+    },
+    {
+      "name": "tracesDeleteConfiguration",
+      "toolset": "traces",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "id"
+      ],
+      "params": [
+        "id"
+      ]
+    },
+    {
+      "name": "tracesDelete",
+      "toolset": "traces",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "id"
+      ],
+      "params": [
+        "id"
+      ]
+    },
+    {
+      "name": "extractMethodEvaluate",
+      "toolset": "refactoring",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "uri",
+        "range"
+      ],
+      "params": [
+        "uri",
+        "range"
+      ]
+    },
+    {
+      "name": "extractMethodPreview",
+      "toolset": "refactoring",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "proposal"
+      ],
+      "params": [
+        "proposal"
+      ]
+    },
+    {
+      "name": "extractMethodExecute",
+      "toolset": "refactoring",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "refactoring"
+      ],
+      "params": [
+        "refactoring"
+      ]
+    },
+    {
+      "name": "changePackagePreview",
+      "toolset": "refactoring",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objectUrl",
+        "oldPackage",
+        "newPackage"
+      ],
+      "params": [
+        "objectUrl",
+        "oldPackage",
+        "newPackage",
+        "transport"
+      ]
+    },
+    {
+      "name": "changePackageExecute",
+      "toolset": "refactoring",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "refactoring"
+      ],
+      "params": [
+        "refactoring"
+      ]
+    },
+    {
+      "name": "revisions",
+      "toolset": "source",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objectUrl"
+      ],
+      "params": [
+        "objectUrl",
+        "clsInclude"
+      ]
+    },
+    {
+      "name": "rapGenIsAvailable",
+      "toolset": "rap",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "genId"
+      ]
+    },
+    {
+      "name": "rapGenGetSchema",
+      "toolset": "rap",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "genId",
+        "refObjectUri",
+        "packageName"
+      ],
+      "params": [
+        "genId",
+        "refObjectUri",
+        "packageName"
+      ]
+    },
+    {
+      "name": "rapGenGetContent",
+      "toolset": "rap",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "genId",
+        "refObjectUri",
+        "packageName"
+      ],
+      "params": [
+        "genId",
+        "refObjectUri",
+        "packageName"
+      ]
+    },
+    {
+      "name": "rapGenValidateInitial",
+      "toolset": "rap",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "genId",
+        "refObjectUri",
+        "packageName"
+      ],
+      "params": [
+        "genId",
+        "refObjectUri",
+        "packageName"
+      ]
+    },
+    {
+      "name": "rapGenValidateContent",
+      "toolset": "rap",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "genId",
+        "refObjectUri",
+        "content"
+      ],
+      "params": [
+        "genId",
+        "refObjectUri",
+        "content"
+      ]
+    },
+    {
+      "name": "rapGenPreview",
+      "toolset": "rap",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "genId",
+        "refObjectUri",
+        "content"
+      ],
+      "params": [
+        "genId",
+        "refObjectUri",
+        "content"
+      ]
+    },
+    {
+      "name": "rapGenGenerate",
+      "toolset": "rap",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "genId",
+        "refObjectUri",
+        "transport",
+        "content"
+      ],
+      "params": [
+        "genId",
+        "refObjectUri",
+        "transport",
+        "content"
+      ]
+    },
+    {
+      "name": "rapGenPublishService",
+      "toolset": "rap",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "srvbName"
+      ],
+      "params": [
+        "srvbName"
+      ]
+    },
+    {
+      "name": "typeHierarchy",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objectSourceUrl",
+        "line",
+        "offset"
+      ],
+      "params": [
+        "objectSourceUrl",
+        "line",
+        "offset",
+        "superTypes",
+        "source"
+      ]
+    },
+    {
+      "name": "objectStructureElements",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objectUrl"
+      ],
+      "params": [
+        "objectUrl",
+        "version",
+        "startIndex",
+        "maxItems"
+      ]
+    },
+    {
+      "name": "objectEnhancements",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objectSourceUrl"
+      ],
+      "params": [
+        "objectSourceUrl",
+        "contextUri",
+        "includeSource"
+      ]
+    },
+    {
+      "name": "getTextElements",
+      "toolset": "source",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objectUrl"
+      ],
+      "params": [
+        "objectUrl",
+        "category"
+      ]
+    },
+    {
+      "name": "setTextElements",
+      "toolset": "source",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "objectUrl",
+        "category",
+        "elements",
+        "lockHandle"
+      ],
+      "params": [
+        "objectUrl",
+        "category",
+        "elements",
+        "lockHandle",
+        "transport"
+      ]
+    },
+    {
+      "name": "listSystems",
+      "toolset": "core",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "healthcheck",
+      "toolset": "core",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "systemProfile",
+      "toolset": "core",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "refresh"
+      ]
+    }
+  ]
+}

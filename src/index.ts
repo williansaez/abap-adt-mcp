@@ -21,6 +21,8 @@ import { CookieHttpClient } from './lib/cookieHttpClient.js';
 import { browserLogin } from './lib/browserLogin.js';
 import { readSystems, defaultDestination, SystemConfig } from './lib/systems.js';
 import { classifyAdtError } from './lib/adtErrorHints.js';
+import { TOOL_ROUTES, HandlerKey, toolAnnotations, resolveToolsets, ToolsetSelection, TOOLSETS } from './toolManifest.js';
+import { buildSystemProfile, SystemProfile } from './lib/systemProfile.js';
 import { AuthHandlers } from './handlers/AuthHandlers.js';
 import { TransportHandlers } from './handlers/TransportHandlers.js';
 import { ObjectHandlers } from './handlers/ObjectHandlers.js';
@@ -106,112 +108,12 @@ interface Destination {
   cookieClient?: CookieHttpClient;
   handlers: HandlerSet;
   loggedIn: boolean;
+  profile?: Promise<SystemProfile>;
 }
 
-// tool name -> HandlerSet key
-const TOOL_ROUTES: Record<keyof HandlerSet, string[]> = {
-  auth: ['login', 'logout', 'dropSession'],
-  transport: ['transportInfo', 'createTransport', 'hasTransportConfig', 'transportConfigurations',
-    'getTransportConfiguration', 'setTransportsConfig', 'createTransportsConfig', 'userTransports',
-    'transportsByConfig', 'transportDelete', 'transportRelease', 'transportSetOwner', 'transportAddUser',
-    'systemUsers', 'transportReference', 'transportDetails', 'transportUnifiedDiff', 'resolveTransport'],
-  objectLock: ['lock', 'unLock'],
-  object: ['objectStructure', 'searchObject', 'findObjectPath', 'objectTypes', 'reentranceTicket'],
-  class: ['classIncludes', 'classComponents'],
-  codeAnalysis: ['syntaxCheckCode', 'syntaxCheckCdsUrl', 'codeCompletion', 'findDefinition',
-    'usageReferences', 'syntaxCheckTypes', 'codeCompletionFull', 'runClass', 'codeCompletionElement',
-    'usageReferenceSnippets', 'fixProposals', 'fixEdits', 'fragmentMappings', 'abapDocumentation'],
-  objectSource: ['getObjectSource', 'setObjectSource', 'editObjectSource'],
-  objectDeletion: ['deleteObject'],
-  objectManagement: ['activateObjects', 'activateByName', 'inactiveObjects'],
-  objectRegistration: ['objectRegistrationInfo', 'validateNewObject', 'createObject', 'creatableTypeDetails'],
-  node: ['nodeContents', 'mainPrograms'],
-  discovery: ['featureDetails', 'collectionFeatureDetails', 'findCollectionByUrl', 'loadTypes',
-    'adtDiscovery', 'adtCoreDiscovery', 'adtCompatibilityGraph', 'adtCompatibiliyGraph'],
-  unitTest: ['unitTestRun', 'unitTestEvaluation', 'unitTestOccurrenceMarkers', 'createTestInclude'],
-  prettyPrinter: ['prettyPrinterSetting', 'setPrettyPrinterSetting', 'prettyPrinter'],
-  git: ['gitRepos', 'gitExternalRepoInfo', 'gitCreateRepo', 'gitPullRepo', 'gitUnlinkRepo', 'stageRepo',
-    'pushRepo', 'checkRepo', 'remoteRepoInfo', 'switchRepoBranch'],
-  ddic: ['annotationDefinitions', 'ddicElement', 'ddicRepositoryAccess', 'packageSearchHelp',
-    'getDomainProperties', 'setDomainProperties', 'getDataElementProperties', 'setDataElementProperties'],
-  serviceBinding: ['publishServiceBinding', 'unPublishServiceBinding', 'bindingDetails', 'fetchServiceDetails'],
-  query: ['tableContents', 'runQuery'],
-  feed: ['feeds', 'dumps', 'dumpDetails'],
-  debug: ['debuggerListeners', 'debuggerListen', 'debuggerDeleteListener', 'debuggerSetBreakpoints',
-    'debuggerDeleteBreakpoints', 'debuggerAttach', 'debuggerSaveSettings', 'debuggerStackTrace',
-    'debuggerVariables', 'debuggerChildVariables', 'debuggerStep', 'debuggerGoToStack',
-    'debuggerSetVariableValue'],
-  rename: ['renameEvaluate', 'renamePreview', 'renameExecute'],
-  atc: ['atcCustomizing', 'atcCheckVariant', 'createAtcRun', 'atcWorklists', 'atcUsers',
-    'atcExemptProposal', 'atcRequestExemption', 'isProposalMessage', 'atcContactUri', 'atcChangeContact',
-    'atcQuickfixProposals', 'atcApplyQuickfix', 'atcDocumentation'],
-  trace: ['tracesList', 'tracesListRequests', 'tracesHitList', 'tracesDbAccess', 'tracesStatements',
-    'tracesSetParameters', 'tracesCreateConfiguration', 'tracesDeleteConfiguration', 'tracesDelete'],
-  refactor: ['extractMethodEvaluate', 'extractMethodPreview', 'extractMethodExecute', 'changePackagePreview', 'changePackageExecute'],
-  revision: ['revisions'],
-  rapGenerator: ['rapGenIsAvailable', 'rapGenGetSchema', 'rapGenGetContent', 'rapGenValidateInitial',
-    'rapGenValidateContent', 'rapGenPreview', 'rapGenGenerate', 'rapGenPublishService'],
-  navigation: ['typeHierarchy', 'objectStructureElements', 'objectEnhancements'],
-  textElements: ['getTextElements', 'setTextElements'],
-};
-
-// MCP tool annotations (readOnlyHint/destructiveHint) so hosts can gate approval.
-// Tools absent from both sets are writes that create or modify state but are
-// recoverable (annotated readOnlyHint:false, destructiveHint:false).
-const READ_ONLY_TOOLS = new Set([
-  // transport
-  'transportInfo', 'hasTransportConfig', 'transportConfigurations', 'getTransportConfiguration',
-  'userTransports', 'transportsByConfig', 'systemUsers', 'transportReference', 'transportDetails',
-  'transportUnifiedDiff',
-  // object / class / source
-  'objectStructure', 'searchObject', 'findObjectPath', 'objectTypes', 'reentranceTicket',
-  'classIncludes', 'classComponents', 'getObjectSource', 'inactiveObjects', 'objectRegistrationInfo',
-  'validateNewObject', 'creatableTypeDetails',
-  // code analysis
-  'syntaxCheckCode', 'syntaxCheckCdsUrl', 'codeCompletion', 'findDefinition', 'usageReferences',
-  'syntaxCheckTypes', 'codeCompletionFull', 'codeCompletionElement', 'usageReferenceSnippets',
-  'fixProposals', 'fragmentMappings', 'abapDocumentation',
-  // node / discovery
-  'nodeContents', 'mainPrograms', 'featureDetails', 'collectionFeatureDetails', 'findCollectionByUrl',
-  'loadTypes', 'adtDiscovery', 'adtCoreDiscovery', 'adtCompatibilityGraph', 'adtCompatibiliyGraph',
-  // unit test evaluation (read of results), pretty printer read
-  'unitTestEvaluation', 'unitTestOccurrenceMarkers', 'prettyPrinterSetting', 'prettyPrinter',
-  // git reads
-  'gitRepos', 'gitExternalRepoInfo', 'checkRepo', 'remoteRepoInfo',
-  // ddic / services / data
-  'annotationDefinitions', 'ddicElement', 'ddicRepositoryAccess', 'packageSearchHelp',
-  'getDomainProperties', 'getDataElementProperties', 'typeHierarchy', 'objectStructureElements', 'objectEnhancements',
-  'getTextElements', 'atcDocumentation', 'changePackagePreview',
-  'bindingDetails', 'fetchServiceDetails', 'tableContents', 'runQuery', 'feeds', 'dumps', 'dumpDetails',
-  // debug reads
-  'debuggerListeners', 'debuggerStackTrace', 'debuggerVariables', 'debuggerChildVariables',
-  // refactoring previews
-  'renameEvaluate', 'renamePreview', 'extractMethodEvaluate', 'extractMethodPreview',
-  // atc reads
-  'atcCustomizing', 'atcCheckVariant', 'atcWorklists', 'atcUsers', 'isProposalMessage', 'atcContactUri',
-  'atcQuickfixProposals',
-  // traces reads
-  'tracesList', 'tracesListRequests', 'tracesHitList', 'tracesDbAccess', 'tracesStatements',
-  // misc
-  'revisions', 'rapGenIsAvailable', 'rapGenGetSchema', 'rapGenGetContent', 'rapGenValidateInitial',
-  'rapGenValidateContent', 'rapGenPreview', 'listSystems', 'healthcheck',
-]);
-
-const DESTRUCTIVE_TOOLS = new Set([
-  'deleteObject', 'transportDelete', 'transportRelease', 'setObjectSource', 'editObjectSource', 'atcApplyQuickfix', 'gitUnlinkRepo',
-  'pushRepo', 'runClass', 'renameExecute', 'extractMethodExecute', 'debuggerSetVariableValue',
-  'tracesDelete', 'tracesDeleteConfiguration', 'unPublishServiceBinding', 'dropSession',
-]);
-
-function toolAnnotations(name: string) {
-  const readOnly = READ_ONLY_TOOLS.has(name);
-  return {
-    readOnlyHint: readOnly,
-    destructiveHint: DESTRUCTIVE_TOOLS.has(name),
-    idempotentHint: readOnly,
-    openWorldHint: false,
-  };
-}
+// Compile-time check: every handler key in the manifest exists in HandlerSet.
+const _handlerSetCheck: Record<HandlerKey, unknown> = {} as HandlerSet;
+void _handlerSetCheck;
 
 export class AbapAdtServer extends Server {
   private systems: Map<string, SystemConfig>;
@@ -219,6 +121,7 @@ export class AbapAdtServer extends Server {
   private pool = new Map<string, Destination>();
   private toolToHandlerKey = new Map<string, keyof HandlerSet>();
   private schemaHandlers: HandlerSet;
+  private toolsets: ToolsetSelection;
 
   constructor() {
     super(
@@ -232,7 +135,9 @@ export class AbapAdtServer extends Server {
           '',
           'Editing an existing object: searchObject / findObjectPath -> getObjectSource -> transportInfo (find or create a transport for non-local packages) -> lock -> setObjectSource (source URL usually ends in /source/main; pass the lockHandle from lock) -> syntaxCheckCode -> unLock -> activateByName -> unitTestRun. For a small change in a large object use editObjectSource (line-range edit, pass expectedText) instead of resending the whole source.',
           '',
-          'Always run unit tests after adding tests or changing source code. Unit tests belong in the testclass include (createTestInclude). Use $TMP for local throwaway development; transportable packages require a transport request.',
+          'Always run unit tests after adding tests or changing source code. Unit tests belong in the testclass include (createTestInclude). Use $TMP for local throwaway development; transportable packages require a transport request (resolveTransport picks it for you).',
+          '',
+          'Errors carry kind/hint/nextTools: follow the hint instead of retrying blindly. systemProfile(destination) tells which toolsets the backend supports (S/4HANA Cloud lacks some); dumps/dumpDetails are the root-cause path where the debugger is unavailable.',
         ].join('\n'),
       }
     );
@@ -253,9 +158,14 @@ export class AbapAdtServer extends Server {
       for (const tool of TOOL_ROUTES[key]) this.toolToHandlerKey.set(tool, key);
     }
 
+    this.toolsets = resolveToolsets();
+
     // Handlers used only to enumerate tool schemas (never connected).
     const firstSystem = [...this.systems.values()][0];
     this.schemaHandlers = this.buildHandlers(this.makeClient(firstSystem).adtClient);
+    if (this.toolsets.active.length < Object.keys(TOOLSETS).length) {
+      console.error(`[abap-adt-mcp] Active toolsets: ${this.toolsets.active.join(', ')} (${this.getToolCatalog().length} tools). Change with MCP_TOOLSETS / MCP_DISABLED_TOOLSETS.`);
+    }
 
     this.setupToolHandlers();
   }
@@ -434,23 +344,68 @@ export class AbapAdtServer extends Server {
     return sets.flatMap((s) => s.getTools());
   }
 
-  private setupToolHandlers() {
-    this.setRequestHandler(ListToolsRequestSchema, async () => {
-      const tools = this.allDomainTools().map((t) => this.withDestination(t));
-      tools.push({
-        name: 'listSystems',
-        description: 'List the configured ABAP systems (destinations) this server can reach. Call this first to pick the destination to pass to all other tools.',
-        inputSchema: { type: 'object', properties: {} },
-        annotations: toolAnnotations('listSystems'),
-      });
-      tools.push({
-        name: 'healthcheck',
-        description: 'Check server health and list configured destinations.',
-        inputSchema: { type: 'object', properties: {} },
-        annotations: toolAnnotations('healthcheck'),
-      });
-      return { tools };
+  /** The tools/list payload: domain tools of the active toolsets plus the server's own tools. */
+  getToolCatalog(): any[] {
+    const tools = this.allDomainTools()
+      .filter((t) => this.toolsets.enabledTools.has(t.name))
+      .map((t) => this.withDestination(t));
+    tools.push({
+      name: 'listSystems',
+      description: 'List the configured ABAP systems (destinations) this server can reach. Call this first to pick the destination to pass to all other tools.',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: toolAnnotations('listSystems'),
     });
+    tools.push({
+      name: 'healthcheck',
+      description: 'Check server health and list configured destinations.',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: toolAnnotations('healthcheck'),
+    });
+    tools.push(this.withDestination({
+      name: 'systemProfile',
+      description: 'Capability profile of a destination: platform (S/4HANA Cloud vs on-prem), system information, which ADT features the backend exposes (debugger, traces, abapGit, ATC, RAP generator, text search, API releases…) and therefore which toolsets/tools will not work there. Cached per destination; pass refresh=true to rebuild. Call it once before using debugger/traces/abapGit/RAP tools on an unfamiliar system.',
+      inputSchema: {
+        type: 'object',
+        properties: { refresh: { type: 'boolean', description: 'Rebuild the cached profile (default false)', optional: true } },
+      },
+      annotations: toolAnnotations('systemProfile'),
+    }));
+    return tools;
+  }
+
+  /** Active toolsets and their tool names (for diagnostics and docs). */
+  getToolsets(): ToolsetSelection {
+    return this.toolsets;
+  }
+
+  private toolsOfToolset(toolset: string): string[] {
+    const def = TOOLSETS[toolset];
+    return def ? def.handlers.flatMap((k) => TOOL_ROUTES[k]) : [];
+  }
+
+  /** Build (once) the capability profile of a destination from ADT discovery. */
+  private getProfile(name: string, refresh = false): Promise<SystemProfile> {
+    const dest = this.getDestination(name);
+    if (!dest.profile || refresh) {
+      dest.profile = (async () => {
+        const discovery = await dest.adtClient.adtDiscovery();
+        let systemInformationBody: string | undefined;
+        try {
+          const res = await dest.adtClient.httpClient.request('/sap/bc/adt/system/information', { method: 'GET', headers: { Accept: '*/*' } });
+          systemInformationBody = res.status < 400 ? String(res.body || '') : undefined;
+        } catch { systemInformationBody = undefined; }
+        return buildSystemProfile({
+          destination: name, url: dest.system.url, client: dest.system.client, authType: dest.system.authType,
+          discovery, systemInformationBody, toolsOfToolset: (ts) => this.toolsOfToolset(ts),
+        });
+      })();
+      dest.profile.catch(() => { dest.profile = undefined; });
+    }
+    return dest.profile;
+  }
+
+  private setupToolHandlers() {
+    this.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: this.getToolCatalog() }));
 
     this.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
@@ -458,18 +413,24 @@ export class AbapAdtServer extends Server {
         const rawArgs: any = request.params.arguments || {};
 
         if (name === 'listSystems') {
-          return this.serializeResult({
-            systems: [...this.systems.values()].map((s) => ({
+          const systems = await Promise.all([...this.systems.values()].map(async (s) => {
+            const dest = this.pool.get(s.name);
+            const profile = dest?.profile ? await dest.profile.catch(() => undefined) : undefined;
+            return {
               destination: s.name, url: s.url, client: s.client, authType: s.authType,
-            })),
-            default: this.defaultDest,
-          });
+              ...(profile ? { platform: profile.platform, unavailableToolsets: profile.unavailableToolsets } : {}),
+            };
+          }));
+          return this.serializeResult({ systems, default: this.defaultDest, activeToolsets: this.toolsets.active });
         }
         if (name === 'healthcheck') {
           return this.serializeResult({
             status: 'healthy',
+            version: PACKAGE_VERSION,
             destinations: [...this.systems.keys()],
             default: this.defaultDest,
+            activeToolsets: this.toolsets.active,
+            tools: this.getToolCatalog().length,
           });
         }
 
@@ -497,9 +458,28 @@ export class AbapAdtServer extends Server {
           await this.ensureLogin(destination, false);
         }
 
+        if (name === 'systemProfile') {
+          return this.serializeResult(await this.getProfile(destination, args.refresh === true));
+        }
+
         const handlerKey = this.toolToHandlerKey.get(name);
         if (!handlerKey) {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+        }
+        if (!this.toolsets.enabledTools.has(name)) {
+          const ts = this.toolsets.toolsetOf.get(name);
+          throw new McpError(ErrorCode.MethodNotFound,
+            `Tool ${name} belongs to toolset "${ts}", which is not enabled (active: ${this.toolsets.active.join(', ')}). Start the server with MCP_TOOLSETS including "${ts}" (or MCP_TOOLSETS=all).`);
+        }
+        // Once a profile exists for the destination, refuse tools whose ADT
+        // collection the backend does not expose, before touching SAP.
+        if (dest.profile) {
+          const profile = await dest.profile;
+          if (profile.unavailableTools.includes(name)) {
+            const ts = this.toolsets.toolsetOf.get(name);
+            throw new McpError(ErrorCode.InvalidRequest,
+              `Tool ${name} is not available on destination ${destination} (${profile.platform === 'cloud' ? 'S/4HANA Cloud' : 'this system'} does not expose the ADT ${ts} collection; see systemProfile). Pick another approach: dumps/dumpDetails instead of the debugger, ATC instead of traces.`);
+          }
         }
         let result: any;
         try {
@@ -594,9 +574,11 @@ export class AbapAdtServer extends Server {
   }
 }
 
-// Create and run server instance
-const server = new AbapAdtServer();
-server.run().catch((error) => {
-  console.error('Fatal error running server:', error);
-  process.exit(1);
-});
+// Start only when executed directly (tests and tooling import the class).
+if (require.main === module) {
+  const server = new AbapAdtServer();
+  server.run().catch((error) => {
+    console.error('Fatal error running server:', error);
+    process.exit(1);
+  });
+}
