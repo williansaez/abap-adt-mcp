@@ -4,7 +4,7 @@
 
 > Use with caution, and prefer development systems.
 
-A single **Model Context Protocol (MCP) server** that gives AI agents full ABAP development capabilities over **multiple SAP systems at once**. It wraps [abap-adt-api](https://github.com/marcellourbani/abap-adt-api/) (the ADT REST protocol used by Eclipse ADT) and exposes **142 tools**: object creation and editing, transports (including unified diffs), activation, unit tests, ATC runs with deterministic quickfixes, RAP application generation, OData service inspection, abapGit, debugging, traces and more.
+A single **Model Context Protocol (MCP) server** that gives AI agents full ABAP development capabilities over **multiple SAP systems at once**. It wraps [abap-adt-api](https://github.com/marcellourbani/abap-adt-api/) (the ADT REST protocol used by Eclipse ADT) and exposes **143 tools**: object creation and editing, transports (including unified diffs), activation, unit tests, ATC runs with deterministic quickfixes, RAP application generation, OData service inspection, abapGit, debugging, traces and more.
 
 Originally forked from [mario-andreschak/mcp-abap-abap-adt-api](https://github.com/mario-andreschak/mcp-abap-abap-adt-api); this fork adds multi-destination support, browser-SSO and OAuth2 authentication for S/4HANA Cloud, MCP tool annotations, an optional HTTP transport and workflow guidance aligned with SAP's official ADT MCP Server documentation.
 
@@ -51,6 +51,8 @@ Then register the server in your MCP client (Claude Desktop, Claude Code, Cline,
 
 Configuration sources, in order of precedence: `SAP_SYSTEMS` (inline JSON in an env var), `SAP_SYSTEMS_FILE` (path to a JSON file — recommended for anything containing passwords; keep it mode `0600`), a `systems.json` next to the install, or the legacy single-system `SAP_URL`/`SAP_USER`/`SAP_PASSWORD`/`SAP_CLIENT`/`SAP_LANGUAGE` variables. Per-destination `gitUser`/`gitPassword` entries supply abapGit credentials so they never pass through the model. Full schema and auth details in [docs/AUTH.md](docs/AUTH.md).
 
+Large results (long sources, wide table reads, big unit-test or ATC runs) are paged so the JSON handed to the host stays under a safe budget of 40,000 characters; paged tools report `hasMore`/`truncated` and accept `startLine`/`startIndex`-style parameters to fetch the rest. Raise or lower the budget with `MCP_MAX_RESPONSE_CHARS` if your host allows more (or less). To change a few lines of a large object without resending it, use `editObjectSource`.
+
 ## HTTP transport (optional)
 
 By default the server speaks stdio. For MCP hosts that expect an HTTP endpoint (the model SAP's own ADT MCP Server uses), start with:
@@ -73,7 +75,7 @@ The server listens on `http://127.0.0.1:2236/mcp` (loopback only) and requires `
 }
 ```
 
-## Tool catalog (all 142 tools, by domain)
+## Tool catalog (all 143 tools, by domain)
 
 The complete per-tool reference — description, parameters, and read-only/destructive annotations for every tool — lives in [docs/TOOLS.md](docs/TOOLS.md), generated from the server's live `tools/list` response.
 
@@ -86,7 +88,7 @@ The complete per-tool reference — description, parameters, and read-only/destr
 | Discovery & metadata (13) | `loadTypes`, `objectTypes`, `creatableTypeDetails`, `adtDiscovery`, `adtCoreDiscovery`, `adtCompatibilityGraph`, `featureDetails`, `collectionFeatureDetails`, `findCollectionByUrl`, `objectRegistrationInfo`, `feeds`, `dumps`, `systemUsers` |
 | Object navigation (9) | `searchObject`, `objectStructure`, `findObjectPath`, `nodeContents`, `mainPrograms`, `classIncludes`, `classComponents`, `packageSearchHelp`, `annotationDefinitions` |
 | Create & delete (4) | `validateNewObject`, `createObject`, `createTestInclude`, `deleteObject` |
-| Source code (8) | `getObjectSource`, `setObjectSource`, `lock`, `unLock`, `prettyPrinter`, `prettyPrinterSetting`, `setPrettyPrinterSetting`, `revisions` |
+| Source code (9) | `getObjectSource`, `setObjectSource`, `editObjectSource`, `lock`, `unLock`, `prettyPrinter`, `prettyPrinterSetting`, `setPrettyPrinterSetting`, `revisions` |
 | Activation (3) | `activateObjects`, `activateByName`, `inactiveObjects` |
 | Transports (16) | `transportInfo`, `createTransport`, `transportDetails`, `transportUnifiedDiff`, `userTransports`, `transportsByConfig`, `transportRelease`, `transportDelete`, `transportAddUser`, `transportSetOwner`, `transportReference`, `transportConfigurations`, `getTransportConfiguration`, `setTransportsConfig`, `createTransportsConfig`, `hasTransportConfig` |
 | Syntax & code analysis (13) | `syntaxCheckCode`, `syntaxCheckCdsUrl`, `syntaxCheckTypes`, `codeCompletion`, `codeCompletionFull`, `codeCompletionElement`, `findDefinition`, `usageReferences`, `usageReferenceSnippets`, `fixProposals`, `fixEdits`, `fragmentMappings`, `abapDocumentation` |

@@ -38,7 +38,7 @@ guidance for ABAP development.
    package is transportable.
 4. `lock` — returns the `lockHandle`.
 5. `syntaxCheckCode` — check the new source before writing.
-6. `setObjectSource` — write the full new source.
+6. `setObjectSource` — write the full new source. For a targeted change in a large object, `editObjectSource` (line range + `expectedText`) avoids resending the whole file.
 7. `unLock` → `activateByName`.
 8. `unitTestRun`.
 

@@ -50,6 +50,11 @@
           "isSecret": true
         },
         {
+          "name": "MCP_MAX_RESPONSE_CHARS",
+          "description": "Character budget for a single tool response before results are paged/truncated (default 40000, minimum 5000). Raise it if your MCP host accepts larger tool outputs",
+          "isRequired": false
+        },
+        {
           "name": "SAP_ALLOW_REENTRANCE_TICKET",
           "description": "Set to 1 to enable the reentranceTicket tool (disabled by default: it returns a live SAP logon credential into the conversation)",
           "isRequired": false

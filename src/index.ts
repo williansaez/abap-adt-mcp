@@ -116,7 +116,7 @@ const TOOL_ROUTES: Record<keyof HandlerSet, string[]> = {
   codeAnalysis: ['syntaxCheckCode', 'syntaxCheckCdsUrl', 'codeCompletion', 'findDefinition',
     'usageReferences', 'syntaxCheckTypes', 'codeCompletionFull', 'runClass', 'codeCompletionElement',
     'usageReferenceSnippets', 'fixProposals', 'fixEdits', 'fragmentMappings', 'abapDocumentation'],
-  objectSource: ['getObjectSource', 'setObjectSource'],
+  objectSource: ['getObjectSource', 'setObjectSource', 'editObjectSource'],
   objectDeletion: ['deleteObject'],
   objectManagement: ['activateObjects', 'activateByName', 'inactiveObjects'],
   objectRegistration: ['objectRegistrationInfo', 'validateNewObject', 'createObject', 'creatableTypeDetails'],
@@ -188,7 +188,7 @@ const READ_ONLY_TOOLS = new Set([
 ]);
 
 const DESTRUCTIVE_TOOLS = new Set([
-  'deleteObject', 'transportDelete', 'transportRelease', 'setObjectSource', 'atcApplyQuickfix', 'gitUnlinkRepo',
+  'deleteObject', 'transportDelete', 'transportRelease', 'setObjectSource', 'editObjectSource', 'atcApplyQuickfix', 'gitUnlinkRepo',
   'pushRepo', 'runClass', 'renameExecute', 'extractMethodExecute', 'debuggerSetVariableValue',
   'tracesDelete', 'tracesDeleteConfiguration', 'unPublishServiceBinding', 'dropSession',
 ]);
@@ -220,7 +220,7 @@ export class AbapAdtServer extends Server {
           '',
           'Creating a new object: loadTypes (pick objtype, e.g. CLAS/OC) -> validateNewObject (check name/package) -> createTransport (if package is not $TMP) -> createObject -> lock -> setObjectSource -> unLock -> activateByName -> unitTestRun.',
           '',
-          'Editing an existing object: searchObject / findObjectPath -> getObjectSource -> transportInfo (find or create a transport for non-local packages) -> lock -> setObjectSource (source URL usually ends in /source/main; pass the lockHandle from lock) -> syntaxCheckCode -> unLock -> activateByName -> unitTestRun.',
+          'Editing an existing object: searchObject / findObjectPath -> getObjectSource -> transportInfo (find or create a transport for non-local packages) -> lock -> setObjectSource (source URL usually ends in /source/main; pass the lockHandle from lock) -> syntaxCheckCode -> unLock -> activateByName -> unitTestRun. For a small change in a large object use editObjectSource (line-range edit, pass expectedText) instead of resending the whole source.',
           '',
           'Always run unit tests after adding tests or changing source code. Unit tests belong in the testclass include (createTestInclude). Use $TMP for local throwaway development; transportable packages require a transport request.',
         ].join('\n'),

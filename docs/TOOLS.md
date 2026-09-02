@@ -1,6 +1,6 @@
-# Tool reference (142 tools)
+# Tool reference (143 tools)
 
-Generated from the live `tools/list` response of the built server (v0.3.0).
+Generated from the live `tools/list` response of the built server (v0.3.1).
 
 Every tool (except `listSystems`/`healthcheck`) also accepts an optional `destination` parameter naming the configured system to target; without it, the default destination is used.
 
@@ -64,12 +64,13 @@ Legend: 📖 read-only · ✏️ writes · ⚠️ destructive (flags come from t
 | ✏️ `createTestInclude` | Creates a test include for a class. | `clas`*, `lockHandle`*, `transport` |
 | ⚠️ `deleteObject` | Deletes an ABAP object from the system | `objectUrl`*, `lockHandle`*, `transport` |
 
-## Source code (8)
+## Source code (9)
 
 | Tool | What it does | Key parameters |
 |---|---|---|
 | 📖 `getObjectSource` | Retrieves source code for ABAP objects. For large objects, use startLine/maxLines to page through the source instead of retrieving it all at once. | `objectSourceUrl`*, `options`, `startLine`, `maxLines` |
-| ⚠️ `setObjectSource` | Write source code of an ABAP object. Flow: lock the object first (lock returns the lockHandle), setObjectSource, then unLock and activate with activateByName. Run syntaxCheckCode before writing to catch errors early. | `objectSourceUrl`*, `source`*, `lockHandle`*, `transport` |
+| ⚠️ `setObjectSource` | Write the full source code of an ABAP object. Flow: lock the object first (lock returns the lockHandle), setObjectSource, then unLock and activate with activateByName. Run syntaxCheckCode before writing to catch errors early. For a targeted change to a large object, prefer editObjectSource. | `objectSourceUrl`*, `source`*, `lockHandle`*, `transport` |
+| ⚠️ `editObjectSource` | Applies a targeted line-range edit without sending the full source. Re-fetches the current source from SAP, replaces lines [startLine, endLine] (inclusive, 1-based) with newText and writes it back. endLine = startLine - 1 inserts; empty newText deletes. Pass expectedText to fail fast if the object changed since it was read. | `objectSourceUrl`*, `startLine`*, `endLine`*, `newText`*, `expectedText`, `lockHandle`*, `transport` |
 | ✏️ `lock` | Lock an ABAP object for editing. Returns the lockHandle required by setObjectSource, deleteObject and unLock. Always unLock when done. | `objectUrl`*, `accessMode` |
 | ✏️ `unLock` | Unlock an ABAP object previously locked with lock (requires its lockHandle). | `objectUrl`*, `lockHandle`* |
 | 📖 `prettyPrinter` | Formats ABAP code using the pretty printer. | `source`* |
