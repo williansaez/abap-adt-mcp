@@ -48,10 +48,10 @@ export class AtcHandlers extends BaseHandler {
                             type: 'number',
                             description: 'Index of the proposal to apply, from atcQuickfixProposals (default 0)'
                         },
-                        lockHandle: { type: 'string', description: 'Lock handle from lock' },
+                        lockHandle: { type: 'string', description: 'Optional lock handle from lock; omit to let the server lock/unlock around the write', optional: true },
                         transport: { type: 'string', description: 'Transport number for transportable packages', optional: true }
                     },
-                    required: ['objectSourceUrl', 'line', 'column', 'lockHandle']
+                    required: ['objectSourceUrl', 'line', 'column']
                 }
             },
             {
@@ -315,7 +315,9 @@ export class AtcHandlers extends BaseHandler {
                 );
             }
             const newSource = AtcHandlers.applyDeltas(source, applicable);
-            await this.adtclient.setObjectSource(args.objectSourceUrl, newSource, args.lockHandle, args.transport);
+            const { withLock } = await import('../lib/lockLedger.js');
+            await withLock(this.adtclient, args.objectSourceUrl, args.lockHandle,
+                (handle) => this.adtclient.setObjectSource(args.objectSourceUrl, newSource, handle, args.transport));
             this.trackRequest(startTime, true);
             return {
                 content: [{

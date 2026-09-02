@@ -3,6 +3,8 @@ import { BaseHandler } from './BaseHandler';
 import type { ToolDefinition } from '../types/tools';
 import { session_types } from "abap-adt-api";
 import { sourceCache } from '../lib/sourceCache';
+import { withLock, objectNameFromUrl } from '../lib/lockLedger';
+import { objectUrlOf } from '../lib/policy';
 import { SAFE_OUTPUT_CHARS, shrinkToFit } from '../lib/responseSizing';
 
 function buildPagedSourcePayload(lines: string[], totalLines: number, startLine: number, initialMaxLines: number, requestedPaging: boolean): string {
@@ -60,16 +62,17 @@ export class ObjectSourceHandlers extends BaseHandler {
       },
       {
         name: 'setObjectSource',
-        description: 'Write the full source code of an ABAP object. Flow: lock the object first (lock returns the lockHandle), setObjectSource, then unLock and activate with activateByName. Run syntaxCheckCode before writing to catch errors early. For a targeted change to a large object, prefer editObjectSource instead of resending the full source.',
+        description: 'Write the full source code of an ABAP object. Locks, writes and unlocks in one call when no lockHandle is given (pass activate=true to also activate); pass a lockHandle from lock only when you hold the lock across several calls. Run syntaxCheckCode before writing to catch errors early. For a targeted change to a large object, prefer editObjectSource instead of resending the full source.',
         inputSchema: {
           type: 'object',
           properties: {
             objectSourceUrl: { type: 'string', description: 'Source URL of the object, usually the object URL plus /source/main' },
             source: { type: 'string', description: 'Full new source code (replaces the current source)' },
-            lockHandle: { type: 'string', description: 'Lock handle obtained from the lock tool' },
-            transport: { type: 'string', description: 'Transport number for objects in transportable packages (see transportInfo / createTransport)' }
+            lockHandle: { type: 'string', description: 'Optional: lock handle from lock when you hold the lock yourself. Omit to let the server lock/unlock around this write.', optional: true },
+            transport: { type: 'string', description: 'Transport number for objects in transportable packages (see resolveTransport)', optional: true },
+            activate: { type: 'boolean', description: 'Activate the object after writing (default false). The activation result is returned; check it for errors.', optional: true }
           },
-          required: ['objectSourceUrl', 'source', 'lockHandle']
+          required: ['objectSourceUrl', 'source']
         }
       },
       {
@@ -104,10 +107,11 @@ export class ObjectSourceHandlers extends BaseHandler {
               description: 'Optional safety check: exact current text of lines [startLine, endLine] joined with \\n. If it does not match what SAP currently has, the edit is rejected instead of applied.',
               optional: true
             },
-            lockHandle: { type: 'string', description: 'Lock handle obtained from the lock tool' },
-            transport: { type: 'string', description: 'Transport number for objects in transportable packages (see resolveTransport)', optional: true }
+            lockHandle: { type: 'string', description: 'Optional: lock handle from lock when you hold the lock yourself. Omit to let the server lock/unlock around this edit.', optional: true },
+            transport: { type: 'string', description: 'Transport number for objects in transportable packages (see resolveTransport)', optional: true },
+            activate: { type: 'boolean', description: 'Activate the object after the edit (default false). The activation result is returned; check it for errors.', optional: true }
           },
-          required: ['objectSourceUrl', 'lockHandle']
+          required: ['objectSourceUrl']
         }
       }
     ];
@@ -193,15 +197,14 @@ export class ObjectSourceHandlers extends BaseHandler {
     try {
       // dropSession/logout reset the client to stateless; writing source requires a stateful session
       this.adtclient.stateful = session_types.stateful;
-      await this.adtclient.setObjectSource(
-        args.objectSourceUrl,
-        args.source,
-        args.lockHandle,
-        args.transport
-      );
+      const written = await withLock(this.adtclient, args.objectSourceUrl, args.lockHandle, async (handle) => {
+        await this.adtclient.setObjectSource(args.objectSourceUrl, args.source, handle, args.transport);
+        return true;
+      });
       // Cache the just-written source so a follow-up syntaxCheckCode can reuse it
       // without the caller re-sending it (issue #2).
       sourceCache.set(args.objectSourceUrl, args.source);
+      const activation = await this.maybeActivate(args);
       this.trackRequest(startTime, true);
       return {
         content: [
@@ -209,7 +212,10 @@ export class ObjectSourceHandlers extends BaseHandler {
             type: 'text',
             text: JSON.stringify({
               status: 'success',
-              updated: true
+              updated: true,
+              lockMode: written.lockMode,
+              ...(written.unlockError ? { unlockError: written.unlockError, hint: 'The write succeeded but the object stayed locked; call forceUnlock.' } : {}),
+              ...(activation ? { activation } : {})
             })
           }
         ]
@@ -272,13 +278,12 @@ export class ObjectSourceHandlers extends BaseHandler {
       const newSource = lines.join('\n');
 
       this.adtclient.stateful = session_types.stateful;
-      await this.adtclient.setObjectSource(
-        args.objectSourceUrl,
-        newSource,
-        args.lockHandle,
-        args.transport
-      );
+      const written = await withLock(this.adtclient, args.objectSourceUrl, args.lockHandle, async (handle) => {
+        await this.adtclient.setObjectSource(args.objectSourceUrl, newSource, handle, args.transport);
+        return true;
+      });
       sourceCache.set(args.objectSourceUrl, newSource);
+      const activation = await this.maybeActivate(args);
       this.trackRequest(startTime, true);
 
       return {
@@ -288,10 +293,13 @@ export class ObjectSourceHandlers extends BaseHandler {
             text: JSON.stringify({
               status: 'success',
               updated: true,
+              lockMode: written.lockMode,
+              ...(written.unlockError ? { unlockError: written.unlockError } : {}),
               totalLinesBefore: totalLines,
               totalLinesAfter: lines.length,
               linesReplaced: endIndex - startIndex,
-              linesInserted: newLines.length
+              linesInserted: newLines.length,
+              ...(activation ? { activation } : {})
             })
           }
         ]
@@ -305,6 +313,18 @@ export class ObjectSourceHandlers extends BaseHandler {
         ErrorCode.InternalError,
         `Failed to edit object source: ${this.formatAdtError(error)}`
       );
+    }
+  }
+
+  /** activate=true: activate the object after a write and return the result (never throws on activation errors). */
+  private async maybeActivate(args: any): Promise<any> {
+    if (args.activate !== true) return undefined;
+    const objectUrl = objectUrlOf(args.objectSourceUrl);
+    try {
+      const result: any = await this.adtclient.activate(objectNameFromUrl(objectUrl), objectUrl);
+      return { success: result?.success !== false, ...result };
+    } catch (error: any) {
+      return { success: false, error: this.formatAdtError(error) };
     }
   }
 
@@ -363,8 +383,12 @@ export class ObjectSourceHandlers extends BaseHandler {
     });
 
     this.adtclient.stateful = session_types.stateful;
-    await this.adtclient.setObjectSource(args.objectSourceUrl, working, args.lockHandle, args.transport);
+    const written = await withLock(this.adtclient, args.objectSourceUrl, args.lockHandle, async (handle) => {
+      await this.adtclient.setObjectSource(args.objectSourceUrl, working, handle, args.transport);
+      return true;
+    });
     sourceCache.set(args.objectSourceUrl, working);
+    const activation = await this.maybeActivate(args);
     this.trackRequest(startTime, true);
     return {
       content: [{
@@ -372,6 +396,9 @@ export class ObjectSourceHandlers extends BaseHandler {
         text: JSON.stringify({
           status: 'success',
           updated: true,
+          lockMode: written.lockMode,
+          ...(written.unlockError ? { unlockError: written.unlockError } : {}),
+          ...(activation ? { activation } : {}),
           mode: 'replacements',
           replacementsApplied: applied.length,
           applied,

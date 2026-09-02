@@ -24,6 +24,7 @@ import { classifyAdtError } from './lib/adtErrorHints.js';
 import { TOOL_ROUTES, HandlerKey, toolAnnotations, resolveToolsets, ToolsetSelection, TOOLSETS } from './toolManifest.js';
 import { buildSystemProfile, SystemProfile } from './lib/systemProfile.js';
 import { evaluatePolicy, objectUrlOf, summarizePolicy } from './lib/policy.js';
+import { clearLedger } from './lib/lockLedger.js';
 import { AuthHandlers } from './handlers/AuthHandlers.js';
 import { TransportHandlers } from './handlers/TransportHandlers.js';
 import { ObjectHandlers } from './handlers/ObjectHandlers.js';
@@ -112,6 +113,8 @@ interface Destination {
   profile?: Promise<SystemProfile>;
   /** objectUrl -> package (DEVCLASS), filled lazily for allowedPackages checks. */
   packageCache: Map<string, string>;
+  /** Serializes tool calls per destination: one stateful ADT session is not concurrency-safe. */
+  queue: Promise<unknown>;
 }
 
 // Compile-time check: every handler key in the manifest exists in HandlerSet.
@@ -134,9 +137,9 @@ export class AbapAdtServer extends Server {
         instructions: [
           'ABAP ADT MCP server. Every tool accepts an optional `destination` parameter selecting the target SAP system; call listSystems first to see the configured destinations.',
           '',
-          'Creating a new object: loadTypes (pick objtype, e.g. CLAS/OC) -> validateNewObject (check name/package) -> createTransport (if package is not $TMP) -> createObject -> lock -> setObjectSource -> unLock -> activateByName -> unitTestRun.',
+          'Creating a new object: loadTypes (pick objtype, e.g. CLAS/OC) -> validateNewObject (check name/package) -> resolveTransport (if package is not $TMP) -> createObject -> setObjectSource with activate=true -> unitTestRun.',
           '',
-          'Editing an existing object: searchObject / findObjectPath -> getObjectSource -> transportInfo (find or create a transport for non-local packages) -> lock -> setObjectSource (source URL usually ends in /source/main; pass the lockHandle from lock) -> syntaxCheckCode -> unLock -> activateByName -> unitTestRun. For a small change in a large object use editObjectSource (line-range edit, pass expectedText) instead of resending the whole source.',
+          'Editing an existing object: searchObject / findObjectPath -> getObjectSource -> resolveTransport (for non-local packages) -> editObjectSource (replacements or line range) or setObjectSource, with activate=true -> unitTestRun. Write tools lock and unlock by themselves; call lock/unLock only to hold a lock across several writes, and listLocks/forceUnlock if a write left an object locked. syntaxCheckCode before writing catches errors early.',
           '',
           'Always run unit tests after adding tests or changing source code. Unit tests belong in the testclass include (createTestInclude). Use $TMP for local throwaway development; transportable packages require a transport request (resolveTransport picks it for you).',
           '',
@@ -231,7 +234,7 @@ export class AbapAdtServer extends Server {
     if (!dest) {
       const system = this.systems.get(name)!;
       const { adtClient, cookieClient } = this.makeClient(system);
-      dest = { system, adtClient, cookieClient, handlers: this.buildHandlers(adtClient, system), loggedIn: false, packageCache: new Map() };
+      dest = { system, adtClient, cookieClient, handlers: this.buildHandlers(adtClient, system), loggedIn: false, packageCache: new Map(), queue: Promise.resolve() };
       this.pool.set(name, dest);
     }
     return dest;
@@ -309,6 +312,8 @@ export class AbapAdtServer extends Server {
       await dest.adtClient.login();
     }
     dest.adtClient.stateful = session_types.stateful;
+    // Handles from the dead session are invalid: forget them rather than reuse them.
+    clearLedger(dest.adtClient);
   }
 
   // --- tool registration --------------------------------------------------
@@ -515,8 +520,10 @@ export class AbapAdtServer extends Server {
           }
         }
         let result: any;
+        const run = dest.queue.then(async () => dest.handlers[handlerKey].handle(name, args));
+        dest.queue = run.catch(() => undefined);
         try {
-          result = await dest.handlers[handlerKey].handle(name, args);
+          result = await run;
         } catch (error) {
           // A session that expired between calls means SAP never executed this
           // request: re-authenticate and retry exactly once. Any lockHandle from

@@ -1,6 +1,6 @@
 {
   "version": "0.3.1",
-  "count": 158,
+  "count": 160,
   "toolsets": {
     "core": [
       "login",
@@ -13,6 +13,8 @@
     "source": [
       "lock",
       "unLock",
+      "listLocks",
+      "forceUnlock",
       "getObjectSource",
       "setObjectSource",
       "editObjectSource",
@@ -779,12 +781,30 @@
       "readOnly": false,
       "destructive": false,
       "required": [
-        "objectUrl",
-        "lockHandle"
+        "objectUrl"
       ],
       "params": [
         "objectUrl",
         "lockHandle"
+      ]
+    },
+    {
+      "name": "listLocks",
+      "toolset": "source",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": []
+    },
+    {
+      "name": "forceUnlock",
+      "toolset": "source",
+      "readOnly": false,
+      "destructive": true,
+      "required": [],
+      "params": [
+        "objectUrl",
+        "dropSession"
       ]
     },
     {
@@ -809,14 +829,14 @@
       "destructive": true,
       "required": [
         "objectSourceUrl",
-        "source",
-        "lockHandle"
+        "source"
       ],
       "params": [
         "objectSourceUrl",
         "source",
         "lockHandle",
-        "transport"
+        "transport",
+        "activate"
       ]
     },
     {
@@ -825,8 +845,7 @@
       "readOnly": false,
       "destructive": true,
       "required": [
-        "objectSourceUrl",
-        "lockHandle"
+        "objectSourceUrl"
       ],
       "params": [
         "objectSourceUrl",
@@ -836,7 +855,8 @@
         "newText",
         "expectedText",
         "lockHandle",
-        "transport"
+        "transport",
+        "activate"
       ]
     },
     {
@@ -845,8 +865,7 @@
       "readOnly": false,
       "destructive": true,
       "required": [
-        "objectUrl",
-        "lockHandle"
+        "objectUrl"
       ],
       "params": [
         "objectUrl",
@@ -1119,8 +1138,7 @@
       "readOnly": false,
       "destructive": false,
       "required": [
-        "clas",
-        "lockHandle"
+        "clas"
       ],
       "params": [
         "clas",
@@ -1841,8 +1859,7 @@
       "required": [
         "objectSourceUrl",
         "line",
-        "column",
-        "lockHandle"
+        "column"
       ],
       "params": [
         "objectSourceUrl",

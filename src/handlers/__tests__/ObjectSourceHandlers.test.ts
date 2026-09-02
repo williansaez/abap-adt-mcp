@@ -7,7 +7,10 @@ function makeHandler(initialSource: string) {
     stateful: 'stateless',
     source: initialSource,
     getObjectSource: jest.fn(async () => client.source),
-    setObjectSource: jest.fn(async (_url: string, source: string) => { client.source = source; })
+    setObjectSource: jest.fn(async (_url: string, source: string) => { client.source = source; }),
+    lock: jest.fn(async () => ({ LOCK_HANDLE: 'AUTO1' })),
+    unLock: jest.fn(async () => undefined),
+    activate: jest.fn(async () => ({ success: true, messages: [] }))
   };
   return { client, handler: new ObjectSourceHandlers(client) };
 }
@@ -58,6 +61,43 @@ describe('editObjectSource', () => {
     const { handler } = makeHandler('a');
     await expect(handler.handle('editObjectSource', { objectSourceUrl: URL, startLine: 0, endLine: 0, newText: '', lockHandle: 'LH' })).rejects.toThrow(/startLine/);
     await expect(handler.handle('editObjectSource', { objectSourceUrl: URL, startLine: 5, endLine: 5, newText: '', lockHandle: 'LH' })).rejects.toThrow(/beyond the end/);
+  });
+});
+
+describe('auto-lock writes', () => {
+  it('setObjectSource without lockHandle locks, writes, unlocks', async () => {
+    const { client, handler } = makeHandler('old');
+    const res = parse(await handler.handle('setObjectSource', { objectSourceUrl: URL, source: 'new', transport: 'TR1' }));
+    expect(client.lock).toHaveBeenCalledWith('/sap/bc/adt/oo/classes/zcl_demo', undefined);
+    expect(client.setObjectSource).toHaveBeenCalledWith(URL, 'new', 'AUTO1', 'TR1');
+    expect(client.unLock).toHaveBeenCalledWith('/sap/bc/adt/oo/classes/zcl_demo', 'AUTO1');
+    expect(res).toMatchObject({ updated: true, lockMode: 'auto' });
+    expect(res.activation).toBeUndefined();
+  });
+
+  it('activate=true activates after the write and returns the result', async () => {
+    const { client, handler } = makeHandler('a\nb');
+    const res = parse(await handler.handle('editObjectSource', { objectSourceUrl: URL, replacements: [{ oldText: 'a', newText: 'A' }], activate: true }));
+    expect(client.activate).toHaveBeenCalledWith('ZCL_DEMO', '/sap/bc/adt/oo/classes/zcl_demo');
+    expect(res.activation).toMatchObject({ success: true });
+    expect(res.lockMode).toBe('auto');
+  });
+
+  it('activation errors are reported, not thrown', async () => {
+    const { client, handler } = makeHandler('a');
+    client.activate.mockRejectedValueOnce(new Error('Syntax error in line 3'));
+    const res = parse(await handler.handle('setObjectSource', { objectSourceUrl: URL, source: 'x', activate: true }));
+    expect(res.updated).toBe(true);
+    expect(res.activation).toMatchObject({ success: false });
+    expect(res.activation.error).toMatch(/Syntax error/);
+  });
+
+  it('explicit lockHandle is used as before and the lock is kept', async () => {
+    const { client, handler } = makeHandler('a');
+    const res = parse(await handler.handle('setObjectSource', { objectSourceUrl: URL, source: 'x', lockHandle: 'LH' }));
+    expect(client.lock).not.toHaveBeenCalled();
+    expect(client.unLock).not.toHaveBeenCalled();
+    expect(res.lockMode).toBe('explicit');
   });
 });
 

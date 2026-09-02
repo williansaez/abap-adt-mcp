@@ -16,7 +16,7 @@ export class ObjectDeletionHandlers extends BaseHandler {
               type: 'string',
               description: 'URL of the object to delete'
             },
-            lockHandle: { 
+            lockHandle: { optional: true, 
               type: 'string',
               description: 'Lock handle for the object'
             },
@@ -26,7 +26,7 @@ export class ObjectDeletionHandlers extends BaseHandler {
               optional: true
             }
           },
-          required: ['objectUrl', 'lockHandle']
+          required: ['objectUrl']
         }
       }
     ];
@@ -46,11 +46,10 @@ export class ObjectDeletionHandlers extends BaseHandler {
     try {
       // dropSession/logout reset the client to stateless; deletion requires a stateful session
       this.adtclient.stateful = session_types.stateful;
-      const result = await this.adtclient.deleteObject(
-        args.objectUrl,
-        args.lockHandle,
-        args.transport
-      );
+      const { withLock } = await import('../lib/lockLedger.js');
+      const { result } = await withLock(this.adtclient, args.objectUrl, args.lockHandle,
+        (handle) => this.adtclient.deleteObject(args.objectUrl, handle, args.transport),
+        { keepOnSuccess: true });
       this.trackRequest(startTime, true);
       return {
         content: [

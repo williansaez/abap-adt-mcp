@@ -22,7 +22,7 @@ export const TOOL_ROUTES: Record<HandlerKey, string[]> = {
     'getTransportConfiguration', 'setTransportsConfig', 'createTransportsConfig', 'userTransports',
     'transportsByConfig', 'transportDelete', 'transportRelease', 'transportSetOwner', 'transportAddUser',
     'systemUsers', 'transportReference', 'transportDetails', 'transportUnifiedDiff', 'resolveTransport'],
-  objectLock: ['lock', 'unLock'],
+  objectLock: ['lock', 'unLock', 'listLocks', 'forceUnlock'],
   object: ['objectStructure', 'searchObject', 'findObjectPath', 'objectTypes', 'reentranceTicket'],
   class: ['classIncludes', 'classComponents'],
   codeAnalysis: ['syntaxCheckCode', 'syntaxCheckCdsUrl', 'codeCompletion', 'findDefinition',
@@ -100,7 +100,7 @@ export const READ_ONLY_TOOLS = new Set([
   // traces reads
   'tracesList', 'tracesListRequests', 'tracesHitList', 'tracesDbAccess', 'tracesStatements',
   // misc
-  'revisions', 'rapGenIsAvailable', 'rapGenGetSchema', 'rapGenGetContent', 'rapGenValidateInitial',
+  'revisions', 'listLocks', 'rapGenIsAvailable', 'rapGenGetSchema', 'rapGenGetContent', 'rapGenValidateInitial',
   'rapGenValidateContent', 'rapGenPreview', 'listSystems', 'healthcheck', 'systemProfile',
 ]);
 
@@ -108,7 +108,7 @@ export const DESTRUCTIVE_TOOLS = new Set([
   'deleteObject', 'transportDelete', 'transportRelease', 'setObjectSource', 'editObjectSource', 'atcApplyQuickfix', 'gitUnlinkRepo',
   'pushRepo', 'runClass', 'renameExecute', 'extractMethodExecute', 'changePackageExecute', 'debuggerSetVariableValue',
   'tracesDelete', 'tracesDeleteConfiguration', 'unPublishServiceBinding', 'dropSession',
-  'setDomainProperties', 'setDataElementProperties', 'setTextElements',
+  'setDomainProperties', 'setDataElementProperties', 'setTextElements', 'forceUnlock',
 ]);
 
 export function toolAnnotations(name: string) {

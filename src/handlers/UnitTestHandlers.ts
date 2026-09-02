@@ -145,7 +145,7 @@ export class UnitTestHandlers extends BaseHandler {
                             optional: true
                         }
                     },
-                    required: ['clas', 'lockHandle']
+                    required: ['clas']
                 }
             }
         ];
@@ -287,7 +287,10 @@ export class UnitTestHandlers extends BaseHandler {
     async handleCreateTestInclude(args: any): Promise<any> {
         const startTime = performance.now();
         try {
-            const result = await this.adtclient.createTestInclude(args.clas, args.lockHandle, args.transport);
+            const { withLock } = await import('../lib/lockLedger.js');
+            const classUrl = `/sap/bc/adt/oo/classes/${encodeURIComponent(String(args.clas).toLowerCase())}`;
+            const { result } = await withLock(this.adtclient, classUrl, args.lockHandle,
+                (handle) => this.adtclient.createTestInclude(args.clas, handle, args.transport));
             this.trackRequest(startTime, true);
             return {
                 content: [

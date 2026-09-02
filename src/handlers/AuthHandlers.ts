@@ -71,13 +71,15 @@ export class AuthHandlers extends BaseHandler {
   private async handleLogout(args: any) {
     const startTime = performance.now();
     try {
+      const { releaseAll } = await import('../lib/lockLedger.js');
+      const locks = await releaseAll(this.adtclient);
       await this.adtclient.logout();
       this.trackRequest(startTime, true);
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify({ status: 'Logged out successfully' })
+            text: JSON.stringify({ status: 'Logged out successfully', locksReleased: locks.released, lockReleaseFailures: locks.failed })
           }
         ]
       };
@@ -93,13 +95,15 @@ export class AuthHandlers extends BaseHandler {
   private async handleDropSession(args: any) {
     const startTime = performance.now();
     try {
+      const { releaseAll } = await import('../lib/lockLedger.js');
+      const locks = await releaseAll(this.adtclient);
       await this.adtclient.dropSession();
       this.trackRequest(startTime, true);
       return {
         content: [
           {
             type: 'text', 
-            text: JSON.stringify({ status: 'Session cleared' })
+            text: JSON.stringify({ status: 'Session cleared', locksReleased: locks.released, lockReleaseFailures: locks.failed })
           }
         ]
       };
