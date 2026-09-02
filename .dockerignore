@@ -1,0 +1,18 @@
+# never bake credentials or local state into the image
+systems.json
+.env
+.env.*
+*.pem
+*.key
+# build inputs come from a clean npm ci inside the image
+node_modules
+dist
+coverage
+# not needed at runtime
+.git
+.github
+.claude
+.tokensave
+docs
+*.md
+!README.md

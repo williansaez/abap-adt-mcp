@@ -44,10 +44,25 @@
           "isRequired": false
         },
         {
+          "name": "MCP_HTTP_HOST",
+          "description": "Bind address for the HTTP transport (default 127.0.0.1). Set 0.0.0.0 only inside containers that publish the port",
+          "isRequired": false
+        },
+        {
           "name": "MCP_HTTP_TOKEN",
           "description": "Bearer token for the HTTP transport; auto-generated and written to ~/.abap-adt-mcp/http-token when unset",
           "isRequired": false,
           "isSecret": true
+        },
+        {
+          "name": "MCP_TOOLSETS",
+          "description": "Toolsets to publish: comma list (core,source,objects,transports,analysis,tests,atc,data,discovery,runtime,refactoring,rap,services,git,debugger,traces) or a preset: all (default) or focused",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_DISABLED_TOOLSETS",
+          "description": "Toolsets to hide, comma list (core cannot be disabled)",
+          "isRequired": false
         },
         {
           "name": "MCP_MAX_RESPONSE_CHARS",

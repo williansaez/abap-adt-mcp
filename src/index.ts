@@ -565,10 +565,15 @@ export class AbapAdtServer extends Server {
       }
     });
 
-    // Bind to loopback only; this transport is for local MCP hosts, never the network.
-    await new Promise<void>((resolve) => httpServer.listen(port, '127.0.0.1', resolve));
+    // Bind to loopback unless MCP_HTTP_HOST says otherwise (containers need
+    // 0.0.0.0 to publish the port; the bearer token still guards every call).
+    const host = process.env.MCP_HTTP_HOST || '127.0.0.1';
+    if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') {
+      console.error(`[abap-adt-mcp] WARNING: HTTP transport bound to ${host}, reachable beyond this machine. Keep the bearer token secret and put TLS in front.`);
+    }
+    await new Promise<void>((resolve) => httpServer.listen(port, host, resolve));
     console.error(
-      `MCP ABAP ADT API server running on http://127.0.0.1:${port}/mcp (bearer auth) — ` +
+      `MCP ABAP ADT API server running on http://${host}:${port}/mcp (bearer auth) — ` +
       `${this.systems.size} destination(s): ${[...this.systems.keys()].join(', ')}`
     );
   }

@@ -4,7 +4,7 @@
 
 > Use with caution, and prefer development systems.
 
-A single **Model Context Protocol (MCP) server** that gives AI agents full ABAP development capabilities over **multiple SAP systems at once**. It wraps [abap-adt-api](https://github.com/marcellourbani/abap-adt-api/) (the ADT REST protocol used by Eclipse ADT) and exposes **143 tools**: object creation and editing, transports (including unified diffs), activation, unit tests, ATC runs with deterministic quickfixes, RAP application generation, OData service inspection, abapGit, debugging, traces and more.
+A single **Model Context Protocol (MCP) server** that gives AI agents full ABAP development capabilities over **multiple SAP systems at once**. It wraps [abap-adt-api](https://github.com/marcellourbani/abap-adt-api/) (the ADT REST protocol used by Eclipse ADT) and exposes **158 tools**: object creation and editing, transports (including unified diffs), activation, unit tests, ATC runs with deterministic quickfixes, RAP application generation, OData service inspection, abapGit, debugging, traces and more.
 
 Originally forked from [mario-andreschak/mcp-abap-abap-adt-api](https://github.com/mario-andreschak/mcp-abap-abap-adt-api); this fork adds multi-destination support, browser-SSO and OAuth2 authentication for S/4HANA Cloud, MCP tool annotations, an optional HTTP transport and workflow guidance aligned with SAP's official ADT MCP Server documentation.
 
@@ -16,7 +16,9 @@ Originally forked from [mario-andreschak/mcp-abap-abap-adt-api](https://github.c
 - **SAP-parity tools**: transport unified diff, RAP generators (`rapGen*`), name-based OData service inspection (`fetchServiceDetails`), ATC quickfix execution (`atcApplyQuickfix`), creatable-type metadata (`creatableTypeDetails`) — mirroring SAP's official ADT MCP Server toolsets.
 - **stdio or HTTP**: stdio by default; set `MCP_HTTP_PORT` for a localhost Streamable HTTP endpoint guarded by a bearer token.
 - **SSO that remembers you**: the browser login window uses a persistent per-host profile (`~/.abap-adt-mcp/sso/<host>`, mode `0700`) — tick "stay signed in" once and later logins are silent. Point `SAP_BROWSER_PROFILE_DIR` at a custom browser profile to reuse saved passwords/passkeys (the browser's default profile is rejected by design).
-- **Tested**: four-layer test plan with results in [docs/TESTPLAN.md](docs/TESTPLAN.md) — offline protocol/config/HTTP suites plus live read and write flows against a real S/4HANA Cloud tenant. The full SAP-doc-based improvement analysis lives in [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md).
+- **Actionable errors and self-healing sessions**: every error carries `kind`, `hint` and `nextTools` (stale lock handle, foreign lock, transport required, missing authorization, endpoint absent on Cloud…); an expired SSO/OAuth/basic session is re-established and the call retried once. `systemProfile` tells which toolsets a destination supports before you use them.
+- **Toolsets**: publish only what a host needs with `MCP_TOOLSETS` (`focused` = 99 development tools, or any comma list) so tool schemas do not eat the context window. See [docs/TOOLS.md](docs/TOOLS.md).
+- **Tested**: Jest suites (handlers, error hints, response sizing, toolsets, catalog contract against `docs/tools.snapshot.json`) run in CI on Node 18/20/22, plus a four-layer test plan with results in [docs/TESTPLAN.md](docs/TESTPLAN.md) — offline protocol/config/HTTP suites plus live read and write flows against a real S/4HANA Cloud tenant. The full SAP-doc-based improvement analysis lives in [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md).
 
 ## Prerequisites
 
@@ -75,33 +77,32 @@ The server listens on `http://127.0.0.1:2236/mcp` (loopback only) and requires `
 }
 ```
 
-## Tool catalog (all 143 tools, by domain)
+## Tool catalog (all 158 tools, by toolset)
 
-The complete per-tool reference — description, parameters, and read-only/destructive annotations for every tool — lives in [docs/TOOLS.md](docs/TOOLS.md), generated from the server's live `tools/list` response.
+The complete per-tool reference (description, parameters, read-only/destructive annotations) lives in [docs/TOOLS.md](docs/TOOLS.md), generated from the live `tools/list` response by `npm run tools:docs` and verified by the catalog contract test.
 
-**How to use the tools**: every tool (except `listSystems`/`healthcheck`) accepts an optional `destination` parameter naming the configured system; without it the default destination is used. A typical session: `listSystems` → `searchObject` to find an object → `getObjectSource` to read it → (`lock` → `setObjectSource` → `unLock` → `activateObjects`) to change it, with `transportInfo`/`createTransport` when a transport is required. The server also announces these canonical workflows to MCP hosts via its `instructions` field.
+**How to use the tools**: every tool (except `listSystems`/`healthcheck`) accepts an optional `destination` parameter naming the configured system; without it the default destination is used. A typical session: `listSystems` → `systemProfile` (once per unfamiliar system) → `searchObject` → `getObjectSource` → `resolveTransport` → (`lock` → `editObjectSource` or `setObjectSource` → `syntaxCheckCode` → `unLock` → `activateByName` → `unitTestRun`). The server announces these workflows to MCP hosts via its `instructions` field, and every error JSON carries a `hint` and `nextTools`.
 
-| Domain | Tools |
-|---|---|
-| Destinations & health (2) | `listSystems`, `healthcheck` |
-| Auth & session (4) | `login`, `logout`, `dropSession`, `reentranceTicket` (disabled by default) |
-| Discovery & metadata (13) | `loadTypes`, `objectTypes`, `creatableTypeDetails`, `adtDiscovery`, `adtCoreDiscovery`, `adtCompatibilityGraph`, `featureDetails`, `collectionFeatureDetails`, `findCollectionByUrl`, `objectRegistrationInfo`, `feeds`, `dumps`, `systemUsers` |
-| Object navigation (9) | `searchObject`, `objectStructure`, `findObjectPath`, `nodeContents`, `mainPrograms`, `classIncludes`, `classComponents`, `packageSearchHelp`, `annotationDefinitions` |
-| Create & delete (4) | `validateNewObject`, `createObject`, `createTestInclude`, `deleteObject` |
-| Source code (9) | `getObjectSource`, `setObjectSource`, `editObjectSource`, `lock`, `unLock`, `prettyPrinter`, `prettyPrinterSetting`, `setPrettyPrinterSetting`, `revisions` |
-| Activation (3) | `activateObjects`, `activateByName`, `inactiveObjects` |
-| Transports (16) | `transportInfo`, `createTransport`, `transportDetails`, `transportUnifiedDiff`, `userTransports`, `transportsByConfig`, `transportRelease`, `transportDelete`, `transportAddUser`, `transportSetOwner`, `transportReference`, `transportConfigurations`, `getTransportConfiguration`, `setTransportsConfig`, `createTransportsConfig`, `hasTransportConfig` |
-| Syntax & code analysis (13) | `syntaxCheckCode`, `syntaxCheckCdsUrl`, `syntaxCheckTypes`, `codeCompletion`, `codeCompletionFull`, `codeCompletionElement`, `findDefinition`, `usageReferences`, `usageReferenceSnippets`, `fixProposals`, `fixEdits`, `fragmentMappings`, `abapDocumentation` |
-| Unit tests (3) | `unitTestRun`, `unitTestEvaluation`, `unitTestOccurrenceMarkers` |
-| ATC (12) | `atcCustomizing`, `atcCheckVariant`, `createAtcRun`, `atcWorklists`, `atcUsers`, `atcExemptProposal`, `atcRequestExemption`, `isProposalMessage`, `atcContactUri`, `atcChangeContact`, `atcQuickfixProposals`, `atcApplyQuickfix` |
-| RAP generation (8) | `rapGenIsAvailable`, `rapGenGetSchema`, `rapGenGetContent`, `rapGenValidateInitial`, `rapGenValidateContent`, `rapGenPreview`, `rapGenGenerate`, `rapGenPublishService` |
-| Business services (4) | `fetchServiceDetails`, `bindingDetails`, `publishServiceBinding`, `unPublishServiceBinding` |
-| Refactoring (6) | `renameEvaluate`, `renamePreview`, `renameExecute`, `extractMethodEvaluate`, `extractMethodPreview`, `extractMethodExecute` |
-| Data access (4) | `tableContents`, `runQuery`, `ddicElement`, `ddicRepositoryAccess` |
-| Run & execute (1) | `runClass` |
-| abapGit (10) | `gitRepos`, `gitCreateRepo`, `gitPullRepo`, `gitUnlinkRepo`, `checkRepo`, `pushRepo`, `stageRepo`, `switchRepoBranch`, `remoteRepoInfo`, `gitExternalRepoInfo` |
-| Debugger (13) | `debuggerListen`, `debuggerListeners`, `debuggerDeleteListener`, `debuggerSetBreakpoints`, `debuggerDeleteBreakpoints`, `debuggerAttach`, `debuggerSaveSettings`, `debuggerStackTrace`, `debuggerVariables`, `debuggerChildVariables`, `debuggerStep`, `debuggerGoToStack`, `debuggerSetVariableValue` |
-| Traces (9) | `tracesList`, `tracesListRequests`, `tracesHitList`, `tracesDbAccess`, `tracesStatements`, `tracesSetParameters`, `tracesCreateConfiguration`, `tracesDeleteConfiguration`, `tracesDelete` |
+**Toolsets**: set `MCP_TOOLSETS` to a preset (`all`, the default, or `focused`) or to a comma list of the names below; `MCP_DISABLED_TOOLSETS` removes some. `core` is always published. Unknown names fail at startup.
+
+| Toolset | In `focused` | Tools |
+|---|---|---|
+| `core` · Destinations, health & session (6) | yes | `login`, `logout`, `dropSession`, `listSystems`, `healthcheck`, `systemProfile` |
+| `source` · Source code (11) | yes | `lock`, `unLock`, `getObjectSource`, `setObjectSource`, `editObjectSource`, `prettyPrinterSetting`, `setPrettyPrinterSetting`, `prettyPrinter`, `revisions`, `getTextElements`, `setTextElements` |
+| `objects` · Objects & navigation (20) | yes | `objectStructure`, `searchObject`, `findObjectPath`, `objectTypes`, `reentranceTicket`, `classIncludes`, `classComponents`, `deleteObject`, `activateObjects`, `activateByName`, `inactiveObjects`, `objectRegistrationInfo`, `creatableTypeDetails`, `validateNewObject`, `createObject`, `nodeContents`, `mainPrograms`, `typeHierarchy`, `objectStructureElements`, `objectEnhancements` |
+| `transports` · Transports (18) | yes | `transportDetails`, `transportUnifiedDiff`, `transportInfo`, `resolveTransport`, `createTransport`, `hasTransportConfig`, `transportConfigurations`, `getTransportConfiguration`, `setTransportsConfig`, `createTransportsConfig`, `userTransports`, `transportsByConfig`, `transportDelete`, `transportRelease`, `transportSetOwner`, `transportAddUser`, `systemUsers`, `transportReference` |
+| `analysis` · Syntax & code analysis (14) | yes | `syntaxCheckCode`, `syntaxCheckCdsUrl`, `codeCompletion`, `findDefinition`, `usageReferences`, `syntaxCheckTypes`, `codeCompletionFull`, `runClass`, `codeCompletionElement`, `usageReferenceSnippets`, `fixProposals`, `fixEdits`, `fragmentMappings`, `abapDocumentation` |
+| `tests` · Unit tests (4) | yes | `unitTestRun`, `unitTestEvaluation`, `unitTestOccurrenceMarkers`, `createTestInclude` |
+| `atc` · ATC (13) | yes | `atcCustomizing`, `atcQuickfixProposals`, `atcApplyQuickfix`, `atcCheckVariant`, `createAtcRun`, `atcWorklists`, `atcUsers`, `atcExemptProposal`, `atcRequestExemption`, `isProposalMessage`, `atcContactUri`, `atcChangeContact`, `atcDocumentation` |
+| `data` · Data access & DDIC (10) | yes | `annotationDefinitions`, `ddicElement`, `ddicRepositoryAccess`, `packageSearchHelp`, `getDomainProperties`, `setDomainProperties`, `getDataElementProperties`, `setDataElementProperties`, `tableContents`, `runQuery` |
+| `discovery` · Discovery & metadata (7) | no | `featureDetails`, `collectionFeatureDetails`, `findCollectionByUrl`, `loadTypes`, `adtDiscovery`, `adtCoreDiscovery`, `adtCompatibilityGraph` |
+| `runtime` · Runtime errors (3) | yes | `feeds`, `dumps`, `dumpDetails` |
+| `refactoring` · Refactoring (8) | no | `renameEvaluate`, `renamePreview`, `renameExecute`, `extractMethodEvaluate`, `extractMethodPreview`, `extractMethodExecute`, `changePackagePreview`, `changePackageExecute` |
+| `rap` · RAP generation (8) | no | `rapGenIsAvailable`, `rapGenGetSchema`, `rapGenGetContent`, `rapGenValidateInitial`, `rapGenValidateContent`, `rapGenPreview`, `rapGenGenerate`, `rapGenPublishService` |
+| `services` · Business services (4) | no | `publishServiceBinding`, `unPublishServiceBinding`, `fetchServiceDetails`, `bindingDetails` |
+| `git` · abapGit (10) | no | `gitRepos`, `gitExternalRepoInfo`, `gitCreateRepo`, `gitPullRepo`, `gitUnlinkRepo`, `stageRepo`, `pushRepo`, `checkRepo`, `remoteRepoInfo`, `switchRepoBranch` |
+| `debugger` · Debugger (13) | no | `debuggerListeners`, `debuggerListen`, `debuggerDeleteListener`, `debuggerSetBreakpoints`, `debuggerDeleteBreakpoints`, `debuggerAttach`, `debuggerSaveSettings`, `debuggerStackTrace`, `debuggerVariables`, `debuggerChildVariables`, `debuggerStep`, `debuggerGoToStack`, `debuggerSetVariableValue` |
+| `traces` · Traces (9) | no | `tracesList`, `tracesListRequests`, `tracesHitList`, `tracesDbAccess`, `tracesStatements`, `tracesSetParameters`, `tracesCreateConfiguration`, `tracesDeleteConfiguration`, `tracesDelete` |
 
 ## Build from source
 
@@ -235,7 +236,8 @@ When working with ABAP objects, you may encounter errors related to unknown fiel
 
 ## Troubleshooting
 
-*   **`npx` can't find the package / client won't start it:** ensure Node.js is installed and on your PATH (`node -v`, `npm -v`). On Windows try `"command": "npx.cmd"`, or use a source build with an absolute path to `node dist/index.js`.
+*   **Session expired mid-flow:** the server re-authenticates and retries once; if the error JSON still says `kind: "sessionExpired"`, call `login` for the destination and `lock` the object again. Any `lockHandle` from the old session is invalid (`kind: "staleLockHandle"`).
+*   **Tool refused as not available on the destination:** run `systemProfile`; S/4HANA Cloud tenants lack some ADT collections (for example the RAP generator), and the server refuses those tools before calling SAP.
 *   **SAP connection errors:** verify your credentials (`SAP_URL`, `SAP_USER`, `SAP_PASSWORD`, `SAP_CLIENT`), confirm the system is reachable, that your user has ADT authorizations, and that `/sap/bc/adt` is active in `SICF`.
 *   **TLS / self-signed certificate errors:** for development only, set `NODE_TLS_REJECT_UNAUTHORIZED=0` (env var or in the client `env` block).
 

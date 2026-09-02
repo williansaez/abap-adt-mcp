@@ -1,34 +1,23 @@
-# Use an official Node.js runtime as a parent image
-FROM node:18-alpine AS builder
-
-# Set the working directory
+# --- build stage --------------------------------------------------------------
+FROM node:22-alpine AS builder
 WORKDIR /app
-
-# Copy the package files
 COPY package.json package-lock.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build && npm prune --omit=dev
 
-# Install dependencies
-RUN npm install
-
-# Copy the rest of the application code
-COPY . .
-
-# Build the TypeScript application
-RUN npm run build
-
-# Use a smaller Node.js runtime for the production build
-FROM node:18-alpine AS runner
-
-# Set the working directory
+# --- runtime stage ------------------------------------------------------------
+FROM node:22-alpine AS runner
+ENV NODE_ENV=production
 WORKDIR /app
-
-# Copy the built application from the builder stage
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
-
-# Expose port (if applicable, specify the port that your server listens on)
-EXPOSE 3000
-
-# Command to run the application
-CMD ["node", "./dist/index.js"]
+COPY package.json server.json ./
+# Run unprivileged. Mount your systems.json read-only and point SAP_SYSTEMS_FILE at it:
+#   docker run -i -v $PWD/systems.json:/config/systems.json:ro -e SAP_SYSTEMS_FILE=/config/systems.json ghcr.io/williansaez/abap-adt-mcp
+# stdio is the default transport. For Streamable HTTP inside a container set
+# MCP_HTTP_PORT and MCP_HTTP_HOST=0.0.0.0 (the default bind is loopback) and
+# publish the port; the bearer token is still required.
+USER node
+ENTRYPOINT ["node", "./dist/index.js"]

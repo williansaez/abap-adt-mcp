@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write   # npm provenance
+  packages: write   # GHCR
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - name: Tag matches package.json and server.json
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          node -e "const p=require('./package.json').version,s=require('./server.json');if(p!=='$TAG'||s.version!==p||s.packages[0].version!==p){console.error('version mismatch: tag=$TAG package=' + p + ' server.json=' + s.version);process.exit(1)}"
+      - run: npm ci
+      - run: npm run build
+      - run: npm test -- --coverage=false
+      - name: Publish to npm (provenance)
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}:latest
