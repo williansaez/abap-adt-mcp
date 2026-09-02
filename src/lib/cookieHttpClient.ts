@@ -36,6 +36,17 @@ interface HttpClientResponse {
 }
 
 export class CookieHttpClient {
+  static readonly MAX_RETRY_WAIT_MS = 5000;
+
+  /** Heuristic: a 2xx/3xx HTML document carrying a logon form or SAML/IAS markers. */
+  static looksLikeLoginPage(status: number, contentType: unknown, body: string): boolean {
+    if (status >= 400) return false;
+    const ct = String(contentType || '').toLowerCase();
+    const head = body.slice(0, 20000);
+    if (!ct.includes('text/html') && !/^\s*<(!doctype html|html)/i.test(head)) return false;
+    return /SAMLRequest|SAMLResponse|j_username|sap-idp|accounts\.sap\.com|Identity Authentication|<form[^>]*(logon|login|signin|authenticate)/i.test(head);
+  }
+
   private jar = new Map<string, string>();
   private axiosInstance: AxiosInstance;
 
@@ -86,7 +97,7 @@ export class CookieHttpClient {
     const params = { ...(options.qs || {}) };
     if (this.sapClient && params['sap-client'] === undefined) params['sap-client'] = this.sapClient;
 
-    const res = await this.axiosInstance.request({
+    const send = () => this.axiosInstance.request({
       url: options.url,
       method: (options.method as any) || 'GET',
       headers,
@@ -96,10 +107,32 @@ export class CookieHttpClient {
       httpsAgent: options.httpsAgent,
     });
 
+    let res = await send();
+
+    // Throttled or briefly unavailable: honour Retry-After (capped) and retry once.
+    if (res.status === 429 || res.status === 503) {
+      const retryAfter = Number(res.headers?.['retry-after']);
+      const waitMs = Math.min(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 1000, CookieHttpClient.MAX_RETRY_WAIT_MS);
+      await new Promise((r) => setTimeout(r, waitMs));
+      res = await send();
+    }
+
     this.mergeSetCookie(res.headers?.['set-cookie']);
 
+    // An expired SSO session does not fail: the identity provider answers the
+    // redirect chain with its HTML login page and a 200. Surface that as a
+    // session-expired error instead of handing HTML to the ADT parser (or,
+    // worse, returning it as "source code").
+    const body = typeof res.data === 'string' ? res.data : String(res.data ?? '');
+    if (CookieHttpClient.looksLikeLoginPage(res.status, res.headers?.['content-type'], body)) {
+      const err: any = new Error('SSO session expired: the identity provider returned a login page instead of an ADT response. Re-authenticate (login) and retry.');
+      err.code = 'SESSION_EXPIRED';
+      err.status = 401;
+      throw err;
+    }
+
     return {
-      body: typeof res.data === 'string' ? res.data : String(res.data ?? ''),
+      body,
       status: res.status,
       statusText: res.statusText,
       headers: res.headers as Record<string, any>,

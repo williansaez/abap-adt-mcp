@@ -20,6 +20,7 @@ import { makeBearerFetcher } from './lib/oauth.js';
 import { CookieHttpClient } from './lib/cookieHttpClient.js';
 import { browserLogin } from './lib/browserLogin.js';
 import { readSystems, defaultDestination, SystemConfig } from './lib/systems.js';
+import { classifyAdtError } from './lib/adtErrorHints.js';
 import { AuthHandlers } from './handlers/AuthHandlers.js';
 import { TransportHandlers } from './handlers/TransportHandlers.js';
 import { ObjectHandlers } from './handlers/ObjectHandlers.js';
@@ -359,19 +360,42 @@ export class AbapAdtServer extends Server {
     if (!(error instanceof Error)) {
       error = new Error(String(error));
     }
+    const cls = classifyAdtError(error);
+    const extra = cls.kind === 'unknown' ? {} : { kind: cls.kind, httpStatus: cls.status, hint: cls.hint, nextTools: cls.nextTools };
     if (error instanceof McpError) {
       return {
-        content: [{ type: 'text', text: JSON.stringify({ error: redactSecrets(error.message), code: error.code }) }],
+        content: [{ type: 'text', text: JSON.stringify({ error: redactSecrets(error.message), code: error.code, ...extra }) }],
         isError: true
       };
     }
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({ error: redactSecrets((error as Error).message || 'Internal server error'), code: ErrorCode.InternalError })
+        text: JSON.stringify({ error: redactSecrets((error as Error).message || 'Internal server error'), code: ErrorCode.InternalError, ...extra })
       }],
       isError: true
     };
+  }
+
+  /**
+   * Re-establish the SAP session of a destination after it expired mid-flow:
+   * SSO re-runs the browser login (silent with a persistent profile), OAuth
+   * drops the cached bearer so a fresh token is fetched, basic simply logs in
+   * again. The stateful flag is restored because dropSession resets it.
+   */
+  private async reauthenticate(name: string): Promise<void> {
+    const dest = this.getDestination(name);
+    if (dest.system.authType === 'sso') {
+      dest.loggedIn = false;
+      await this.ensureLogin(name, true);
+    } else {
+      try { await dest.adtClient.dropSession(); } catch { /* best effort */ }
+      if (dest.system.authType === 'oauth') {
+        (dest.adtClient.httpClient as any).bearer = undefined;
+      }
+      await dest.adtClient.login();
+    }
+    dest.adtClient.stateful = session_types.stateful;
   }
 
   // --- tool registration --------------------------------------------------
@@ -477,7 +501,20 @@ export class AbapAdtServer extends Server {
         if (!handlerKey) {
           throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
         }
-        const result = await dest.handlers[handlerKey].handle(name, args);
+        let result: any;
+        try {
+          result = await dest.handlers[handlerKey].handle(name, args);
+        } catch (error) {
+          // A session that expired between calls means SAP never executed this
+          // request: re-authenticate and retry exactly once. Any lockHandle from
+          // the old session is gone; the retry then fails with a staleLockHandle
+          // hint, which is the honest outcome.
+          const cls = classifyAdtError(error);
+          if (cls.kind !== 'sessionExpired' && cls.kind !== 'csrf') throw error;
+          console.error(`[abap-adt-mcp] session for ${destination} expired during ${name} (${cls.kind}); re-authenticating and retrying once`);
+          await this.reauthenticate(destination);
+          result = await dest.handlers[handlerKey].handle(name, args);
+        }
         return this.serializeResult(result);
       } catch (error) {
         return this.handleError(error);
