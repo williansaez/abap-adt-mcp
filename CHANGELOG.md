@@ -18,3 +18,7 @@ Fixes driven by a full live test round against a Public Cloud tenant (95/142 too
 - `extractMethodEvaluate` retries with a stateless session (stateful sessions reject the selection); full evaluate→preview→execute cycle verified live.
 - `createAtcRun` resolves check variant names to worklist ids automatically and documents the ATC flow.
 - `codeCompletionFull` documents the patternKey contract (IDENTIFIER of a codeCompletion proposal).
+
+## [Unreleased]
+- Package renamed to `abap-adt-mcp` (`mcpName` `io.github.williansaez/abap-adt-mcp`, bin `abap-adt-mcp`) so it no longer collides with the upstream `mcp-abap-abap-adt-api` on npm and the MCP Registry. Upstream author kept in `contributors` and in LICENSE.
+- Server version announced to MCP hosts is now read from `package.json` (was hardcoded and had drifted to 0.3.0); `server.json` synced to 0.3.1.

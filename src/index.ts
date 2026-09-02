@@ -47,6 +47,9 @@ import { RefactorHandlers } from './handlers/RefactorHandlers.js';
 import { RevisionHandlers } from './handlers/RevisionHandlers.js';
 import { RapGeneratorHandlers } from './handlers/RapGeneratorHandlers.js';
 
+// Single source of truth for the version announced to MCP hosts (dist/ sits one level below package.json).
+const PACKAGE_VERSION: string = require("../package.json").version;
+
 config({ path: path.resolve(__dirname, '../.env') });
 
 /**
@@ -209,7 +212,7 @@ export class AbapAdtServer extends Server {
 
   constructor() {
     super(
-      { name: "abap-adt-mcp", version: "0.3.0" },
+      { name: "abap-adt-mcp", version: PACKAGE_VERSION },
       {
         capabilities: { tools: {} },
         instructions: [

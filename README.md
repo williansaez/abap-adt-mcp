@@ -118,7 +118,7 @@ Use this Custom Instruction to explain the tool to your model (a ready-to-fill
 `agents.md` template is also available at `docs/agents.template.md`; the server
 additionally announces these workflows to MCP hosts via its `instructions` field):
 ```
-## mcp-abap-abap-adt-api Server
+## abap-adt-mcp Server
 
 This server provides tools for interacting with an SAP system via ADT (ABAP Development Tools) APIs. It allows you to retrieve information about ABAP objects, modify source code, and manage transports.
 
