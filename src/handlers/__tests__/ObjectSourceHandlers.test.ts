@@ -61,6 +61,68 @@ describe('editObjectSource', () => {
   });
 });
 
+describe('editObjectSource replacements', () => {
+  it('applies a unique text anchor and writes back with lock handle and transport', async () => {
+    const { client, handler } = makeHandler('METHOD a.\n  x = 1.\nENDMETHOD.');
+    const res = parse(await handler.handle('editObjectSource', {
+      objectSourceUrl: URL, lockHandle: 'LH', transport: 'TR1',
+      replacements: JSON.stringify([{ oldText: '  x = 1.', newText: '  x = 2.\n  y = 3.' }])
+    }));
+    expect(client.source).toBe('METHOD a.\n  x = 2.\n  y = 3.\nENDMETHOD.');
+    expect(client.setObjectSource).toHaveBeenCalledWith(URL, client.source, 'LH', 'TR1');
+    expect(res).toMatchObject({ mode: 'replacements', replacementsApplied: 1, totalLinesBefore: 3, totalLinesAfter: 4 });
+    expect(res.applied[0]).toMatchObject({ line: 2, linesRemoved: 1, linesAdded: 2 });
+  });
+
+  it('accepts an already-parsed array and applies several replacements in order', async () => {
+    const { client, handler } = makeHandler('a\nb\nc');
+    await handler.handle('editObjectSource', {
+      objectSourceUrl: URL, lockHandle: 'LH',
+      replacements: [{ oldText: 'a', newText: 'A' }, { oldText: 'c', newText: '' }]
+    });
+    expect(client.source).toBe('A\nb\n');
+  });
+
+  it('rejects an anchor with zero matches without writing', async () => {
+    const { client, handler } = makeHandler('a\nb');
+    await expect(handler.handle('editObjectSource', {
+      objectSourceUrl: URL, lockHandle: 'LH', replacements: [{ oldText: 'zzz', newText: 'y' }]
+    })).rejects.toThrow(/0 matches/);
+    expect(client.setObjectSource).not.toHaveBeenCalled();
+  });
+
+  it('rejects an ambiguous anchor and reports the candidate lines', async () => {
+    const { client, handler } = makeHandler('x = 1.\ny = 2.\nx = 1.');
+    await expect(handler.handle('editObjectSource', {
+      objectSourceUrl: URL, lockHandle: 'LH', replacements: [{ oldText: 'x = 1.', newText: 'x = 9.' }]
+    })).rejects.toThrow(/2 locations \(lines 1, 3\)/);
+    expect(client.setObjectSource).not.toHaveBeenCalled();
+  });
+
+  it('is atomic: a failing later entry leaves the object untouched', async () => {
+    const { client, handler } = makeHandler('a\nb');
+    await expect(handler.handle('editObjectSource', {
+      objectSourceUrl: URL, lockHandle: 'LH',
+      replacements: [{ oldText: 'a', newText: 'A' }, { oldText: 'nope', newText: '' }]
+    })).rejects.toThrow(/replacements\[1\]/);
+    expect(client.source).toBe('a\nb');
+  });
+
+  it('matches LF anchors against CRLF sources', async () => {
+    const { client, handler } = makeHandler('a\r\nb\r\nc');
+    await handler.handle('editObjectSource', {
+      objectSourceUrl: URL, lockHandle: 'LH', replacements: [{ oldText: 'a\nb', newText: 'ab' }]
+    });
+    expect(client.source).toBe('ab\nc');
+  });
+
+  it('still requires the line-range trio when replacements is absent', async () => {
+    const { handler } = makeHandler('a');
+    await expect(handler.handle('editObjectSource', { objectSourceUrl: URL, lockHandle: 'LH', startLine: 1 }))
+      .rejects.toThrow(/either "replacements"/);
+  });
+});
+
 describe('getObjectSource version', () => {
   it('passes version=inactive through as ObjectSourceOptions', async () => {
     const { client, handler } = makeHandler('a');

@@ -74,22 +74,30 @@ export class ObjectSourceHandlers extends BaseHandler {
       },
       {
         name: 'editObjectSource',
-        description: 'Applies a targeted line-range edit to an ABAP object without sending the full source. Always re-fetches the current source from SAP first (so the edit is guaranteed to apply on top of the latest remote version), replaces lines [startLine, endLine] (inclusive, 1-based) with newText, and writes the result back. To insert without deleting anything, set endLine = startLine - 1. Pass expectedText (the exact current content of that line range, joined with \\n) to fail fast instead of silently overwriting if the object changed since you last read it.',
+        description: 'Applies a targeted edit to an ABAP object without sending the full source. Always re-fetches the current source from SAP first, so the edit lands on the latest remote version. Two modes: (a) replacements: a JSON array of {oldText, newText} where each oldText must occur exactly once in the current source (0 or several matches fail with the candidate lines, so re-read and refine); this is robust to line-number drift after earlier edits. (b) line range: replace lines [startLine, endLine] (inclusive, 1-based) with newText; endLine = startLine - 1 inserts; empty newText deletes; pass expectedText (exact current content of the range, joined with \\n) to fail fast on stale reads. Requires the lockHandle from lock; write back is a full setObjectSource.',
         inputSchema: {
           type: 'object',
           properties: {
-            objectSourceUrl: { type: 'string' },
+            objectSourceUrl: { type: 'string', description: 'Source URL of the object, usually the object URL plus /source/main' },
+            replacements: {
+              type: 'string',
+              description: 'Mode (a): JSON array of {"oldText": "...", "newText": "..."}. Each oldText must match exactly one location in the current source (include enough surrounding lines to make it unique). Applied in order, atomically: if any entry fails, nothing is written.',
+              optional: true
+            },
             startLine: {
               type: 'number',
-              description: '1-based first line to replace (inclusive).'
+              description: 'Mode (b): 1-based first line to replace (inclusive).',
+              optional: true
             },
             endLine: {
               type: 'number',
-              description: '1-based last line to replace (inclusive). Use startLine - 1 to insert without replacing any existing line.'
+              description: 'Mode (b): 1-based last line to replace (inclusive). Use startLine - 1 to insert without replacing any existing line.',
+              optional: true
             },
             newText: {
               type: 'string',
-              description: 'Replacement text for the given line range (use \\n for multiple lines). Use an empty string to delete the range.'
+              description: 'Mode (b): replacement text for the given line range (use \\n for multiple lines). Use an empty string to delete the range.',
+              optional: true
             },
             expectedText: {
               type: 'string',
@@ -99,7 +107,7 @@ export class ObjectSourceHandlers extends BaseHandler {
             lockHandle: { type: 'string' },
             transport: { type: 'string', optional: true }
           },
-          required: ['objectSourceUrl', 'startLine', 'endLine', 'newText', 'lockHandle']
+          required: ['objectSourceUrl', 'lockHandle']
         }
       }
     ];
@@ -222,6 +230,14 @@ export class ObjectSourceHandlers extends BaseHandler {
       // guaranteed to be based on the current remote version, not a stale
       // local copy from earlier in the conversation.
       const fullSource = await this.adtclient.getObjectSource(args.objectSourceUrl);
+
+      if (args.replacements !== undefined) {
+        return await this.applyReplacements(args, fullSource, startTime);
+      }
+      if (args.startLine === undefined || args.endLine === undefined || args.newText === undefined) {
+        throw new McpError(ErrorCode.InvalidParams, 'editObjectSource needs either "replacements" (array of {oldText, newText}) or the line-range trio startLine/endLine/newText');
+      }
+
       const lines = fullSource.split('\n');
       const totalLines = lines.length;
 
@@ -290,5 +306,79 @@ export class ObjectSourceHandlers extends BaseHandler {
         `Failed to edit object source: ${this.formatAdtError(error)}`
       );
     }
+  }
+
+  /**
+   * Text-anchored edit: every oldText must occur exactly once in the current
+   * source. Line endings are normalized to \n on both sides so an anchor copied
+   * from a getObjectSource result matches a CRLF source too.
+   */
+  private async applyReplacements(args: any, fullSource: string, startTime: number): Promise<any> {
+    let replacements: Array<{ oldText: string; newText: string }>;
+    if (Array.isArray(args.replacements)) {
+      replacements = args.replacements;
+    } else {
+      try {
+        replacements = JSON.parse(String(args.replacements));
+      } catch {
+        throw new McpError(ErrorCode.InvalidParams, 'replacements must be a JSON array of {oldText, newText}');
+      }
+    }
+    if (!Array.isArray(replacements) || replacements.length === 0 ||
+        replacements.some(r => !r || typeof r.oldText !== 'string' || r.oldText.length === 0 || typeof r.newText !== 'string')) {
+      throw new McpError(ErrorCode.InvalidParams, 'replacements must be a non-empty array of {oldText: non-empty string, newText: string}');
+    }
+
+    const normalize = (t: string) => t.replace(/\r\n/g, '\n');
+    let working = normalize(fullSource);
+    const applied: Array<{ index: number; line: number; linesRemoved: number; linesAdded: number }> = [];
+
+    replacements.forEach((r, index) => {
+      const oldText = normalize(r.oldText);
+      const newText = normalize(r.newText);
+      const positions: number[] = [];
+      let from = 0;
+      while (true) {
+        const at = working.indexOf(oldText, from);
+        if (at < 0) break;
+        positions.push(at);
+        from = at + Math.max(1, oldText.length);
+      }
+      const lineOf = (pos: number) => working.slice(0, pos).split('\n').length;
+      if (positions.length === 0) {
+        throw new McpError(ErrorCode.InvalidRequest,
+          `replacements[${index}]: oldText was not found in the current source on SAP (0 matches). Re-read the object with getObjectSource and copy the exact current text, including indentation.`);
+      }
+      if (positions.length > 1) {
+        throw new McpError(ErrorCode.InvalidRequest,
+          `replacements[${index}]: oldText matches ${positions.length} locations (lines ${positions.map(lineOf).join(', ')}). Include more surrounding lines so it matches exactly once.`);
+      }
+      const pos = positions[0];
+      applied.push({
+        index, line: lineOf(pos),
+        linesRemoved: oldText.split('\n').length,
+        linesAdded: newText.length === 0 ? 0 : newText.split('\n').length
+      });
+      working = working.slice(0, pos) + newText + working.slice(pos + oldText.length);
+    });
+
+    this.adtclient.stateful = session_types.stateful;
+    await this.adtclient.setObjectSource(args.objectSourceUrl, working, args.lockHandle, args.transport);
+    sourceCache.set(args.objectSourceUrl, working);
+    this.trackRequest(startTime, true);
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          status: 'success',
+          updated: true,
+          mode: 'replacements',
+          replacementsApplied: applied.length,
+          applied,
+          totalLinesBefore: normalize(fullSource).split('\n').length,
+          totalLinesAfter: working.split('\n').length
+        })
+      }]
+    };
   }
 }
