@@ -54,6 +54,8 @@ import { RapGeneratorHandlers } from './handlers/RapGeneratorHandlers.js';
 import { NavigationHandlers } from './handlers/NavigationHandlers.js';
 import { TextElementHandlers } from './handlers/TextElementHandlers.js';
 import { SearchHandlers } from './handlers/SearchHandlers.js';
+import { CloudHandlers } from './handlers/CloudHandlers.js';
+import { SnippetHandlers } from './handlers/SnippetHandlers.js';
 
 // Single source of truth for the version announced to MCP hosts (dist/ sits one level below package.json).
 const PACKAGE_VERSION: string = require("../package.json").version;
@@ -103,6 +105,8 @@ interface HandlerSet {
   navigation: NavigationHandlers;
   textElements: TextElementHandlers;
   search: SearchHandlers;
+  cloud: CloudHandlers;
+  snippet: SnippetHandlers;
 }
 
 /** A live, per-destination connection: its client, handlers and login state. */
@@ -144,6 +148,8 @@ export class AbapAdtServer extends Server {
           'Editing an existing object: searchObject / findObjectPath -> getObjectSource -> resolveTransport (for non-local packages) -> editObjectSource (replacements or line range) or setObjectSource, with activate=true -> unitTestRun. Write tools lock and unlock by themselves; call lock/unLock only to hold a lock across several writes, and listLocks/forceUnlock if a write left an object locked. syntaxCheckCode before writing catches errors early.',
           '',
           'Always run unit tests after adding tests or changing source code. Unit tests belong in the testclass include (createTestInclude). Use $TMP for local throwaway development; transportable packages require a transport request (resolveTransport picks it for you).',
+          '',
+          'ABAP Cloud: apiReleaseState(names or source) checks SAP objects against the official cloudification repository before you use them; runSnippet executes throwaway ABAP in $TMP and returns the console output.',
           '',
           'Finding code: sourceTextSearch (server index) or grepPackage (client grep with context) locate usages of tables, messages, methods or literals; read whole sources only for the hits.',
           '',
@@ -231,6 +237,8 @@ export class AbapAdtServer extends Server {
       navigation: new NavigationHandlers(adtClient),
       textElements: new TextElementHandlers(adtClient),
       search: new SearchHandlers(adtClient),
+      cloud: new CloudHandlers(adtClient),
+      snippet: new SnippetHandlers(adtClient),
     };
   }
 
@@ -352,7 +360,7 @@ export class AbapAdtServer extends Server {
       h.auth, h.transport, h.object, h.class, h.codeAnalysis, h.objectLock, h.objectSource,
       h.objectDeletion, h.objectManagement, h.objectRegistration, h.node, h.discovery, h.unitTest,
       h.prettyPrinter, h.git, h.ddic, h.serviceBinding, h.query, h.feed, h.debug, h.rename, h.atc,
-      h.trace, h.refactor, h.revision, h.rapGenerator, h.navigation, h.textElements, h.search,
+      h.trace, h.refactor, h.revision, h.rapGenerator, h.navigation, h.textElements, h.search, h.cloud, h.snippet,
     ];
     return sets.flatMap((s) => s.getTools());
   }

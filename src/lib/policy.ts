@@ -54,7 +54,7 @@ const OBJECT_URL_ARGS: Record<string, string> = {
 const TRANSPORT_ARGS: Record<string, string> = {
   setObjectSource: 'transport', editObjectSource: 'transport', createObject: 'transport', deleteObject: 'transport',
   atcApplyQuickfix: 'transport', gitPullRepo: 'transport', gitCreateRepo: 'transport', rapGenGenerate: 'transport',
-  createTestInclude: 'transport', setDomainProperties: 'transport', setDataElementProperties: 'transport',
+  createTestInclude: 'transport', runSnippet: 'transport', setDomainProperties: 'transport', setDataElementProperties: 'transport',
   setTextElements: 'transport', changePackagePreview: 'transport',
   transportRelease: 'transportNumber', transportDelete: 'transportNumber', transportSetOwner: 'transportNumber',
   transportAddUser: 'transportNumber',
@@ -144,6 +144,7 @@ export async function evaluatePolicy(
     let pkg: string | undefined;
     let where = '';
     if (toolName === 'createObject') { pkg = a.parentName; where = 'parentName'; }
+    else if (toolName === 'runSnippet') { pkg = a.packageName || '$TMP'; where = 'packageName'; }
     else if (toolName === 'gitCreateRepo') { pkg = a.packageName; where = 'packageName'; }
     else if (toolName === 'createTestInclude' && a.clas) {
       pkg = await ctx.resolvePackage(`/sap/bc/adt/oo/classes/${encodeURIComponent(String(a.clas).toLowerCase())}`); where = 'class package';

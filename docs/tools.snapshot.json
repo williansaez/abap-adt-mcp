@@ -1,6 +1,6 @@
 {
   "version": "0.3.1",
-  "count": 162,
+  "count": 164,
   "toolsets": {
     "core": [
       "login",
@@ -83,7 +83,9 @@
       "fixProposals",
       "fixEdits",
       "fragmentMappings",
-      "abapDocumentation"
+      "abapDocumentation",
+      "apiReleaseState",
+      "runSnippet"
     ],
     "tests": [
       "unitTestRun",
@@ -2425,6 +2427,38 @@
         "contextLines",
         "maxObjects",
         "maxMatches"
+      ]
+    },
+    {
+      "name": "apiReleaseState",
+      "toolset": "analysis",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "names",
+        "objectUrl",
+        "source",
+        "sourceUrl",
+        "edition",
+        "refresh"
+      ]
+    },
+    {
+      "name": "runSnippet",
+      "toolset": "analysis",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "code"
+      ],
+      "params": [
+        "code",
+        "packageName",
+        "className",
+        "transport",
+        "responsible",
+        "keep"
       ]
     },
     {

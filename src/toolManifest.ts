@@ -8,7 +8,7 @@ export const HANDLER_KEYS = [
   'auth', 'transport', 'object', 'class', 'codeAnalysis', 'objectLock', 'objectSource', 'objectDeletion',
   'objectManagement', 'objectRegistration', 'node', 'discovery', 'unitTest', 'prettyPrinter', 'git', 'ddic',
   'serviceBinding', 'query', 'feed', 'debug', 'rename', 'atc', 'trace', 'refactor', 'revision', 'rapGenerator',
-  'navigation', 'textElements', 'search',
+  'navigation', 'textElements', 'search', 'cloud', 'snippet',
 ] as const;
 export type HandlerKey = typeof HANDLER_KEYS[number];
 
@@ -61,6 +61,8 @@ export const TOOL_ROUTES: Record<HandlerKey, string[]> = {
   navigation: ['typeHierarchy', 'objectStructureElements', 'objectEnhancements'],
   textElements: ['getTextElements', 'setTextElements'],
   search: ['sourceTextSearch', 'grepPackage'],
+  cloud: ['apiReleaseState'],
+  snippet: ['runSnippet'],
 };
 
 // MCP tool annotations (readOnlyHint/destructiveHint) so hosts can gate approval.
@@ -89,7 +91,7 @@ export const READ_ONLY_TOOLS = new Set([
   // ddic / services / data
   'annotationDefinitions', 'ddicElement', 'ddicRepositoryAccess', 'packageSearchHelp',
   'getDomainProperties', 'getDataElementProperties', 'typeHierarchy', 'objectStructureElements', 'objectEnhancements',
-  'getTextElements', 'atcDocumentation', 'changePackagePreview', 'sourceTextSearch', 'grepPackage',
+  'getTextElements', 'atcDocumentation', 'changePackagePreview', 'sourceTextSearch', 'grepPackage', 'apiReleaseState',
   'bindingDetails', 'fetchServiceDetails', 'tableContents', 'runQuery', 'feeds', 'dumps', 'dumpDetails',
   // debug reads
   'debuggerListeners', 'debuggerStackTrace', 'debuggerVariables', 'debuggerChildVariables',
@@ -109,7 +111,7 @@ export const DESTRUCTIVE_TOOLS = new Set([
   'deleteObject', 'transportDelete', 'transportRelease', 'setObjectSource', 'editObjectSource', 'atcApplyQuickfix', 'gitUnlinkRepo',
   'pushRepo', 'runClass', 'renameExecute', 'extractMethodExecute', 'changePackageExecute', 'debuggerSetVariableValue',
   'tracesDelete', 'tracesDeleteConfiguration', 'unPublishServiceBinding', 'dropSession',
-  'setDomainProperties', 'setDataElementProperties', 'setTextElements', 'forceUnlock',
+  'setDomainProperties', 'setDataElementProperties', 'setTextElements', 'forceUnlock', 'runSnippet',
 ]);
 
 export function toolAnnotations(name: string) {
@@ -131,7 +133,7 @@ export const TOOLSETS: Record<string, { title: string; handlers: HandlerKey[]; d
   source:      { title: 'Source code', handlers: ['objectSource', 'objectLock', 'prettyPrinter', 'revision', 'textElements'], description: 'read/write/edit source, lock/unlock, pretty printer, revisions, text elements' },
   objects:     { title: 'Objects & navigation', handlers: ['object', 'class', 'node', 'navigation', 'search', 'objectRegistration', 'objectDeletion', 'objectManagement'], description: 'search by name and by content (text search, grep), structure, create/delete/activate objects, class components, hierarchy, enhancements' },
   transports:  { title: 'Transports', handlers: ['transport'], description: 'transport requests, diffs, release' },
-  analysis:    { title: 'Syntax & code analysis', handlers: ['codeAnalysis'], description: 'syntax check, completion, where-used, fixes, ABAP docs, runClass' },
+  analysis:    { title: 'Syntax & code analysis', handlers: ['codeAnalysis', 'cloud', 'snippet'], description: 'syntax check, completion, where-used, fixes, ABAP docs, runClass, runSnippet, ABAP Cloud release state' },
   tests:       { title: 'Unit tests', handlers: ['unitTest'], description: 'ABAP Unit runs and evaluation' },
   atc:         { title: 'ATC', handlers: ['atc'], description: 'ATC runs, findings, exemptions, quickfixes' },
   data:        { title: 'Data access & DDIC', handlers: ['query', 'ddic'], description: 'table contents, SQL queries, DDIC elements, domains, data elements' },
