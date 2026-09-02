@@ -135,7 +135,7 @@ const TOOL_ROUTES: Record<keyof HandlerSet, string[]> = {
     'getDomainProperties', 'setDomainProperties', 'getDataElementProperties', 'setDataElementProperties'],
   serviceBinding: ['publishServiceBinding', 'unPublishServiceBinding', 'bindingDetails', 'fetchServiceDetails'],
   query: ['tableContents', 'runQuery'],
-  feed: ['feeds', 'dumps'],
+  feed: ['feeds', 'dumps', 'dumpDetails'],
   debug: ['debuggerListeners', 'debuggerListen', 'debuggerDeleteListener', 'debuggerSetBreakpoints',
     'debuggerDeleteBreakpoints', 'debuggerAttach', 'debuggerSaveSettings', 'debuggerStackTrace',
     'debuggerVariables', 'debuggerChildVariables', 'debuggerStep', 'debuggerGoToStack',
@@ -181,7 +181,7 @@ const READ_ONLY_TOOLS = new Set([
   'annotationDefinitions', 'ddicElement', 'ddicRepositoryAccess', 'packageSearchHelp',
   'getDomainProperties', 'getDataElementProperties', 'typeHierarchy', 'objectStructureElements', 'objectEnhancements',
   'getTextElements', 'atcDocumentation', 'changePackagePreview',
-  'bindingDetails', 'fetchServiceDetails', 'tableContents', 'runQuery', 'feeds', 'dumps',
+  'bindingDetails', 'fetchServiceDetails', 'tableContents', 'runQuery', 'feeds', 'dumps', 'dumpDetails',
   // debug reads
   'debuggerListeners', 'debuggerStackTrace', 'debuggerVariables', 'debuggerChildVariables',
   // refactoring previews
