@@ -107,7 +107,7 @@ The complete per-tool reference (description, parameters, read-only/destructive 
 
 ## Skills and plugin
 
-The repository ships agent skills under `skills/` (`abap-adt-mcp`: how to develop ABAP with these tools; `abap-adt-mcp-setup`: installation and configuration) and a Claude Code plugin manifest (`.claude-plugin/plugin.json` + `.mcp.json`). Install with your host's skills tooling (for example `npx skills add williansaez/abap-adt-mcp`) or add the repository as a plugin marketplace. Skills written for SAP's official ADT MCP Server use different tool names and the server key `abap-adt`; [docs/ROUTING.md](docs/ROUTING.md) maps them to ours, published under the key `abap-adt-mcp`.
+The repository ships agent skills under `skills/` (`abap-adt-mcp`: how to develop ABAP with these tools; `abap-adt-mcp-setup`: installation and configuration) and a Claude Code plugin manifest (`.claude-plugin/plugin.json`, which declares the MCP server as `npx -y abap-adt-mcp`). Install with your host's skills tooling (for example `npx skills add williansaez/abap-adt-mcp`) or add the repository as a plugin marketplace. Skills written for SAP's official ADT MCP Server use different tool names and the server key `abap-adt`; [docs/ROUTING.md](docs/ROUTING.md) maps them to ours, published under the key `abap-adt-mcp`.
 
 ## Build from source
 
