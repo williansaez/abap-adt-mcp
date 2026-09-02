@@ -113,7 +113,7 @@ const TOOL_ROUTES: Record<keyof HandlerSet, string[]> = {
   transport: ['transportInfo', 'createTransport', 'hasTransportConfig', 'transportConfigurations',
     'getTransportConfiguration', 'setTransportsConfig', 'createTransportsConfig', 'userTransports',
     'transportsByConfig', 'transportDelete', 'transportRelease', 'transportSetOwner', 'transportAddUser',
-    'systemUsers', 'transportReference', 'transportDetails', 'transportUnifiedDiff'],
+    'systemUsers', 'transportReference', 'transportDetails', 'transportUnifiedDiff', 'resolveTransport'],
   objectLock: ['lock', 'unLock'],
   object: ['objectStructure', 'searchObject', 'findObjectPath', 'objectTypes', 'reentranceTicket'],
   class: ['classIncludes', 'classComponents'],

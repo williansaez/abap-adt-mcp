@@ -66,6 +66,21 @@ export class TransportHandlers extends BaseHandler {
                 }
             },
             {
+                name: 'resolveTransport',
+                description: 'Decide which transport request to use for changing an object, in one call: (1) the transport that already records/locks the object, else (2) the newest modifiable transport of the current user for that package, else (3) none for local ($TMP / non-recording) packages, else (4) create one when createIfMissing=true. Returns {transport, needsTransport, reason, candidates}. Call before lock/setObjectSource/createObject instead of interpreting transportInfo yourself.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        objSourceUrl: { type: 'string', description: 'URL of the object (or its source URL) you are about to change' },
+                        devClass: { type: 'string', description: 'Package name; required when the object does not exist yet (createObject)', optional: true },
+                        preferTransport: { type: 'string', description: 'Use this transport if it is among the modifiable candidates', optional: true },
+                        createIfMissing: { type: 'boolean', description: 'Create a new transport when the package needs one and no modifiable transport exists (default false)', optional: true },
+                        requestText: { type: 'string', description: 'Description for the transport created when createIfMissing=true', optional: true }
+                    },
+                    required: ['objSourceUrl']
+                }
+            },
+            {
                 name: 'createTransport',
                 description: 'Create a new transport request. Required before creating or changing objects in transportable (non-$TMP) packages; pass the returned transport number to createObject / setObjectSource. Use transportInfo to find existing transports for an object first.',
                 inputSchema: {
@@ -343,6 +358,8 @@ export class TransportHandlers extends BaseHandler {
                 return this.handleTransportInfo(args);
             case 'createTransport':
                 return this.handleCreateTransport(args);
+            case 'resolveTransport':
+                return this.handleResolveTransport(args);
             case 'hasTransportConfig':
                 return this.handleHasTransportConfig(args);
             case 'transportConfigurations':
@@ -968,6 +985,65 @@ export class TransportHandlers extends BaseHandler {
                 ErrorCode.InternalError,
                 `Failed to get transport reference: ${this.formatAdtError(error)}`
             );
+        }
+    }
+
+    /**
+     * Deterministic transport choice for a write: recorded lock > preferred
+     * modifiable candidate > newest modifiable candidate > none for local
+     * packages > create on request.
+     */
+    async handleResolveTransport(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            const info: any = await this.adtclient.transportInfo(args.objSourceUrl, args.devClass);
+            const messages: any[] = Array.isArray(info?.MESSAGES) ? info.MESSAGES : [];
+            const errors = messages.filter(m => /^[EAX]$/i.test(String(m.SEVERITY || '')));
+            const devClass = info?.DEVCLASS || args.devClass || undefined;
+            const recording = String(info?.RECORDING || '').toUpperCase() === 'X';
+            const local = String(info?.DLVUNIT || '').toUpperCase() === 'LOCAL' || /^\$/.test(String(devClass || '')) || (!recording && !info?.LOCKS);
+            const modifiable = (t: any): boolean => /^[DL]$/i.test(String(t?.TRSTATUS || ''));
+            const candidates: any[] = (Array.isArray(info?.TRANSPORTS) ? info.TRANSPORTS : [])
+                .filter(modifiable)
+                .map((t: any) => ({ transport: t.TRKORR, description: t.AS4TEXT, status: t.TRSTATUS, owner: t.AS4USER, target: t.TARSYSTEM, date: t.AS4DATE, time: t.AS4TIME }))
+                .sort((a: any, b: any) => String(b.date + b.time).localeCompare(String(a.date + a.time)));
+
+            const done = (payload: any) => {
+                this.trackRequest(startTime, true);
+                return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', devClass, recording, candidates, messages, ...payload }) }] };
+            };
+
+            if (errors.length > 0) {
+                throw new McpError(ErrorCode.InvalidRequest, `Transport check failed: ${errors.map(m => m.TEXT).join('; ')}`);
+            }
+            const lockTr = info?.LOCKS?.HEADER?.TRKORR;
+            if (lockTr) {
+                return done({
+                    transport: lockTr, needsTransport: true,
+                    reason: 'object is already recorded in this modifiable transport (transport lock); it must be used',
+                    tasks: (info.LOCKS.TASKS || []).map((t: any) => t.TRKORR)
+                });
+            }
+            if (local) {
+                return done({ transport: null, needsTransport: false, reason: 'local (non-transportable) package: no transport request needed' });
+            }
+            if (args.preferTransport) {
+                const hit = candidates.find(c => c.transport === String(args.preferTransport).toUpperCase());
+                if (hit) return done({ transport: hit.transport, needsTransport: true, reason: 'preferred transport is modifiable and assigned to the current user' });
+            }
+            if (candidates.length > 0) {
+                return done({ transport: candidates[0].transport, needsTransport: true, reason: 'newest modifiable transport of the current user for this package' + (args.preferTransport ? ' (preferTransport was not among the candidates)' : '') });
+            }
+            if (args.createIfMissing === true) {
+                const text = args.requestText || `abap-adt-mcp: changes in ${devClass || 'package'}`;
+                const created = await this.adtclient.createTransport(args.objSourceUrl, text, devClass);
+                return done({ transport: created, needsTransport: true, created: true, reason: 'no modifiable transport existed; a new one was created' });
+            }
+            return done({ transport: null, needsTransport: true, reason: 'transportable package but no modifiable transport for the current user: call createTransport or rerun with createIfMissing=true' });
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to resolve transport: ${this.formatAdtError(error)}`);
         }
     }
 }
