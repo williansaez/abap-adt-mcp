@@ -2,6 +2,7 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
 import { ADTClient, Range, ExtractMethodProposal, GenericRefactoring, session_types } from 'abap-adt-api';
+type ChangePackageRefactoring = Parameters<ADTClient['changePackageExecute']>[0];
 
 export class RefactorHandlers extends BaseHandler {
     getTools(): ToolDefinition[] {
@@ -51,6 +52,31 @@ export class RefactorHandlers extends BaseHandler {
                     },
                     required: ['refactoring']
                 }
+            },
+            {
+                name: 'changePackagePreview',
+                description: 'Preview moving an object to another package (change package refactoring). Returns the refactoring proposal with affected objects; pass it unchanged to changePackageExecute. Needs a transport when the target package is transportable.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        objectUrl: { type: 'string', description: 'URL of the object to move, e.g. /sap/bc/adt/oo/classes/zcl_demo' },
+                        oldPackage: { type: 'string', description: 'Current package name' },
+                        newPackage: { type: 'string', description: 'Target package name' },
+                        transport: { type: 'string', description: 'Transport request (required for transportable target packages)', optional: true }
+                    },
+                    required: ['objectUrl', 'oldPackage', 'newPackage']
+                }
+            },
+            {
+                name: 'changePackageExecute',
+                description: 'Execute a change package refactoring previewed with changePackagePreview. Pass the refactoring returned by the preview as JSON.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        refactoring: { type: 'string', description: 'The refactoring object returned by changePackagePreview, as JSON' }
+                    },
+                    required: ['refactoring']
+                }
             }
         ];
     }
@@ -63,6 +89,10 @@ export class RefactorHandlers extends BaseHandler {
                 return this.handleExtractMethodPreview(args);
             case 'extractMethodExecute':
                 return this.handleExtractMethodExecute(args);
+            case 'changePackagePreview':
+                return this.handleChangePackagePreview(args);
+            case 'changePackageExecute':
+                return this.handleChangePackageExecute(args);
             default:
                 throw new McpError(ErrorCode.MethodNotFound, `Unknown refactor tool: ${toolName}`);
         }
@@ -171,6 +201,43 @@ export class RefactorHandlers extends BaseHandler {
                 ErrorCode.InternalError,
                 `Failed to execute extract method: ${this.formatAdtError(error)}`
             );
+        }
+    }
+
+    async handleChangePackagePreview(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            const proposal: any = {
+                oldPackage: args.oldPackage,
+                newPackage: args.newPackage,
+                transport: args.transport || '',
+                adtObjectUri: args.objectUrl,
+                ignoreSyntaxErrorsAllowed: false,
+                ignoreSyntaxErrors: false,
+                userContent: '',
+                affectedObjects: undefined
+            };
+            const result = await this.adtclient.changePackagePreview(proposal as ChangePackageRefactoring, args.transport);
+            this.trackRequest(startTime, true);
+            return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', refactoring: result, next: 'changePackageExecute' }) }] };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            throw new McpError(ErrorCode.InternalError, `Failed to preview change package: ${this.formatAdtError(error)}`);
+        }
+    }
+
+    async handleChangePackageExecute(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            const refactoring = this.parseObjectArg<ChangePackageRefactoring>(args.refactoring, 'refactoring');
+            this.adtclient.stateful = session_types.stateful;
+            const result = await this.adtclient.changePackageExecute(refactoring);
+            this.trackRequest(startTime, true);
+            return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', result }) }] };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to execute change package: ${this.formatAdtError(error)}`);
         }
     }
 }

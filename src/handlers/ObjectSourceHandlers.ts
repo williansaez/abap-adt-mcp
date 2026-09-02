@@ -37,8 +37,13 @@ export class ObjectSourceHandlers extends BaseHandler {
         inputSchema: {
           type: 'object',
           properties: {
-            objectSourceUrl: { type: 'string' },
-            options: { type: 'string' },
+            objectSourceUrl: { type: 'string', description: 'Source URL of the object, usually the object URL plus /source/main' },
+            version: {
+              type: 'string',
+              enum: ['active', 'inactive', 'workingArea'],
+              description: 'Which version to read: active (default) or inactive (the not-yet-activated version after setObjectSource/editObjectSource). Read inactive to verify what you wrote before activating.',
+              optional: true
+            },
             startLine: {
               type: 'number',
               description: '1-based line number to start from (default 1). Use with maxLines to page through large sources.',
@@ -117,7 +122,7 @@ export class ObjectSourceHandlers extends BaseHandler {
     
     const startTime = performance.now();
     try {
-      const fullSource = await this.adtclient.getObjectSource(args.objectSourceUrl, args.options);
+      const fullSource = await this.adtclient.getObjectSource(args.objectSourceUrl, args.version ? { version: args.version } : undefined);
       // Remember the source so a later syntaxCheckCode on the same URL can reuse
       // it without the caller re-sending it (issue #2).
       sourceCache.set(args.objectSourceUrl, fullSource);

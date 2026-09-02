@@ -300,7 +300,8 @@ export class DebugHandlers extends BaseHandler {
                     properties: {
                         steptype: {
                             type: 'string',
-                            description: 'The type of step to perform.'
+                            enum: ['stepInto', 'stepOver', 'stepReturn', 'stepContinue', 'stepRunToLine', 'stepJumpToLine', 'terminateDebuggee', 'detachDebugger'],
+                            description: 'The type of step to perform. stepRunToLine/stepJumpToLine also need "url" (source URL with #start=line).'
                         },
                         url: {
                             type: 'string',

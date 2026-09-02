@@ -1,7 +1,7 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
-import { ADTClient, PackageValueHelpType } from 'abap-adt-api';
+import { ADTClient, PackageValueHelpType, session_types } from 'abap-adt-api';
 import { SAFE_OUTPUT_CHARS, shrinkToFit, hardTruncateJson } from '../lib/responseSizing.js';
 
 export class DdicHandlers extends BaseHandler {
@@ -117,6 +117,60 @@ export class DdicHandlers extends BaseHandler {
                     },
                     required: ['type']
                 }
+            },
+            {
+                name: 'getDomainProperties',
+                description: 'Read a DDIC domain: data type, length, decimals, output settings and fixed values / value table. Pass the domain URL (/sap/bc/adt/ddic/domains/zdom) and optionally version=inactive.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        domainUrl: { type: 'string', description: 'Domain URL, e.g. /sap/bc/adt/ddic/domains/zmy_domain' },
+                        version: { type: 'string', enum: ['active', 'inactive', 'workingArea'], description: 'Object version (default active)', optional: true }
+                    },
+                    required: ['domainUrl']
+                }
+            },
+            {
+                name: 'setDomainProperties',
+                description: 'Write a DDIC domain (type, length, fixed values, value table…). Read it first with getDomainProperties, modify the returned properties/metaData objects and pass them back as JSON. Requires lock (lockHandle) and a transport for transportable packages; activate afterwards with activateByName.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        domainUrl: { type: 'string', description: 'Domain URL' },
+                        properties: { type: 'string', description: 'JSON object: the "properties" returned by getDomainProperties, modified as needed' },
+                        metaData: { type: 'string', description: 'JSON object: the "metaData" returned by getDomainProperties (description, package, responsible…)' },
+                        lockHandle: { type: 'string', description: 'Lock handle from the lock tool' },
+                        transport: { type: 'string', description: 'Transport request for transportable packages', optional: true }
+                    },
+                    required: ['domainUrl', 'properties', 'metaData', 'lockHandle']
+                }
+            },
+            {
+                name: 'getDataElementProperties',
+                description: 'Read a DDIC data element: type (domain or built-in), length, field labels (short/medium/long/heading), search help and flags. Pass the data element URL (/sap/bc/adt/ddic/dataelements/zde).',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        dataElementUrl: { type: 'string', description: 'Data element URL, e.g. /sap/bc/adt/ddic/dataelements/zmy_element' },
+                        version: { type: 'string', enum: ['active', 'inactive', 'workingArea'], description: 'Object version (default active)', optional: true }
+                    },
+                    required: ['dataElementUrl']
+                }
+            },
+            {
+                name: 'setDataElementProperties',
+                description: 'Write a DDIC data element (type, field labels, search help…). Read it first with getDataElementProperties, modify the returned properties/metaData objects and pass them back as JSON. Requires lock (lockHandle) and a transport for transportable packages; activate afterwards with activateByName.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        dataElementUrl: { type: 'string', description: 'Data element URL' },
+                        properties: { type: 'string', description: 'JSON object: the "properties" returned by getDataElementProperties, modified as needed' },
+                        metaData: { type: 'string', description: 'JSON object: the "metaData" returned by getDataElementProperties' },
+                        lockHandle: { type: 'string', description: 'Lock handle from the lock tool' },
+                        transport: { type: 'string', description: 'Transport request for transportable packages', optional: true }
+                    },
+                    required: ['dataElementUrl', 'properties', 'metaData', 'lockHandle']
+                }
             }
         ];
     }
@@ -131,6 +185,14 @@ export class DdicHandlers extends BaseHandler {
                 return this.handleDdicRepositoryAccess(args);
             case 'packageSearchHelp':
                 return this.handlePackageSearchHelp(args);
+            case 'getDomainProperties':
+                return this.handleGetDomainProperties(args);
+            case 'setDomainProperties':
+                return this.handleSetDomainProperties(args);
+            case 'getDataElementProperties':
+                return this.handleGetDataElementProperties(args);
+            case 'setDataElementProperties':
+                return this.handleSetDataElementProperties(args);
             default:
                 throw new McpError(ErrorCode.MethodNotFound, `Unknown DDIC tool: ${toolName}`);
         }
@@ -380,6 +442,71 @@ export class DdicHandlers extends BaseHandler {
                 ErrorCode.InternalError,
                 `Failed to get package search help: ${this.formatAdtError(error)}`
             );
+        }
+    }
+
+    private parseJsonArg<T>(value: unknown, name: string): T {
+        if (value && typeof value === 'object') return value as T;
+        try {
+            return JSON.parse(String(value)) as T;
+        } catch {
+            throw new McpError(ErrorCode.InvalidParams, `Parameter '${name}' must be a JSON object`);
+        }
+    }
+
+    async handleGetDomainProperties(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            const result = await this.adtclient.getDomainProperties(args.domainUrl, args.version);
+            this.trackRequest(startTime, true);
+            return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', ...result }) }] };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            throw new McpError(ErrorCode.InternalError, `Failed to get domain properties: ${this.formatAdtError(error)}`);
+        }
+    }
+
+    async handleSetDomainProperties(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            const properties = this.parseJsonArg<any>(args.properties, 'properties');
+            const metaData = this.parseJsonArg<any>(args.metaData, 'metaData');
+            this.adtclient.stateful = session_types.stateful;
+            await this.adtclient.setDomainProperties(args.domainUrl, properties, metaData, args.lockHandle, args.transport);
+            this.trackRequest(startTime, true);
+            return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', updated: true, next: 'activateByName' }) }] };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to set domain properties: ${this.formatAdtError(error)}`);
+        }
+    }
+
+    async handleGetDataElementProperties(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            const result = await this.adtclient.getDataElementProperties(args.dataElementUrl, args.version);
+            this.trackRequest(startTime, true);
+            return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', ...result }) }] };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            throw new McpError(ErrorCode.InternalError, `Failed to get data element properties: ${this.formatAdtError(error)}`);
+        }
+    }
+
+    async handleSetDataElementProperties(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            const properties = this.parseJsonArg<any>(args.properties, 'properties');
+            const metaData = this.parseJsonArg<any>(args.metaData, 'metaData');
+            this.adtclient.stateful = session_types.stateful;
+            await this.adtclient.setDataElementProperties(args.dataElementUrl, properties, metaData, args.lockHandle, args.transport);
+            this.trackRequest(startTime, true);
+            return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', updated: true, next: 'activateByName' }) }] };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to set data element properties: ${this.formatAdtError(error)}`);
         }
     }
 }

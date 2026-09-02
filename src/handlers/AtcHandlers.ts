@@ -211,6 +211,17 @@ export class AtcHandlers extends BaseHandler {
                     },
                     required: ['itemUri', 'userId']
                 }
+            },
+            {
+                name: 'atcDocumentation',
+                description: 'Read the documentation of an ATC check/finding (what the check tests, why it matters, how to fix). Pass the documentation URI found in an ATC finding (atcWorklists → findings[].link / docUri).',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        docUri: { type: 'string', description: 'Documentation URI from an ATC finding' }
+                    },
+                    required: ['docUri']
+                }
             }
         ];
     }
@@ -241,6 +252,8 @@ export class AtcHandlers extends BaseHandler {
                 return this.handleAtcContactUri(args);
             case 'atcChangeContact':
                 return this.handleAtcChangeContact(args);
+            case 'atcDocumentation':
+                return this.handleAtcDocumentation(args);
             default:
                 throw new McpError(ErrorCode.MethodNotFound, `Unknown ATC tool: ${toolName}`);
         }
@@ -628,6 +641,28 @@ export class AtcHandlers extends BaseHandler {
                 ErrorCode.InternalError,
                 `Failed to change ATC contact: ${this.formatAdtError(error)}`
             );
+        }
+    }
+
+    async handleAtcDocumentation(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            const response = await this.adtclient.atcDocumentation(args.docUri);
+            this.trackRequest(startTime, true);
+            const body = String(response.body ?? '');
+            // ATC docs come back as HTML; strip tags so the model gets readable text.
+            const text = body
+                .replace(/<style[\s\S]*?<\/style>/gi, '')
+                .replace(/<script[\s\S]*?<\/script>/gi, '')
+                .replace(/<br\s*\/?>|<\/p>|<\/h\d>|<\/li>|<\/tr>/gi, '\n')
+                .replace(/<[^>]+>/g, '')
+                .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+                .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+            const capped = text.length > SAFE_OUTPUT_CHARS - 500;
+            return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', docUri: args.docUri, documentation: capped ? text.slice(0, SAFE_OUTPUT_CHARS - 500) : text, capped }) }] };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            throw new McpError(ErrorCode.InternalError, `Failed to get ATC documentation: ${this.formatAdtError(error)}`);
         }
     }
 }

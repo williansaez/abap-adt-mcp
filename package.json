@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.4.1",
-    "abap-adt-api": "^8.4.1",
+    "abap-adt-api": "^8.4.3",
     "diff": "^7.0.0",
     "dotenv": "^16.4.7",
     "puppeteer-core": "^25.9.0"

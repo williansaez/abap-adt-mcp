@@ -46,6 +46,8 @@ import { TraceHandlers } from './handlers/TraceHandlers.js';
 import { RefactorHandlers } from './handlers/RefactorHandlers.js';
 import { RevisionHandlers } from './handlers/RevisionHandlers.js';
 import { RapGeneratorHandlers } from './handlers/RapGeneratorHandlers.js';
+import { NavigationHandlers } from './handlers/NavigationHandlers.js';
+import { TextElementHandlers } from './handlers/TextElementHandlers.js';
 
 // Single source of truth for the version announced to MCP hosts (dist/ sits one level below package.json).
 const PACKAGE_VERSION: string = require("../package.json").version;
@@ -92,6 +94,8 @@ interface HandlerSet {
   refactor: RefactorHandlers;
   revision: RevisionHandlers;
   rapGenerator: RapGeneratorHandlers;
+  navigation: NavigationHandlers;
+  textElements: TextElementHandlers;
 }
 
 /** A live, per-destination connection: its client, handlers and login state. */
@@ -127,7 +131,8 @@ const TOOL_ROUTES: Record<keyof HandlerSet, string[]> = {
   prettyPrinter: ['prettyPrinterSetting', 'setPrettyPrinterSetting', 'prettyPrinter'],
   git: ['gitRepos', 'gitExternalRepoInfo', 'gitCreateRepo', 'gitPullRepo', 'gitUnlinkRepo', 'stageRepo',
     'pushRepo', 'checkRepo', 'remoteRepoInfo', 'switchRepoBranch'],
-  ddic: ['annotationDefinitions', 'ddicElement', 'ddicRepositoryAccess', 'packageSearchHelp'],
+  ddic: ['annotationDefinitions', 'ddicElement', 'ddicRepositoryAccess', 'packageSearchHelp',
+    'getDomainProperties', 'setDomainProperties', 'getDataElementProperties', 'setDataElementProperties'],
   serviceBinding: ['publishServiceBinding', 'unPublishServiceBinding', 'bindingDetails', 'fetchServiceDetails'],
   query: ['tableContents', 'runQuery'],
   feed: ['feeds', 'dumps'],
@@ -138,13 +143,15 @@ const TOOL_ROUTES: Record<keyof HandlerSet, string[]> = {
   rename: ['renameEvaluate', 'renamePreview', 'renameExecute'],
   atc: ['atcCustomizing', 'atcCheckVariant', 'createAtcRun', 'atcWorklists', 'atcUsers',
     'atcExemptProposal', 'atcRequestExemption', 'isProposalMessage', 'atcContactUri', 'atcChangeContact',
-    'atcQuickfixProposals', 'atcApplyQuickfix'],
+    'atcQuickfixProposals', 'atcApplyQuickfix', 'atcDocumentation'],
   trace: ['tracesList', 'tracesListRequests', 'tracesHitList', 'tracesDbAccess', 'tracesStatements',
     'tracesSetParameters', 'tracesCreateConfiguration', 'tracesDeleteConfiguration', 'tracesDelete'],
-  refactor: ['extractMethodEvaluate', 'extractMethodPreview', 'extractMethodExecute'],
+  refactor: ['extractMethodEvaluate', 'extractMethodPreview', 'extractMethodExecute', 'changePackagePreview', 'changePackageExecute'],
   revision: ['revisions'],
   rapGenerator: ['rapGenIsAvailable', 'rapGenGetSchema', 'rapGenGetContent', 'rapGenValidateInitial',
     'rapGenValidateContent', 'rapGenPreview', 'rapGenGenerate', 'rapGenPublishService'],
+  navigation: ['typeHierarchy', 'objectStructureElements', 'objectEnhancements'],
+  textElements: ['getTextElements', 'setTextElements'],
 };
 
 // MCP tool annotations (readOnlyHint/destructiveHint) so hosts can gate approval.
@@ -172,6 +179,8 @@ const READ_ONLY_TOOLS = new Set([
   'gitRepos', 'gitExternalRepoInfo', 'checkRepo', 'remoteRepoInfo',
   // ddic / services / data
   'annotationDefinitions', 'ddicElement', 'ddicRepositoryAccess', 'packageSearchHelp',
+  'getDomainProperties', 'getDataElementProperties', 'typeHierarchy', 'objectStructureElements', 'objectEnhancements',
+  'getTextElements', 'atcDocumentation', 'changePackagePreview',
   'bindingDetails', 'fetchServiceDetails', 'tableContents', 'runQuery', 'feeds', 'dumps',
   // debug reads
   'debuggerListeners', 'debuggerStackTrace', 'debuggerVariables', 'debuggerChildVariables',
@@ -298,6 +307,8 @@ export class AbapAdtServer extends Server {
       refactor: new RefactorHandlers(adtClient),
       revision: new RevisionHandlers(adtClient),
       rapGenerator: new RapGeneratorHandlers(adtClient),
+      navigation: new NavigationHandlers(adtClient),
+      textElements: new TextElementHandlers(adtClient),
     };
   }
 
@@ -394,7 +405,7 @@ export class AbapAdtServer extends Server {
       h.auth, h.transport, h.object, h.class, h.codeAnalysis, h.objectLock, h.objectSource,
       h.objectDeletion, h.objectManagement, h.objectRegistration, h.node, h.discovery, h.unitTest,
       h.prettyPrinter, h.git, h.ddic, h.serviceBinding, h.query, h.feed, h.debug, h.rename, h.atc,
-      h.trace, h.refactor, h.revision, h.rapGenerator,
+      h.trace, h.refactor, h.revision, h.rapGenerator, h.navigation, h.textElements,
     ];
     return sets.flatMap((s) => s.getTools());
   }

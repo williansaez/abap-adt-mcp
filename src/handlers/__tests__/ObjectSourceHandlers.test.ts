@@ -61,6 +61,20 @@ describe('editObjectSource', () => {
   });
 });
 
+describe('getObjectSource version', () => {
+  it('passes version=inactive through as ObjectSourceOptions', async () => {
+    const { client, handler } = makeHandler('a');
+    await handler.handle('getObjectSource', { objectSourceUrl: URL, version: 'inactive' });
+    expect(client.getObjectSource).toHaveBeenCalledWith(URL, { version: 'inactive' });
+  });
+
+  it('sends no options when version is omitted', async () => {
+    const { client, handler } = makeHandler('a');
+    await handler.handle('getObjectSource', { objectSourceUrl: URL });
+    expect(client.getObjectSource).toHaveBeenCalledWith(URL, undefined);
+  });
+});
+
 describe('getObjectSource paging', () => {
   it('returns the whole source when no paging is requested', async () => {
     const { handler } = makeHandler('a\nb\nc');
