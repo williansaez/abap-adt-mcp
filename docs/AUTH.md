@@ -29,7 +29,7 @@ set) it may be omitted. `listSystems` returns the configured destinations.
 The MCP client config is then a single server:
 
 ```json
-{ "mcpServers": { "abap-adt": {
+{ "mcpServers": { "abap-adt-mcp": {
   "command": "/opt/homebrew/bin/node",
   "args": ["/absolute/path/abap-adt-mcp/dist/index.js"]
 } } }

@@ -43,7 +43,7 @@ Then register the server in your MCP client (Claude Desktop, Claude Code, Cline,
 ```json
 {
   "mcpServers": {
-    "abap-adt": {
+    "abap-adt-mcp": {
       "command": "node",
       "args": ["PATH_TO/abap-adt-mcp/dist/index.js"],
       "env": { "SAP_SYSTEMS_FILE": "PATH_TO/systems.json" }
@@ -69,7 +69,7 @@ The server listens on `http://127.0.0.1:2236/mcp` (loopback only) and requires `
 ```json
 {
   "mcpServers": {
-    "abap-adt": {
+    "abap-adt-mcp": {
       "type": "http",
       "url": "http://127.0.0.1:2236/mcp",
       "headers": { "Authorization": "Bearer <token>" }
@@ -104,6 +104,10 @@ The complete per-tool reference (description, parameters, read-only/destructive 
 | `git` · abapGit (10) | no | `gitRepos`, `gitExternalRepoInfo`, `gitCreateRepo`, `gitPullRepo`, `gitUnlinkRepo`, `stageRepo`, `pushRepo`, `checkRepo`, `remoteRepoInfo`, `switchRepoBranch` |
 | `debugger` · Debugger (13) | no | `debuggerListeners`, `debuggerListen`, `debuggerDeleteListener`, `debuggerSetBreakpoints`, `debuggerDeleteBreakpoints`, `debuggerAttach`, `debuggerSaveSettings`, `debuggerStackTrace`, `debuggerVariables`, `debuggerChildVariables`, `debuggerStep`, `debuggerGoToStack`, `debuggerSetVariableValue` |
 | `traces` · Traces (9) | no | `tracesList`, `tracesListRequests`, `tracesHitList`, `tracesDbAccess`, `tracesStatements`, `tracesSetParameters`, `tracesCreateConfiguration`, `tracesDeleteConfiguration`, `tracesDelete` |
+
+## Skills and plugin
+
+The repository ships agent skills under `skills/` (`abap-adt-mcp`: how to develop ABAP with these tools; `abap-adt-mcp-setup`: installation and configuration) and a Claude Code plugin manifest (`.claude-plugin/plugin.json` + `.mcp.json`). Install with your host's skills tooling (for example `npx skills add williansaez/abap-adt-mcp`) or add the repository as a plugin marketplace. Skills written for SAP's official ADT MCP Server use different tool names and the server key `abap-adt`; [docs/ROUTING.md](docs/ROUTING.md) maps them to ours, published under the key `abap-adt-mcp`.
 
 ## Build from source
 

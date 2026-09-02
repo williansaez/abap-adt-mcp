@@ -19,7 +19,7 @@ Fixes driven by a full live test round against a Public Cloud tenant (95/142 too
 - `createAtcRun` resolves check variant names to worklist ids automatically and documents the ATC flow.
 - `codeCompletionFull` documents the patternKey contract (IDENTIFIER of a codeCompletion proposal).
 
-## [Unreleased]
+## [0.3.2] - 2026-09-02 - Ecosystem quick wins, security policy, locks, search, cloud readiness
 - Package renamed to `abap-adt-mcp` (`mcpName` `io.github.williansaez/abap-adt-mcp`, bin `abap-adt-mcp`) so it no longer collides with the upstream `mcp-abap-abap-adt-api` on npm and the MCP Registry. Upstream author kept in `contributors` and in LICENSE.
 - Server version announced to MCP hosts is now read from `package.json` (was hardcoded and had drifted to 0.3.0); `server.json` synced to 0.3.1.
 - Tool errors now carry the real SAP exception detail (message, type, namespace, properties) instead of "Request failed with status code NNN"; the raw `<exc:exception>` body is re-parsed when abap-adt-api's own parsing gives up. Port of upstream PR #19, extended to the fork-only handlers. Unit tests added (`npm test`).
@@ -41,4 +41,5 @@ Fixes driven by a full live test round against a Public Cloud tenant (95/142 too
 - Search by content: `sourceTextSearch` (ADT repository text search index, discovery template parameters, POST with GET fallback, lenient XML parsing, automatic fallback to grep when the endpoint is absent) and `grepPackage` (client-side literal/regex grep over package sources with sub-packages, context lines, bounded concurrency and source cache). 162 tools.
 - ABAP Cloud readiness: `apiReleaseState` checks names, an object URL or every SAP object referenced by a source against SAP's cloudification repository (released / deprecated with successors / classicAPI / noAPI, editions cloud/btp/pce), cached 24h, plus the backend's `/sap/bc/adt/apireleases` answer when available.
 - `runSnippet`: wraps ABAP in a temporary IF_OO_ADT_CLASSRUN class in $TMP, activates, runs, returns the console output and deletes the class (activation errors returned with messages; policy allowedPackages/allowedTransports apply). 164 tools.
+- Skills (`skills/abap-adt-mcp`, `skills/abap-adt-mcp-setup`), Claude Code plugin manifest (`.claude-plugin/plugin.json`, `.mcp.json`), `docs/ROUTING.md` mapping SAP official tool names; documented server key is now `abap-adt-mcp` (the key `abap-adt` is reserved by public skills for SAP's own server).
 

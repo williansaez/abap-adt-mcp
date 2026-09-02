@@ -15,7 +15,7 @@ guidance for ABAP development.
   destinations.
 
 ### Conventions
-- Always use cloud-compliant ABAP syntax and released APIs.
+- Always use cloud-compliant ABAP syntax and released APIs: check with `apiReleaseState` before using an SAP object.
 - The package `$TMP` (or `<your_local_package>`) is used for local development —
   no transport request is needed there.
 - When creating objects in `<your_package>`, use the prefix `<your_prefix>` and
@@ -24,23 +24,20 @@ guidance for ABAP development.
 ### Creating a new object
 1. `loadTypes` — pick the objtype (e.g. `CLAS/OC` for a class).
 2. `validateNewObject` — validate name, package and description BEFORE creating.
-3. `createTransport` — only if the package is transportable (not `$TMP`).
+3. `resolveTransport` — only if the package is transportable (not `$TMP`).
 4. `createObject` — creates the skeleton.
-5. `lock` → `setObjectSource` (source URL ends in `/source/main`; pass the
-   `lockHandle` from `lock`) → `unLock`.
-6. `activateByName`.
-7. `unitTestRun`.
+5. `setObjectSource` with `activate=true` (source URL ends in `/source/main`; the
+   server locks and unlocks by itself).
+6. `unitTestRun`.
 
 ### Editing an existing object
 1. `searchObject` / `findObjectPath` — find the object URI.
 2. `getObjectSource` — read the current source (URL + `/source/main`).
-3. `transportInfo` — find the transport; `createTransport` if none exists and the
-   package is transportable.
-4. `lock` — returns the `lockHandle`.
-5. `syntaxCheckCode` — check the new source before writing.
-6. `setObjectSource` — write the full new source. For a targeted change in a large object, `editObjectSource` (line range + `expectedText`) avoids resending the whole file.
-7. `unLock` → `activateByName`.
-8. `unitTestRun`.
+3. `resolveTransport` — picks the transport (or creates one with `createIfMissing`).
+4. `syntaxCheckCode` — check the new source before writing.
+5. `editObjectSource` with `replacements` (unique `oldText` → `newText`) and
+   `activate=true`; `setObjectSource` for full rewrites. No `lock`/`unLock` needed.
+6. `unitTestRun`.
 
 ### Testing
 - ALWAYS run unit tests (`unitTestRun`) after adding new tests or changing source
