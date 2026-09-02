@@ -1,5 +1,9 @@
 import { SearchHandlers } from '../SearchHandlers';
 import { parseTextSearchResponse, grepSource, buildPattern, mapLimit } from '../../lib/textSearch';
+import { sourceCache } from '../../lib/sourceCache';
+
+// sourceCache is process-wide: isolate tests from each other.
+beforeEach(() => sourceCache.clear());
 
 const XML = `<?xml version="1.0"?><cdsSearch:searchResult xmlns:cdsSearch="x" xmlns:adtcore="y">
 <cdsSearch:searchResultObject adtcore:uri="/sap/bc/adt/oo/classes/zcl_a" adtcore:name="ZCL_A" adtcore:type="CLAS/OC" adtcore:packageName="ZPKG">
