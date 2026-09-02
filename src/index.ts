@@ -23,6 +23,7 @@ import { readSystems, defaultDestination, SystemConfig } from './lib/systems.js'
 import { classifyAdtError } from './lib/adtErrorHints.js';
 import { TOOL_ROUTES, HandlerKey, toolAnnotations, resolveToolsets, ToolsetSelection, TOOLSETS } from './toolManifest.js';
 import { buildSystemProfile, SystemProfile } from './lib/systemProfile.js';
+import { evaluatePolicy, objectUrlOf, summarizePolicy } from './lib/policy.js';
 import { AuthHandlers } from './handlers/AuthHandlers.js';
 import { TransportHandlers } from './handlers/TransportHandlers.js';
 import { ObjectHandlers } from './handlers/ObjectHandlers.js';
@@ -109,6 +110,8 @@ interface Destination {
   handlers: HandlerSet;
   loggedIn: boolean;
   profile?: Promise<SystemProfile>;
+  /** objectUrl -> package (DEVCLASS), filled lazily for allowedPackages checks. */
+  packageCache: Map<string, string>;
 }
 
 // Compile-time check: every handler key in the manifest exists in HandlerSet.
@@ -228,7 +231,7 @@ export class AbapAdtServer extends Server {
     if (!dest) {
       const system = this.systems.get(name)!;
       const { adtClient, cookieClient } = this.makeClient(system);
-      dest = { system, adtClient, cookieClient, handlers: this.buildHandlers(adtClient, system), loggedIn: false };
+      dest = { system, adtClient, cookieClient, handlers: this.buildHandlers(adtClient, system), loggedIn: false, packageCache: new Map() };
       this.pool.set(name, dest);
     }
     return dest;
@@ -383,6 +386,24 @@ export class AbapAdtServer extends Server {
     return def ? def.handlers.flatMap((k) => TOOL_ROUTES[k]) : [];
   }
 
+  /** Package (DEVCLASS) of an existing object, via transportInfo, cached per destination. */
+  private async resolvePackage(name: string, objectUrl: string): Promise<string | undefined> {
+    const dest = this.getDestination(name);
+    const key = objectUrlOf(objectUrl).toLowerCase();
+    if (!key) return undefined;
+    const cached = dest.packageCache.get(key);
+    if (cached) return cached;
+    try {
+      await this.ensureLogin(name, false);
+      const info: any = await dest.adtClient.transportInfo(key);
+      const pkg = info?.DEVCLASS ? String(info.DEVCLASS).toUpperCase() : undefined;
+      if (pkg) dest.packageCache.set(key, pkg);
+      return pkg;
+    } catch {
+      return undefined;
+    }
+  }
+
   /** Build (once) the capability profile of a destination from ADT discovery. */
   private getProfile(name: string, refresh = false): Promise<SystemProfile> {
     const dest = this.getDestination(name);
@@ -418,6 +439,7 @@ export class AbapAdtServer extends Server {
             const profile = dest?.profile ? await dest.profile.catch(() => undefined) : undefined;
             return {
               destination: s.name, url: s.url, client: s.client, authType: s.authType,
+              ...(s.policy ? { policy: summarizePolicy(s.policy) } : {}),
               ...(profile ? { platform: profile.platform, unavailableToolsets: profile.unavailableToolsets } : {}),
             };
           }));
@@ -447,6 +469,17 @@ export class AbapAdtServer extends Server {
 
         const dest = this.getDestination(destination);
         const { destination: _d, ...args } = rawArgs;
+
+        // Server-side policy gate, before any authentication or SAP call.
+        if (dest.system.policy) {
+          const decision = await evaluatePolicy(dest.system.policy, name, args, {
+            resolvePackage: async (objectUrl) => this.resolvePackage(destination, objectUrl),
+          });
+          if (!decision.allowed) {
+            throw new McpError(ErrorCode.InvalidRequest,
+              `Policy: ${name} blocked on destination ${destination} (${decision.gate}): ${decision.reason}. Configured in systems.json policy; retrying will not help.`);
+          }
+        }
 
         // Explicit login for SSO destinations.
         if (name === 'login' && dest.system.authType === 'sso') {

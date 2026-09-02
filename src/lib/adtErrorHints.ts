@@ -6,7 +6,7 @@
  */
 
 export type AdtErrorKind =
-  | 'sessionExpired' | 'csrf' | 'locked' | 'staleLockHandle' | 'transportRequired'
+  | 'policyDenied' | 'sessionExpired' | 'csrf' | 'locked' | 'staleLockHandle' | 'transportRequired'
   | 'authorization' | 'notFound' | 'rateLimited' | 'ambiguous400' | 'serverError' | 'unknown';
 
 export interface AdtErrorClassification {
@@ -17,6 +17,10 @@ export interface AdtErrorClassification {
 }
 
 const HINTS: Record<Exclude<AdtErrorKind, 'unknown'>, { hint: string; nextTools: string[] }> = {
+  policyDenied: {
+    hint: 'The server policy for this destination refuses the call. Retrying will not help: pick another destination (listSystems shows each policy) or ask the owner to change the policy in systems.json.',
+    nextTools: ['listSystems'],
+  },
   sessionExpired: {
     hint: 'The SAP session expired or was never established. The server re-authenticates and retries once automatically; if this error still surfaces, call login for the destination and lock the object again before writing.',
     nextTools: ['login', 'lock'],
@@ -83,7 +87,9 @@ export function classifyAdtError(input: unknown): AdtErrorClassification {
   const has = (re: RegExp) => re.test(text);
 
   let kind: AdtErrorKind = 'unknown';
-  if (err.code === 'SESSION_EXPIRED' || status === 401 || has(/session (timed out|expired)|login page|identity provider|saml|logon ticket/i)) {
+  if (err.code === 'POLICY_DENIED' || /^(?:MCP error -?\d+: )?Policy:/i.test(text) || has(/blocked by the destination policy/i)) {
+    kind = 'policyDenied';
+  } else if (err.code === 'SESSION_EXPIRED' || status === 401 || has(/session (timed out|expired)|login page|identity provider|saml|logon ticket/i)) {
     kind = 'sessionExpired';
   } else if (has(/csrf/i) && (status === 403 || has(/token/i))) {
     kind = 'csrf';

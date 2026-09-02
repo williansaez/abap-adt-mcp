@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to systems.json (gitignored) or point SAP_SYSTEMS_FILE at it. One entry per ABAP system (destination); tools take a `destination` argument naming one of these keys. Mark one entry with \"default\": true to use it when destination is omitted. Optional per-entry gitUser/gitPassword supply abapGit credentials so they never pass through the model.",
+  "_comment": "Copy to systems.json (gitignored) or point SAP_SYSTEMS_FILE at it. One entry per ABAP system (destination); tools take a `destination` argument naming one of these keys. Mark one entry with \"default\": true to use it when destination is omitted. Optional per-entry gitUser/gitPassword supply abapGit credentials so they never pass through the model. Optional per-entry \"policy\" block: readOnly, deniedTools (globs), allowFreeSql, deniedTables (globs), allowedPackages (globs, closed), allowedTransports (globs, no new transports). MCP_READ_ONLY=1 makes every destination read-only.",
   "DEV": {
     "url": "https://myXXXXXX.s4hana.cloud.sap",
     "client": "080",
@@ -9,7 +9,10 @@
   "QAS": {
     "url": "https://myYYYYYY.s4hana.cloud.sap",
     "client": "100",
-    "authType": "sso"
+    "authType": "sso",
+    "policy": {
+      "readOnly": true
+    }
   },
   "OnPrem-Basic": {
     "url": "https://host:44300",
@@ -18,7 +21,23 @@
     "user": "DEVELOPER",
     "password": "secret",
     "gitUser": "<abapgit remote user (optional)>",
-    "gitPassword": "<abapgit remote token (optional)>"
+    "gitPassword": "<abapgit remote token (optional)>",
+    "policy": {
+      "allowedPackages": [
+        "Z*",
+        "$*"
+      ],
+      "deniedTables": [
+        "PA*",
+        "HR*",
+        "USR02"
+      ],
+      "allowFreeSql": false,
+      "deniedTools": [
+        "transportRelease",
+        "git*"
+      ]
+    }
   },
   "Cloud-OAuth": {
     "url": "https://myZZZZZZ.s4hana.cloud.sap",

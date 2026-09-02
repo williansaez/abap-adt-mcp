@@ -55,6 +55,11 @@
           "isSecret": true
         },
         {
+          "name": "MCP_READ_ONLY",
+          "description": "Set to 1 to make every destination read-only (server-side; only read-only annotated tools plus login/logout run). Per-destination policies live in systems.json",
+          "isRequired": false
+        },
+        {
           "name": "MCP_TOOLSETS",
           "description": "Toolsets to publish: comma list (core,source,objects,transports,analysis,tests,atc,data,discovery,runtime,refactoring,rap,services,git,debugger,traces) or a preset: all (default) or focused",
           "isRequired": false

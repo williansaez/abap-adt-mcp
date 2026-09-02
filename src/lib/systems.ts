@@ -16,6 +16,7 @@
 import fs from 'fs';
 import path from 'path';
 import { readOAuthConfig, OAuthConfig } from './oauth.js';
+import { parsePolicy, SystemPolicy } from './policy.js';
 
 export type AuthType = 'sso' | 'basic' | 'oauth';
 
@@ -38,6 +39,8 @@ export interface SystemConfig {
   gitPassword?: string;
   /** Marks this destination as the default when a tool call omits `destination`. */
   default?: boolean;
+  /** Server-side guard rails for this destination (see lib/policy.ts). */
+  policy?: SystemPolicy;
 }
 
 function coerceAuthType(v: any, fallback: AuthType): AuthType {
@@ -63,6 +66,7 @@ function fromRawEntry(name: string, raw: any, defaultAuth: AuthType): SystemConf
     gitUser: raw.gitUser,
     gitPassword: raw.gitPassword,
     default: raw.default === true || /^(1|true|yes)$/i.test(String(raw.default || '')),
+    policy: parsePolicy(raw.policy),
   };
   if (authType === 'basic') {
     cfg.user = raw.user;
@@ -93,6 +97,15 @@ function parseMap(obj: Record<string, any>, defaultAuth: AuthType): Map<string, 
 
 /** Read the configured systems. Throws if the configuration is present but invalid. */
 export function readSystems(env: NodeJS.ProcessEnv = process.env): Map<string, SystemConfig> {
+  const systems = readSystemsRaw(env);
+  // MCP_READ_ONLY=1 turns every destination read-only regardless of its own policy.
+  if (/^(1|true|yes)$/i.test(String(env.MCP_READ_ONLY || ''))) {
+    for (const cfg of systems.values()) cfg.policy = { ...(cfg.policy || {}), readOnly: true };
+  }
+  return systems;
+}
+
+function readSystemsRaw(env: NodeJS.ProcessEnv): Map<string, SystemConfig> {
   // Default auth for entries that don't specify one: sso unless the top-level
   // SAP_AUTH_TYPE says otherwise.
   const defaultAuth = coerceAuthType(env.SAP_AUTH_TYPE, 'sso');

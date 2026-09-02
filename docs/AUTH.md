@@ -37,6 +37,34 @@ The MCP client config is then a single server:
 
 Each authentication mode below can be set per destination (`authType` in the entry).
 
+## Per-destination policy (server-side guard rails)
+
+Tool annotations only *advise* the MCP host. The `policy` block of a destination is
+enforced by the server itself, before authentication and before any SAP call, so a
+production system stays safe even if the host auto-approves everything.
+
+```json
+{
+  "DEV": { "url": "https://myXXXXXX.s4hana.cloud.sap", "client": "080",
+           "policy": { "allowedPackages": ["Z*", "$*"], "allowedTransports": ["DEVK9*"] } },
+  "PRD": { "url": "https://myYYYYYY.s4hana.cloud.sap", "client": "100",
+           "policy": { "readOnly": true, "deniedTables": ["PA*", "HR*", "USR02"], "allowFreeSql": false } }
+}
+```
+
+| Key | Effect |
+|---|---|
+| `readOnly` | Only tools annotated read-only (plus `login`, `logout`, `dropSession`, `systemProfile`) may run. `lock` counts as a write. |
+| `deniedTools` | Glob list of tool names refused outright (`git*`, `transportRelease`). |
+| `allowFreeSql` | `false` refuses `runQuery` and `tableContents` with `sqlQuery`. |
+| `deniedTables` | Glob list; applies to `tableContents` and to every table in a `runQuery` `FROM`/`JOIN`. |
+| `allowedPackages` | Closed list of globs. `createObject`/`gitCreateRepo` check their package argument; source writes, `lock`, `deleteObject`, `activateByName`, DDIC/text writes resolve the object's package through `transportInfo` (cached); an unresolvable package is refused. |
+| `allowedTransports` | Globs for every `transport`/`transportNumber` argument; `createTransport` and `resolveTransport(createIfMissing)` are refused. |
+
+`MCP_READ_ONLY=1` in the environment makes every destination `readOnly` on top of its own
+policy. Refusals come back as errors with `kind: "policyDenied"` and name the gate, so the
+agent does not retry; `listSystems` shows each destination's policy.
+
 ## Mode SSO — Browser login (S/4HANA Public Cloud, like Eclipse) — recommended
 
 S/4HANA Public Cloud forces interactive SSO (SAML2/OIDC via IAS) on the ADT
