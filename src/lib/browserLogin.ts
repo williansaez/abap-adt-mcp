@@ -9,7 +9,19 @@
  * required; when the session expires the login is simply run again.
  */
 
-import puppeteer from 'puppeteer-core';
+// puppeteer-core is ESM-only. A static import compiles to require(), which
+// Node 18/20 refuse for ESM packages and which would break every server start
+// (SSO or not). Load it lazily, through a real dynamic import that tsc cannot
+// downlevel to require().
+type Puppeteer = typeof import('puppeteer-core');
+const dynamicImport = new Function('specifier', 'return import(specifier)') as (s: string) => Promise<any>;
+let puppeteerModule: Promise<Puppeteer> | undefined;
+function loadPuppeteer(): Promise<Puppeteer> {
+  if (!puppeteerModule) {
+    puppeteerModule = dynamicImport('puppeteer-core').then((m: any) => (m.default ?? m) as Puppeteer);
+  }
+  return puppeteerModule;
+}
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -78,6 +90,7 @@ export async function browserLogin(
     fs.chmodSync(userDataDir, 0o700);
   }
 
+  const puppeteer = await loadPuppeteer();
   const browser = await puppeteer.launch({
     executablePath,
     headless: false,
