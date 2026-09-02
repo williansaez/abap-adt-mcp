@@ -124,7 +124,7 @@ export class UnitTestHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to run unit test: ${error.message || 'Unknown error'}`
+                `Failed to run unit test: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -164,7 +164,7 @@ export class UnitTestHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to evaluate unit test: ${error.message || 'Unknown error'}`
+                `Failed to evaluate unit test: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -189,7 +189,7 @@ export class UnitTestHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to get unit test markers: ${error.message || 'Unknown error'}`
+                `Failed to get unit test markers: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -215,7 +215,7 @@ export class UnitTestHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to create test include: ${error.message || 'Unknown error'}`
+                `Failed to create test include: ${this.formatAdtError(error)}`
             );
         }
     }

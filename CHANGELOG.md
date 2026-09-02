@@ -22,3 +22,4 @@ Fixes driven by a full live test round against a Public Cloud tenant (95/142 too
 ## [Unreleased]
 - Package renamed to `abap-adt-mcp` (`mcpName` `io.github.williansaez/abap-adt-mcp`, bin `abap-adt-mcp`) so it no longer collides with the upstream `mcp-abap-abap-adt-api` on npm and the MCP Registry. Upstream author kept in `contributors` and in LICENSE.
 - Server version announced to MCP hosts is now read from `package.json` (was hardcoded and had drifted to 0.3.0); `server.json` synced to 0.3.1.
+- Tool errors now carry the real SAP exception detail (message, type, namespace, properties) instead of "Request failed with status code NNN"; the raw `<exc:exception>` body is re-parsed when abap-adt-api's own parsing gives up. Port of upstream PR #19, extended to the fork-only handlers. Unit tests added (`npm test`).

@@ -175,7 +175,7 @@ export class RapGeneratorHandlers extends BaseHandler {
       if (error instanceof McpError) throw error;
       throw new McpError(
         ErrorCode.InternalError,
-        `Failed to ${action}: ${error.message || 'Unknown error'}`
+        `Failed to ${action}: ${this.formatAdtError(error)}`
       );
     }
   }

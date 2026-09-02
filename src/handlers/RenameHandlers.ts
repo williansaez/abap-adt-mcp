@@ -106,7 +106,7 @@ export class RenameHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to evaluate rename: ${error.message || 'Unknown error'}`
+                `Failed to evaluate rename: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -143,7 +143,7 @@ export class RenameHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to preview rename: ${error.message || 'Unknown error'}`
+                `Failed to preview rename: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -168,7 +168,7 @@ export class RenameHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to execute rename: ${error.message || 'Unknown error'}`
+                `Failed to execute rename: ${this.formatAdtError(error)}`
             );
         }
     }

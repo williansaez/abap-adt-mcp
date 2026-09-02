@@ -118,7 +118,7 @@ export class ServiceBindingHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to publish service binding: ${error.message || 'Unknown error'}`
+                `Failed to publish service binding: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -143,7 +143,7 @@ export class ServiceBindingHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to unpublish service binding: ${error.message || 'Unknown error'}`
+                `Failed to unpublish service binding: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -219,7 +219,7 @@ export class ServiceBindingHandlers extends BaseHandler {
             if (error instanceof McpError) throw error;
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to fetch service details: ${error.message || 'Unknown error'}`
+                `Failed to fetch service details: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -279,7 +279,7 @@ export class ServiceBindingHandlers extends BaseHandler {
             if (error instanceof McpError) throw error;
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to get binding details: ${error.message || 'Unknown error'}`
+                `Failed to get binding details: ${this.formatAdtError(error)}`
             );
         }
     }

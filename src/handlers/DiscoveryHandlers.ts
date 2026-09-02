@@ -124,7 +124,7 @@ export class DiscoveryHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to get feature details: ${error.message || 'Unknown error'}`
+                `Failed to get feature details: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -149,7 +149,7 @@ export class DiscoveryHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to get collection feature details: ${error.message || 'Unknown error'}`
+                `Failed to get collection feature details: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -174,7 +174,7 @@ export class DiscoveryHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to find collection by URL: ${error.message || 'Unknown error'}`
+                `Failed to find collection by URL: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -199,7 +199,7 @@ export class DiscoveryHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to load types: ${error.message || 'Unknown error'}`
+                `Failed to load types: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -224,7 +224,7 @@ export class DiscoveryHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to perform ADT discovery: ${error.message || 'Unknown error'}`
+                `Failed to perform ADT discovery: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -249,7 +249,7 @@ export class DiscoveryHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to perform ADT core discovery: ${error.message || 'Unknown error'}`
+                `Failed to perform ADT core discovery: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -274,7 +274,7 @@ export class DiscoveryHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to get ADT compatibility graph: ${error.message || 'Unknown error'}`
+                `Failed to get ADT compatibility graph: ${this.formatAdtError(error)}`
             );
         }
     }

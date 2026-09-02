@@ -103,7 +103,7 @@ export class ObjectRegistrationHandlers extends BaseHandler {
       this.trackRequest(startTime, false);
       throw new McpError(
         ErrorCode.InternalError,
-        `Failed to get registration info: ${error.message || 'Unknown error'}`
+        `Failed to get registration info: ${this.formatAdtError(error)}`
       );
     }
   }
@@ -183,7 +183,7 @@ export class ObjectRegistrationHandlers extends BaseHandler {
       if (error instanceof McpError) throw error;
       throw new McpError(
         ErrorCode.InternalError,
-        `Failed to validate new object: ${error.message || 'Unknown error'}. If validation keeps failing, check objtype via loadTypes and confirm the package exists`
+        `Failed to validate new object: ${this.formatAdtError(error)}. If validation keeps failing, check objtype via loadTypes and confirm the package exists`
       );
     }
   }
@@ -272,7 +272,7 @@ export class ObjectRegistrationHandlers extends BaseHandler {
       if (error instanceof McpError) throw error;
       throw new McpError(
         ErrorCode.InternalError,
-        `Failed to create object: ${error.message || 'Unknown error'}`
+        `Failed to create object: ${this.formatAdtError(error)}`
       );
     }
   }

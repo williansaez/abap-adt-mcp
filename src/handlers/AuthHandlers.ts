@@ -63,7 +63,7 @@ export class AuthHandlers extends BaseHandler {
       this.trackRequest(startTime, false);
       throw new McpError(
         ErrorCode.InternalError,
-        `Login failed: ${error.message || 'Unknown error'}`
+        `Login failed: ${this.formatAdtError(error)}`
       );
     }
   }
@@ -85,7 +85,7 @@ export class AuthHandlers extends BaseHandler {
       this.trackRequest(startTime, false);
       throw new McpError(
         ErrorCode.InternalError,
-        `Logout failed: ${error.message || 'Unknown error'}`
+        `Logout failed: ${this.formatAdtError(error)}`
       );
     }
   }
@@ -107,7 +107,7 @@ export class AuthHandlers extends BaseHandler {
       this.trackRequest(startTime, false);
       throw new McpError(
         ErrorCode.InternalError,
-        `Drop session failed: ${error.message || 'Unknown error'}`
+        `Drop session failed: ${this.formatAdtError(error)}`
       );
     }
   }

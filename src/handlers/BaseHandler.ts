@@ -2,6 +2,7 @@ import type { ToolDefinition } from "../types/tools";
 import type { ADTClient } from "abap-adt-api";
 import { performance } from 'perf_hooks';
 import { createLogger } from '../lib/logger';
+import { formatAdtError } from '../lib/adtErrorFormatting';
 
 export abstract class BaseHandler {
   protected readonly adtclient: ADTClient;
@@ -33,6 +34,15 @@ export abstract class BaseHandler {
       success,
       metrics: this.getMetrics()
     });
+  }
+
+  /**
+   * Formats a caught error for inclusion in an McpError message, recovering the
+   * real SAP-side message/properties even when abap-adt-api's own error parsing
+   * fell back to a bare "Request failed with status code NNN".
+   */
+  protected formatAdtError(error: unknown): string {
+    return formatAdtError(error);
   }
 
   protected getMetrics() {

@@ -357,7 +357,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to get transport details: ${error.message || 'Unknown error'}`
+                `Failed to get transport details: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -405,7 +405,7 @@ export class TransportHandlers extends BaseHandler {
                 try {
                     diffs.push(await this.diffObjectAgainstTransport(type, name, transportNumber));
                 } catch (error: any) {
-                    diffs.push({ type, name, error: error.message || 'diff failed' });
+                    diffs.push({ type, name, error: this.formatAdtError(error) });
                 }
             }
 
@@ -426,7 +426,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to build transport diff: ${error.message || 'Unknown error'}`
+                `Failed to build transport diff: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -502,7 +502,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to get transport info: ${error.message || 'Unknown error'}`
+                `Failed to get transport info: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -533,7 +533,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to create transport: ${error.message || 'Unknown error'}`
+                `Failed to create transport: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -558,7 +558,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to check transport config: ${error.message || 'Unknown error'}`
+                `Failed to check transport config: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -583,7 +583,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to get transport configurations: ${error.message || 'Unknown error'}`
+                `Failed to get transport configurations: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -612,7 +612,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to get transport configuration: ${error.message || 'Unknown error'}`
+                `Failed to get transport configuration: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -637,7 +637,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to set transports config: ${error.message || 'Unknown error'}`
+                `Failed to set transports config: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -662,7 +662,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to create transports config: ${error.message || 'Unknown error'}`
+                `Failed to create transports config: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -687,7 +687,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to get user transports: ${error.message || 'Unknown error'}`
+                `Failed to get user transports: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -712,7 +712,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to get transports by config: ${error.message || 'Unknown error'}`
+                `Failed to get transports by config: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -737,7 +737,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to delete transport: ${error.message || 'Unknown error'}`
+                `Failed to delete transport: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -762,7 +762,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to release transport: ${error.message || 'Unknown error'}`
+                `Failed to release transport: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -787,7 +787,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to set transport owner: ${error.message || 'Unknown error'}`
+                `Failed to set transport owner: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -812,7 +812,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to add user to transport: ${error.message || 'Unknown error'}`
+                `Failed to add user to transport: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -837,7 +837,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to get system users: ${error.message || 'Unknown error'}`
+                `Failed to get system users: ${this.formatAdtError(error)}`
             );
         }
     }
@@ -862,7 +862,7 @@ export class TransportHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,
-                `Failed to get transport reference: ${error.message || 'Unknown error'}`
+                `Failed to get transport reference: ${this.formatAdtError(error)}`
             );
         }
     }
