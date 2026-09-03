@@ -122,22 +122,49 @@ describe('http transport end to end', () => {
 });
 
 describe('request body limits', () => {
+  // Sent with the raw http module: Node 18's fetch does not settle when the
+  // server answers while the request body is still being written, so it cannot
+  // observe the refusal even though the server sends it. Later runtimes do.
+  const rawPost = (base: string, body: string, headers: Record<string, string>) =>
+    new Promise<{ status: number; text: string }>((resolve, reject) => {
+      const req = http.request(`${base}/mcp`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${TOKEN}`, ...headers } }, (res) => {
+        let text = '';
+        res.on('data', (c) => { text += c; });
+        res.on('end', () => resolve({ status: res.statusCode || 0, text }));
+      });
+      req.on('error', reject);
+      req.end(body);
+    });
+
   it('applies the size limit to session requests, not only to the one that opens the session', async () => {
     const server = new AbapAdtServer();
     const handle = await server.startHttp(env({ MCP_HTTP_MAX_BODY_BYTES: '2048' }));
     try {
       const base = `http://127.0.0.1:${handle.port}`;
-      // Open a session.
       const opened = await mcpPost(base, init());
       expect(opened.sessionId).toBeTruthy();
-      // A request on that session carrying an oversized body is refused with 413,
-      // instead of being streamed into the SDK transport unbounded.
-      const big = { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'healthcheck', arguments: { pad: 'x'.repeat(8192) } } };
-      const r = await mcpPost(base, big, { 'mcp-session-id': opened.sessionId! });
-      expect(r.res.status).toBe(413);
-      // The session survives: a normal request still works.
+
+      const big = JSON.stringify({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'healthcheck', arguments: { pad: 'x'.repeat(8192) } } });
+      const refused = await rawPost(base, big, { 'mcp-session-id': opened.sessionId! });
+      expect(refused.status).toBe(413);
+      expect(refused.text).toMatch(/MCP_HTTP_MAX_BODY_BYTES/);
+
+      // The session survives a refusal.
       const ok = await mcpPost(base, { jsonrpc: '2.0', id: 10, method: 'tools/list' }, { 'mcp-session-id': opened.sessionId! });
       expect(ok.res.status).toBe(200);
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('refuses an oversized body on the session-opening request too', async () => {
+    const server = new AbapAdtServer();
+    const handle = await server.startHttp(env({ MCP_HTTP_MAX_BODY_BYTES: '2048' }));
+    try {
+      const base = `http://127.0.0.1:${handle.port}`;
+      const big = JSON.stringify({ ...init(), pad: 'x'.repeat(8192) });
+      const r = await rawPost(base, big, {});
+      expect(r.status).toBe(413);
     } finally {
       await handle.close();
     }
