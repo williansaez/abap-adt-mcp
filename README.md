@@ -4,7 +4,7 @@
 
 > Use with caution, and prefer development systems.
 
-A single **Model Context Protocol (MCP) server** that gives AI agents full ABAP development capabilities over **multiple SAP systems at once**. It wraps [abap-adt-api](https://github.com/marcellourbani/abap-adt-api/) (the ADT REST protocol used by Eclipse ADT) and exposes **158 tools**: object creation and editing, transports (including unified diffs), activation, unit tests, ATC runs with deterministic quickfixes, RAP application generation, OData service inspection, abapGit, debugging, traces and more.
+A single **Model Context Protocol (MCP) server** that gives AI agents full ABAP development capabilities over **multiple SAP systems at once**. It wraps [abap-adt-api](https://github.com/marcellourbani/abap-adt-api/) (the ADT REST protocol used by Eclipse ADT) and exposes **171 tools**: object creation and editing, transports (including unified diffs), activation, unit tests, ATC runs with deterministic quickfixes, RAP application generation, OData service inspection, abapGit, debugging, traces and more.
 
 Originally forked from [mario-andreschak/mcp-abap-abap-adt-api](https://github.com/mario-andreschak/mcp-abap-abap-adt-api); this fork adds multi-destination support, browser-SSO and OAuth2 authentication for S/4HANA Cloud, MCP tool annotations, an optional HTTP transport and workflow guidance aligned with SAP's official ADT MCP Server documentation.
 
@@ -58,13 +58,13 @@ Large results (long sources, wide table reads, big unit-test or ATC runs) are pa
 
 ## HTTP transport (optional)
 
-By default the server speaks stdio. For MCP hosts that expect an HTTP endpoint (the model SAP's own ADT MCP Server uses), start with:
+By default the server speaks stdio: the host starts one process per user, with its own SAP sessions and locks, and nothing listens on the network. For MCP hosts that expect an HTTP endpoint (the model SAP's own ADT MCP Server uses: Eclipse/Copilot, another machine, a container, a shared team instance), start with:
 
 ```bash
 MCP_HTTP_PORT=2236 node dist/index.js
 ```
 
-The server listens on `http://127.0.0.1:2236/mcp` (loopback only) and requires `Authorization: Bearer <token>` on every request. The token is auto-generated and written to `~/.abap-adt-mcp/http-token` (mode `0600`) — or set it yourself via `MCP_HTTP_TOKEN`. Host config:
+The server listens on `http://127.0.0.1:2236/mcp` (loopback only unless `MCP_HTTP_HOST` says otherwise) and requires `Authorization: Bearer <token>` on every request. The token is auto-generated and written to `~/.abap-adt-mcp/http-token` (mode `0600`) — or set it yourself via `MCP_HTTP_TOKEN`. Host config:
 
 ```json
 {
@@ -78,7 +78,14 @@ The server listens on `http://127.0.0.1:2236/mcp` (loopback only) and requires `
 }
 ```
 
-## Tool catalog (all 158 tools, by toolset)
+What the HTTP front door does:
+
+- **One server instance per MCP session**: every client that sends `initialize` gets its own SAP sessions, lock ledger and caches; sessions end on `DELETE` or after `MCP_HTTP_SESSION_TTL_MINUTES` idle (default 30). `MCP_HTTP_MAX_SESSIONS` (default 16) caps them; extra `initialize` requests get `503` with `Retry-After`.
+- **DNS-rebinding protection**: when bound to loopback, only loopback `Host` and `Origin` values are accepted; extend with `MCP_HTTP_ALLOWED_HOSTS` / `MCP_HTTP_ALLOWED_ORIGINS` (`*` to allow any origin). Requests without an `Origin` header (non-browser clients) pass.
+- **`GET /health`** answers without a token: version, open sessions, uptime.
+- **Containers**: set `MCP_HTTP_HOST=0.0.0.0`, publish the port, keep the token secret and put TLS in front. Everyone using a shared instance acts with the same SAP credentials; prefer one instance per person, or per-destination policies with `readOnly`.
+
+## Tool catalog (all 171 tools, by toolset)
 
 The complete per-tool reference (description, parameters, read-only/destructive annotations) lives in [docs/TOOLS.md](docs/TOOLS.md), generated from the live `tools/list` response by `npm run tools:docs` and verified by the catalog contract test.
 

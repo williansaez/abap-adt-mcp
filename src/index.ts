@@ -3,8 +3,7 @@
 import { config } from 'dotenv';
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import http from 'http';
+import { startHttpServer, readHttpOptions, HttpHandle } from './lib/httpTransport.js';
 import crypto from 'crypto';
 import os from 'os';
 import fs from 'fs';
@@ -131,6 +130,7 @@ const _handlerSetCheck: Record<HandlerKey, unknown> = {} as HandlerSet;
 void _handlerSetCheck;
 
 export class AbapAdtServer extends Server {
+  private static warnedOnce = false;
   private systems: Map<string, SystemConfig>;
   private defaultDest?: string;
   private pool = new Map<string, Destination>();
@@ -166,12 +166,15 @@ export class AbapAdtServer extends Server {
     this.defaultDest = defaultDestination(this.systems);
 
     // Surface TLS-verification bypasses loudly: they silently apply to every request.
+    if (!AbapAdtServer.warnedOnce) {
+    AbapAdtServer.warnedOnce = true;
     if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
       console.error('[abap-adt-mcp] WARNING: NODE_TLS_REJECT_UNAUTHORIZED=0 disables TLS certificate verification for ALL destinations. Prefer per-system "insecureTls" for individual on-prem systems with self-signed certificates.');
     }
     const insecure = [...this.systems.entries()].filter(([, s]) => s.insecureTls).map(([name]) => name);
     if (insecure.length > 0) {
       console.error(`[abap-adt-mcp] WARNING: TLS certificate verification disabled (insecureTls) for destination(s): ${insecure.join(', ')}`);
+    }
     }
 
     for (const key of Object.keys(TOOL_ROUTES) as (keyof HandlerSet)[]) {
@@ -586,7 +589,7 @@ export class AbapAdtServer extends Server {
   async run() {
     const httpPort = parseInt(process.env.MCP_HTTP_PORT || '', 10);
     if (httpPort) {
-      await this.runHttp(httpPort);
+      await this.startHttp();
     } else {
       const transport = new StdioServerTransport();
       await this.connect(transport);
@@ -600,63 +603,33 @@ export class AbapAdtServer extends Server {
 
   /**
    * Streamable HTTP transport, mirroring SAP's official ADT MCP Server model:
-   * localhost-only endpoint at /mcp guarded by a bearer token. The token comes
+   * localhost-only endpoint at /mcp guarded by a bearer token, one server
+   * instance (and therefore one set of SAP sessions and locks) per MCP session,
+   * Origin/Host validation, session limits and idle expiry. The token comes
    * from MCP_HTTP_TOKEN or is generated at startup and written to
    * ~/.abap-adt-mcp/http-token with 0600 permissions.
    */
-  private async runHttp(port: number) {
-    if (port < 1024 || port > 65535) {
-      throw new Error(`MCP_HTTP_PORT must be between 1024 and 65535, got ${port}`);
-    }
-    let token = process.env.MCP_HTTP_TOKEN;
-    if (!token) {
-      token = crypto.randomBytes(32).toString('hex');
+  async startHttp(env: NodeJS.ProcessEnv = process.env): Promise<HttpHandle> {
+    const opts = readHttpOptions(env, PACKAGE_VERSION);
+    if (!opts.token) {
+      opts.token = crypto.randomBytes(32).toString('hex');
       const dir = path.join(os.homedir(), '.abap-adt-mcp');
       fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
       const tokenFile = path.join(dir, 'http-token');
-      fs.writeFileSync(tokenFile, token, { mode: 0o600 });
+      fs.writeFileSync(tokenFile, opts.token, { mode: 0o600 });
       console.error(`[abap-adt-mcp] Bearer token written to ${tokenFile}`);
     }
-    const expected = token;
-
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => crypto.randomUUID(),
-    });
-    await this.connect(transport);
-
-    const httpServer = http.createServer(async (req, res) => {
-      if (!req.url || !req.url.startsWith('/mcp')) {
-        res.writeHead(404).end();
-        return;
-      }
-      const auth = req.headers.authorization || '';
-      const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-      const ok = provided.length === expected.length &&
-        crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
-      if (!ok) {
-        res.writeHead(401, { 'Content-Type': 'application/json' })
-          .end(JSON.stringify({ error: 'Unauthorized: send Authorization: Bearer <token>' }));
-        return;
-      }
-      try {
-        await transport.handleRequest(req, res);
-      } catch (error) {
-        console.error('[abap-adt-mcp] HTTP request error:', error);
-        if (!res.headersSent) res.writeHead(500).end();
-      }
-    });
-
-    // Bind to loopback unless MCP_HTTP_HOST says otherwise (containers need
-    // 0.0.0.0 to publish the port; the bearer token still guards every call).
-    const host = process.env.MCP_HTTP_HOST || '127.0.0.1';
-    if (host !== '127.0.0.1' && host !== 'localhost' && host !== '::1') {
-      console.error(`[abap-adt-mcp] WARNING: HTTP transport bound to ${host}, reachable beyond this machine. Keep the bearer token secret and put TLS in front.`);
+    if (!['127.0.0.1', 'localhost', '::1'].includes(opts.host)) {
+      console.error(`[abap-adt-mcp] WARNING: HTTP transport bound to ${opts.host}, reachable beyond this machine. Keep the bearer token secret, restrict MCP_HTTP_ALLOWED_ORIGINS/HOSTS and put TLS in front.`);
     }
-    await new Promise<void>((resolve) => httpServer.listen(port, host, resolve));
+    // Every MCP session gets its own server instance: separate SAP sessions,
+    // lock ledgers and caches per caller.
+    const handle = await startHttpServer(() => new AbapAdtServer(), opts);
     console.error(
-      `MCP ABAP ADT API server running on http://${host}:${port}/mcp (bearer auth) — ` +
+      `MCP ABAP ADT API server running on http://${opts.host}:${handle.port}/mcp (bearer auth, max ${opts.maxSessions} sessions, idle expiry ${Math.round(opts.sessionTtlMs / 60000)} min) — ` +
       `${this.systems.size} destination(s): ${[...this.systems.keys()].join(', ')}`
     );
+    return handle;
   }
 }
 

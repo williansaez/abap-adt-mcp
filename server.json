@@ -55,6 +55,26 @@
           "isSecret": true
         },
         {
+          "name": "MCP_HTTP_MAX_SESSIONS",
+          "description": "Maximum concurrent MCP sessions on the HTTP transport (default 16); further initialize requests get 503",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_HTTP_SESSION_TTL_MINUTES",
+          "description": "Idle minutes after which an HTTP session (and its SAP sessions/locks) is closed (default 30)",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_HTTP_ALLOWED_ORIGINS",
+          "description": "Comma-separated Origin values allowed on the HTTP transport (loopback origins always allowed when bound to loopback; * allows any)",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_HTTP_ALLOWED_HOSTS",
+          "description": "Comma-separated Host header values allowed (DNS-rebinding protection; loopback hosts always allowed when bound to loopback)",
+          "isRequired": false
+        },
+        {
           "name": "MCP_AUDIT_FILE",
           "description": "Path of a JSONL audit trail: one record per tool call (tool, destination, duration, outcome ok/error/denied/unavailable, policy gate, redacted argument summary)",
           "isRequired": false
