@@ -31,3 +31,7 @@ Source: `docs/ANALISE-ECOSSISTEMA-SAP-MCP.md` (research across 30+ SAP MCP proje
 | 25 | Source export in abapGit layout, `debugSession` composition | done (`exportPackageSources`); `debugSession` not built: on-prem only, no system to validate |
 
 The earlier plan based on SAP's official documentation (`docs/IMPROVEMENTS.md`) is complete since 0.3.1 and kept for history.
+
+## Review round (2026-09-03)
+
+Three independent reviews (technical, conceptual, release readiness) of everything above produced 40 findings; all were fixed in the same round except the ones listed here as conscious exclusions: `outputSchema` (see item 22), historic ATC results (item 24), `debugSession` (item 25), and `gitPullRepo`/`rapGenGenerate`/service binding publish under `allowedPackages` (refused rather than guessed, documented in docs/AUTH.md). The CHANGELOG entry for 0.3.2 lists the fixes.

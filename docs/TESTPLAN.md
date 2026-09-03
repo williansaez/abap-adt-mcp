@@ -1,4 +1,8 @@
-# Test Plan — feat/sap-doc-improvements (v0.3.0)
+# Test Plan
+
+> Historical note: this plan was written for the v0.3.0 branch (142 tools). The layers still apply; tool counts and the addenda at the end reflect later releases (0.3.2 has 173 tools, `npm test` covers Layer 0/1).
+
+## Original plan (feat/sap-doc-improvements, v0.3.0)
 
 Scope: validate the four improvement phases before merging to `main`. Four layers,
 cheapest first; each layer gates the next. Layers 0–1 run fully offline (no SAP

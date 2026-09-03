@@ -1,4 +1,4 @@
-import { listMethods, findMethod, replaceMethod, classUrlOf, includeSourceUrl } from '../methodSource';
+import { listMethods, findMethod, findMethods, replaceMethod, classUrlOf, includeSourceUrl } from '../methodSource';
 
 const SRC = `CLASS zcl_a DEFINITION PUBLIC.
   PUBLIC SECTION.
@@ -51,5 +51,17 @@ describe('methodSource', () => {
     expect(classUrlOf('/sap/bc/adt/oo/classes/zcl_demo/includes/testclasses')).toBe('/sap/bc/adt/oo/classes/zcl_demo');
     expect(includeSourceUrl('/sap/bc/adt/oo/classes/zcl_demo')).toBe('/sap/bc/adt/oo/classes/zcl_demo/source/main');
     expect(includeSourceUrl('/sap/bc/adt/oo/classes/zcl_demo', 'testclasses')).toBe('/sap/bc/adt/oo/classes/zcl_demo/includes/testclasses');
+  });
+
+  it('tracks the enclosing class so same-named methods of local and test classes can be told apart', () => {
+    const src = [
+      'CLASS ltc_one IMPLEMENTATION.', '  METHOD setup.', '    one = 1.', '  ENDMETHOD.', 'ENDCLASS.',
+      'CLASS ltc_two IMPLEMENTATION.', '  METHOD setup.', '    two = 2.', '  ENDMETHOD.', 'ENDCLASS.',
+    ].join('\n');
+    const all = findMethods(src, 'setup');
+    expect(all.map(b => b.className)).toEqual(['LTC_ONE', 'LTC_TWO']);
+    expect(findMethods(src, 'setup', 'ltc_two')[0].text).toContain('two = 2.');
+    expect(findMethod(src, 'setup', 'LTC_TWO')?.startLine).toBe(7);
+    expect(findMethods(src, 'setup', 'ltc_three')).toEqual([]);
   });
 });

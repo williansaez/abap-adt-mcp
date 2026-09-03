@@ -9,7 +9,7 @@ Tool names below are the real names published by the server (`mcp__abap-adt-mcp_
 
 ## Start of every session
 1. `listSystems`: pick the `destination` (every tool takes it; omit only when a default is configured). Each entry shows its `policy` (readOnly, allowedPackages, ...). Never write to a destination whose name or policy says production.
-2. `systemProfile(destination)` once per unfamiliar system: tells whether it is S/4HANA Cloud or on-prem and which toolsets are unavailable there (RAP generator, debugger, traces, abapGit ...). Tools of missing toolsets are refused before calling SAP.
+2. `systemProfile(destination)` once per unfamiliar system: tells whether it is S/4HANA Cloud or on-prem and which toolsets are unavailable there (on the tested S/4HANA Cloud tenant only the RAP generator was missing; debugger, traces and abapGit depend on the tenant and authorizations). Tools of missing toolsets are refused before calling SAP (the profile is built on the first call of such a toolset; `MCP_PROFILE_GATE=warn|off` relaxes this).
 
 ## Finding code (do this before reading whole sources)
 - `searchObject(query, objType)` finds objects by name; the result gives the object URL.
@@ -33,7 +33,7 @@ Tool names below are the real names published by the server (`mcp__abap-adt-mcp_
 - Try ideas with `runSnippet(code)`: it runs statements in a temporary `IF_OO_ADT_CLASSRUN` class in `$TMP` (`out->write( ... )`) and deletes it.
 
 ## Runtime errors and data
-- `dumps(from, user, contains)` returns compact dump summaries (error, exception, program, termination point with source URL and line, stack); `dumpDetails(dumpId)` gives the full analysis. This is the root-cause path on S/4HANA Cloud, where the debugger is not available.
+- `dumps(from, user, contains)` returns compact dump summaries (error, exception, program, termination point with source URL and line, stack); `dumpDetails(dumpId)` gives the full analysis. This is the root-cause path when the debugger toolset is unavailable on the destination (check `systemProfile`; availability depends on the tenant and the user's authorizations).
 - `tableContents(ddicEntityName, rowNumber)` and `runQuery(sqlQuery)` read business data: keep results in the conversation, never copy them to external services; policies may deny tables or free SQL.
 
 ## Errors

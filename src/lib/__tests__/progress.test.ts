@@ -12,9 +12,9 @@ describe('progress', () => {
       reportProgress('nested still sees it');
     });
     expect(sink.mock.calls.map(c => c[0])).toEqual([
-      { progress: 1, total: undefined, message: 'step one' },
+      { progress: 0.01, total: undefined, message: 'step one' },
       { progress: 2, total: 4, message: 'step two' },
-      { progress: 3, total: undefined, message: 'nested still sees it' },
+      { progress: 2.01, total: 4, message: 'nested still sees it' },
     ]);
     expect(reporter.lastMessage).toBe('nested still sees it');
   });
@@ -32,5 +32,19 @@ describe('progress', () => {
     await new Promise(r => setTimeout(r, 40));
     expect(sink.mock.calls.length).toBe(after);
     expect(await withHeartbeat(undefined, 'x', async () => 1)).toBe(1);
+  });
+
+  it('never sends a progress value lower than the previous one and keeps the last total', async () => {
+    const sink = jest.fn(async (_p: any) => undefined);
+    const reporter = createReporter(sink);
+    reporter.report('scan', 0, 10);
+    reporter.report('heartbeat');
+    reporter.report('scan', 3, 10);
+    reporter.report('restarted counter', 1, 5);
+    reporter.report('done', 5, 5);
+    const values = sink.mock.calls.map(c => c[0].progress);
+    for (let i = 1; i < values.length; i++) expect(values[i]).toBeGreaterThan(values[i - 1]);
+    expect(sink.mock.calls[1][0].total).toBe(10);
+    expect(sink.mock.calls[3][0]).toMatchObject({ total: 5 });
   });
 });

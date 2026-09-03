@@ -5,14 +5,19 @@ import { session_types } from 'abap-adt-api';
 import { withLock } from '../lib/lockLedger.js';
 import { hardTruncateJson } from '../lib/responseSizing.js';
 import { runClassFresh } from '../lib/runFresh.js';
+import crypto from 'crypto';
 import { reportProgress } from '../lib/progress.js';
 
 /** Build an IF_OO_ADT_CLASSRUN class around a snippet, or accept a full class. */
 export function buildSnippetClass(className: string, code: string): { source: string; wrapped: boolean } {
     const name = className.toLowerCase();
-    if (/\bCLASS\s+\S+\s+DEFINITION\b/i.test(code) && /\bENDCLASS\b/i.test(code)) {
-        // Full class: force its name to the temporary one so create/run/delete agree.
-        const source = code.replace(/\bCLASS\s+\S+\s+(DEFINITION|IMPLEMENTATION)\b/gi, `CLASS ${name} $1`);
+    const header = code.match(/\bCLASS\s+(\S+)\s+DEFINITION\b/i);
+    if (header && /\bENDCLASS\b/i.test(code)) {
+        // Full class: rename every occurrence of its own name (definition,
+        // implementation, self references like NEW zcl_x( ) or zcl_x=>m) to
+        // the temporary name so create/run/delete agree.
+        const original = header[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const source = code.replace(new RegExp(`\\b${original}\\b`, 'gi'), name);
         return { source, wrapped: false };
     }
     const body = code.split(/\r?\n/).map(l => (l.trim() ? '    ' + l : l)).join('\n');
@@ -32,9 +37,10 @@ export function buildSnippetClass(className: string, code: string): { source: st
     return { source, wrapped: true };
 }
 
-export function snippetClassName(seed: string): string {
-    const clean = seed.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase();
-    return `ZCL_MCP_SNIP_${clean.padEnd(6, '0')}`;
+export function snippetClassName(seed?: string): string {
+    const raw = seed ?? crypto.randomBytes(4).toString('hex');
+    const clean = raw.replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase();
+    return `ZCL_MCP_SNIP_${clean.padStart(6, '0')}`;
 }
 
 export class SnippetHandlers extends BaseHandler {
@@ -67,7 +73,7 @@ export class SnippetHandlers extends BaseHandler {
     async handleRunSnippet(args: any): Promise<any> {
         const startTime = performance.now();
         const packageName = String(args.packageName || '$TMP').toUpperCase();
-        const className = String(args.className || snippetClassName(String(Date.now().toString(36)))).toUpperCase();
+        const className = String(args.className || snippetClassName()).toUpperCase();
         const classUrl = `/sap/bc/adt/oo/classes/${encodeURIComponent(className.toLowerCase())}`;
         const sourceUrl = `${classUrl}/source/main`;
         const steps: string[] = [];
@@ -109,11 +115,13 @@ export class SnippetHandlers extends BaseHandler {
             steps.push('activated');
             reportProgress('activated, running', 3, 4);
 
-            const output = await runClassFresh(this.adtclient, className);
+            const run = await runClassFresh(this.adtclient, className);
+            const output = run.output;
             steps.push('ran');
             const cleanupError = await cleanup();
             this.trackRequest(startTime, true);
-            const payload: any = { status: 'success', className, packageName, wrapped, kept: args.keep === true, output, steps, cleanupError };
+            const payload: any = { status: 'success', className, packageName, wrapped, kept: args.keep === true, output, runMode: run.mode, steps, cleanupError };
+            if (run.locksInvalidated.length) payload.locksInvalidated = run.locksInvalidated;
             const text = JSON.stringify(payload);
             return { content: [{ type: 'text', text: text.length > 40000 ? hardTruncateJson(payload) : text }] };
         } catch (error: any) {

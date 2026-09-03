@@ -77,8 +77,8 @@ production system stays safe even if the host auto-approves everything.
 | `readOnly` | Only tools annotated read-only (plus `login`, `logout`, `dropSession`, `systemProfile`) may run. `lock` counts as a write. |
 | `deniedTools` | Glob list of tool names refused outright (`git*`, `transportRelease`). |
 | `allowFreeSql` | `false` refuses `runQuery` and `tableContents` with `sqlQuery`. |
-| `deniedTables` | Glob list; applies to `tableContents` and to every table in a `runQuery` `FROM`/`JOIN`. |
-| `allowedPackages` | Closed list of globs. `createObject`/`gitCreateRepo` check their package argument; source writes, `lock`, `deleteObject`, `activateByName`, DDIC/text writes resolve the object's package through `transportInfo` (cached); an unresolvable package is refused. |
+| `deniedTables` | Glob list; applies to `tableContents`, to every table in a `runQuery` `FROM`/`JOIN`, and (best effort, by scanning the ABAP text) to `runSnippet` code and `setObjectSource`/`setMethodSource` sources. Dynamic SQL and views over the table are not detected. |
+| `allowedPackages` | Closed list of globs. `createObject` (`parentName` or `parentPath`), `gitCreateRepo`, `runSnippet` and `activatePackage` check their package argument; source writes, `lock`, `deleteObject`, `activateByName`, `activateObjects` (each object), `renameExecute`/`extractMethodExecute` (the refactored object), DDIC/text writes resolve the object's package through `transportInfo` (cached until an object is created, deleted, renamed or moved); an unresolvable package is refused. `gitPullRepo`, `rapGenGenerate`, `rapGenPublishService`, `publishServiceBinding`/`unPublishServiceBinding` cannot derive their target package from their arguments and are refused whenever `allowedPackages` is set. |
 | `allowedTransports` | Globs for every `transport`/`transportNumber` argument; `createTransport` and `resolveTransport(createIfMissing)` are refused. |
 
 `MCP_READ_ONLY=1` in the environment makes every destination `readOnly` on top of its own

@@ -1,30 +1,49 @@
 /**
- * In-memory cache of ABAP object source, keyed by object source URL.
- *
- * A stdio MCP server serves a single client for the lifetime of the process,
- * so a simple module-level Map is a safe place to remember the source that was
- * last read (getObjectSource) or written (setObjectSource). This lets
- * syntaxCheckCode reuse that source instead of forcing the model to re-send the
- * whole file on every check (issue #2).
+ * Cache of ABAP object source keyed by ADT client (one per destination and
+ * per MCP session) and source URL, with a short TTL. It lets syntaxCheckCode
+ * reuse the source last read/written and spares grepPackage / cdsViewInfo /
+ * typeHierarchy a re-download, without ever serving one destination's (or one
+ * user's) source to another: the same ADT URL exists on every system.
  */
-const cache = new Map<string, string>();
+const DEFAULT_TTL_MS = 5 * 60_000;
+const ttlMs = (() => {
+  const v = Number(process.env.MCP_SOURCE_CACHE_TTL_SECONDS);
+  return Number.isFinite(v) && v >= 0 ? v * 1000 : DEFAULT_TTL_MS;
+})();
+
+type Entry = { source: string; at: number; epoch: number };
+const caches = new WeakMap<object, Map<string, Entry>>();
+// Bumping the epoch invalidates every entry of every client without holding
+// strong references to the clients (WeakMap is not enumerable).
+let epoch = 0;
+
+function bucket(client: object): Map<string, Entry> {
+  let m = caches.get(client);
+  if (!m) { m = new Map(); caches.set(client, m); }
+  return m;
+}
 
 export const sourceCache = {
-  set(url: string, source: string): void {
-    if (typeof url === 'string' && url.length > 0 && typeof source === 'string') {
-      cache.set(url, source);
+  set(client: object, url: string, source: string): void {
+    if (client && typeof url === 'string' && url.length > 0 && typeof source === 'string') {
+      bucket(client).set(url, { source, at: Date.now(), epoch });
     }
   },
-  get(url: string): string | undefined {
-    return cache.get(url);
+  get(client: object, url: string): string | undefined {
+    const e = client ? caches.get(client)?.get(url) : undefined;
+    if (!e) return undefined;
+    if (e.epoch !== epoch || (ttlMs > 0 && Date.now() - e.at > ttlMs)) { caches.get(client)?.delete(url); return undefined; }
+    return e.source;
   },
-  has(url: string): boolean {
-    return cache.has(url);
+  has(client: object, url: string): boolean {
+    return this.get(client, url) !== undefined;
   },
-  delete(url: string): void {
-    cache.delete(url);
+  delete(client: object, url: string): void {
+    caches.get(client)?.delete(url);
   },
-  clear(): void {
-    cache.clear();
-  }
+  /** Forget everything for one client (logout, session reset) or, without a client, for all of them (tests). */
+  clear(client?: object): void {
+    if (client) { caches.get(client)?.clear(); return; }
+    epoch++;
+  },
 };

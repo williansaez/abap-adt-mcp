@@ -17,7 +17,7 @@ export class FeedHandlers extends BaseHandler {
             },
             {
                 name: 'dumps',
-                description: 'List recent ABAP short dumps (runtime errors). By default returns a compact summary per dump (runtime error, exception, program, user, time, where it terminated with source URL and line, top of the call stack) instead of the raw HTML. Filter with from/to (timestamps), user, or a substring in program/runtime error. Use dumpDetails(dumpId) for the full analysis of one dump. This is the root-cause path on S/4HANA Cloud where the debugger is not available.',
+                description: 'List recent ABAP short dumps (runtime errors). By default returns a compact summary per dump (runtime error, exception, program, user, time, where it terminated with source URL and line, top of the call stack) instead of the raw HTML. Filter with from/to (timestamps), user, or a substring in program/runtime error. Use dumpDetails(dumpId) for the full analysis of one dump. This is the root-cause path when the debugger toolset is unavailable on the destination (see systemProfile; some cloud tenants and users lack it). Filters apply to the dumps the feed returns (the recent window, not the whole history). Timestamps without a zone are taken literally as system time.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -28,7 +28,7 @@ export class FeedHandlers extends BaseHandler {
                         },
                         from: {
                             type: 'string',
-                            description: 'Only dumps at or after this time: YYYYMMDDHHMMSS, YYYYMMDD, YYYY-MM-DD or ISO 8601 (system time).',
+                            description: 'Only dumps at or after this time: YYYYMMDDHHMMSS, YYYYMMDD, YYYY-MM-DD or ISO 8601. Values without a zone are read as system time literally; an explicit zone is converted to UTC.',
                             optional: true
                         },
                         to: {

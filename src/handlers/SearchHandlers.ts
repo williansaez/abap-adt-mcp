@@ -103,11 +103,23 @@ export class SearchHandlers extends BaseHandler {
             }
             if (response.status === 404 || response.status === 405 || response.status === 501) {
                 if (packages.length) {
-                    const fallback = await this.handleGrepPackage({ packageName: packages[0], pattern: args.searchString, objectTypes: args.objectTypes, maxMatches: maxResults });
-                    const payload = JSON.parse(fallback.content[0].text);
-                    payload.fallback = `text search endpoint unavailable (HTTP ${response.status}); grepPackage over ${packages[0]} was used instead`;
+                    const merged: any = { status: 'success', packages: [], totalMatches: 0, matches: [], scanned: 0 };
+                    let remaining = maxResults;
+                    for (const pkg of packages) {
+                        if (remaining <= 0) break;
+                        const fallback = await this.handleGrepPackage({ packageName: pkg, pattern: args.searchString, objectTypes: args.objectTypes, maxMatches: remaining });
+                        const payload = JSON.parse(fallback.content[0].text);
+                        merged.packages.push(pkg);
+                        merged.matches.push(...(payload.matches || []));
+                        merged.totalMatches += Number(payload.totalMatches) || 0;
+                        merged.scanned += Number(payload.scanned) || 0;
+                        if (payload.truncated || payload.capped) merged.truncated = true;
+                        remaining = maxResults - merged.matches.length;
+                    }
+                    merged.returnedMatches = merged.matches.length;
+                    merged.fallback = `text search endpoint unavailable (HTTP ${response.status}); grepPackage over ${merged.packages.join(', ')} was used instead`;
                     this.trackRequest(startTime, true);
-                    return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
+                    return { content: [{ type: 'text', text: JSON.stringify(merged) }] };
                 }
                 throw new McpError(ErrorCode.InvalidRequest, `Text search is not available on this system (${response.status === 501 ? 'source search not supported by the backend' : 'HTTP ' + response.status}). Use grepPackage(packageName, pattern) instead, or pass packages to let this tool fall back automatically.`);
             }
@@ -152,6 +164,20 @@ export class SearchHandlers extends BaseHandler {
                     if (recursive && node.OBJECT_NAME) queue.push(String(node.OBJECT_NAME).toUpperCase());
                     continue;
                 }
+                if (node.OBJECT_TYPE === 'FUGR/F' && node.OBJECT_NAME && (!types || types.has('FUGR/FF') || types.has('FUGR/I'))) {
+                    // Function modules and includes live under the group, not the package node.
+                    let members: any[] = [];
+                    try { members = (await this.adtclient.nodeContents('FUGR/F' as any, node.OBJECT_NAME)).nodes || []; } catch { members = []; }
+                    for (const m of members) {
+                        const toSrc = GREPPABLE_TYPES[m.OBJECT_TYPE];
+                        if (!toSrc || !m.OBJECT_URI) continue;
+                        if (types && !types.has(m.OBJECT_TYPE)) continue;
+                        if (objects.length >= maxObjects) { truncated = true; break; }
+                        objects.push({ objectUrl: m.OBJECT_URI, name: `${node.OBJECT_NAME}/${m.OBJECT_NAME}`, type: m.OBJECT_TYPE, sourceUrl: toSrc(m.OBJECT_URI) });
+                    }
+                    if (truncated) break;
+                    continue;
+                }
                 const toSource = GREPPABLE_TYPES[node.OBJECT_TYPE];
                 if (!toSource || !node.OBJECT_URI) continue;
                 if (types && !types.has(node.OBJECT_TYPE)) continue;
@@ -183,13 +209,14 @@ export class SearchHandlers extends BaseHandler {
             let remaining = maxMatches;
             let scanned = 0;
             const failures: Array<{ objectUrl: string; error: string }> = [];
-            const perObject = await mapLimit(objects, 4, async (obj) => {
+            // Sequential: one stateful ADT session must not carry parallel requests.
+            const perObject = await mapLimit(objects, 1, async (obj) => {
                 if (remaining <= 0) return [] as GrepHit[];
                 try {
-                    let source = sourceCache.get(obj.sourceUrl);
+                    let source = sourceCache.get(this.adtclient, obj.sourceUrl);
                     if (source === undefined) {
                         source = await this.adtclient.getObjectSource(obj.sourceUrl);
-                        sourceCache.set(obj.sourceUrl, source);
+                        sourceCache.set(this.adtclient, obj.sourceUrl, source);
                     }
                     const hits = grepSource(source, re, contextLines, Math.max(0, remaining), { objectUrl: obj.objectUrl, name: obj.name, type: obj.type });
                     remaining -= hits.length;

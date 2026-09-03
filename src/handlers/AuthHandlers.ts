@@ -1,5 +1,6 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler.js';
+import { sourceCache } from '../lib/sourceCache.js';
 import type { ToolDefinition } from '../types/tools.js';
 
 export class AuthHandlers extends BaseHandler {
@@ -73,6 +74,7 @@ export class AuthHandlers extends BaseHandler {
     try {
       const { releaseAll } = await import('../lib/lockLedger.js');
       const locks = await releaseAll(this.adtclient);
+      sourceCache.clear(this.adtclient);
       await this.adtclient.logout();
       this.trackRequest(startTime, true);
       return {
@@ -97,6 +99,7 @@ export class AuthHandlers extends BaseHandler {
     try {
       const { releaseAll } = await import('../lib/lockLedger.js');
       const locks = await releaseAll(this.adtclient);
+      sourceCache.clear(this.adtclient);
       await this.adtclient.dropSession();
       this.trackRequest(startTime, true);
       return {

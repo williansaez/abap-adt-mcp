@@ -94,6 +94,8 @@ export class ObjectManagementHandlers extends BaseHandler {
           properties: {
             packageName: { type: 'string', description: 'Package whose inactive objects to activate' },
             recursive: { type: 'boolean', description: 'Include sub-packages (default true)', optional: true },
+            user: { type: 'string', description: 'Only inactive objects of this SAP user (default: the connected user; other users\' unfinished work is left alone and listed)', optional: true },
+            allUsers: { type: 'boolean', description: 'Activate inactive objects of every user in the package tree (default false)', optional: true },
             preauditRequested: { type: 'boolean', description: 'Run the pre-audit (default true)', optional: true }
           },
           required: ['packageName']
@@ -271,38 +273,52 @@ export class ObjectManagementHandlers extends BaseHandler {
   }
 
   /** Inactive objects that belong to the package tree (by parent URI or by object URL prefix). */
-  private async inactiveInPackage(packageName: string, recursive: boolean): Promise<{ objects: any[]; packages: string[] }> {
+  /** The SAP user of this session when known; SSO/OAuth clients carry a placeholder instead of a real name. */
+  private ownUser(): string | undefined {
+    const u = String((this.adtclient as any).username || '').toUpperCase();
+    return u && !['SSO', 'OAUTH', 'BROWSER'].includes(u) ? u : undefined;
+  }
+
+  private async inactiveInPackage(packageName: string, recursive: boolean, user: string | undefined): Promise<{ objects: any[]; packages: string[]; otherUsers: any[] }> {
     const walk = await walkPackage(this.adtclient as any, packageName, { maxDepth: recursive ? 99 : 0, includeObjects: true, maxObjects: 5000 });
     const pkgUrls = new Set(walk.packageUrls.map(u => u.toLowerCase()));
     const objUrls = walk.objects.map(o => o.objectUrl.toLowerCase());
     const records: any[] = await this.adtclient.inactiveObjects();
-    const objects = records
-      .map(r => r.object)
-      .filter(o => o && o['adtcore:uri'])
-      .filter(o => {
+    const inTree = records
+      .filter(r => r?.object && r.object['adtcore:uri'])
+      .filter(r => {
+        const o = r.object;
         const parent = String(o['adtcore:parentUri'] || '').toLowerCase();
         const uri = String(o['adtcore:uri']).toLowerCase();
         return pkgUrls.has(parent) || objUrls.some(u => uri === u || uri.startsWith(u + '/'));
-      })
-      .map(o => ({ 'adtcore:uri': o['adtcore:uri'], 'adtcore:type': o['adtcore:type'], 'adtcore:name': o['adtcore:name'], 'adtcore:parentUri': o['adtcore:parentUri'] }));
-    return { objects, packages: walk.packages };
+      });
+    const owner = (r: any) => String(r.user || r.object?.['adtcore:responsible'] || '').toUpperCase();
+    const mine = user ? inTree.filter(r => !owner(r) || owner(r) === user) : inTree;
+    const otherUsers = user ? inTree.filter(r => owner(r) && owner(r) !== user).map(r => ({ name: r.object['adtcore:name'], type: r.object['adtcore:type'], user: owner(r) })) : [];
+    const objects = mine.map(r => r.object).map(o => ({ 'adtcore:uri': o['adtcore:uri'], 'adtcore:type': o['adtcore:type'], 'adtcore:name': o['adtcore:name'], 'adtcore:parentUri': o['adtcore:parentUri'] }));
+    return { objects, packages: walk.packages, otherUsers };
   }
 
   async handleActivatePackage(args: any): Promise<any> {
     const startTime = performance.now();
     try {
       const recursive = args.recursive !== false;
-      const { objects, packages } = await this.inactiveInPackage(String(args.packageName), recursive);
+      const user = args.allUsers === true ? undefined : (args.user ? String(args.user).toUpperCase() : this.ownUser());
+      const warning = !user && args.allUsers !== true ? 'The connected user is not known for this authentication mode (SSO/OAuth): inactive objects of every user in the package tree are activated. Pass user=<SAP user> to restrict, or allUsers=true to silence this.' : undefined;
+      const { objects, packages, otherUsers } = await this.inactiveInPackage(String(args.packageName), recursive, user);
       if (objects.length === 0) {
         this.trackRequest(startTime, true);
-        return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', packages, activated: 0, message: 'No inactive objects in the package tree' }) }] };
+        return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', packages, user: user || 'all', ...(warning ? { warning } : {}), activated: 0, message: 'No inactive objects in the package tree' + (otherUsers.length ? ` for this user (${otherUsers.length} of other users left alone)` : ''), ...(otherUsers.length ? { otherUsers: otherUsers.slice(0, 50) } : {}) }) }] };
       }
       const result: any = await this.adtclient.activate(objects, args.preauditRequested !== false);
-      const after = await this.inactiveInPackage(String(args.packageName), recursive);
+      const after = await this.inactiveInPackage(String(args.packageName), recursive, user);
       this.trackRequest(startTime, true);
       const payload = {
         status: result?.success === false ? 'error' : 'success',
         packages,
+        user: user || 'all',
+        ...(warning ? { warning } : {}),
+        ...(otherUsers.length ? { otherUsers: otherUsers.slice(0, 50) } : {}),
         requested: objects.map(o => ({ name: o['adtcore:name'], type: o['adtcore:type'], uri: o['adtcore:uri'] })),
         success: result?.success !== false,
         messages: result?.messages || [],

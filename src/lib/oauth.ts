@@ -48,7 +48,9 @@ export function readOAuthConfig(env: NodeJS.ProcessEnv = process.env): OAuthConf
  * Build a BearerFetcher that returns a valid access token, fetching a new one
  * via client_credentials when the cached token is missing or near expiry.
  */
-export function makeBearerFetcher(cfg: OAuthConfig): () => Promise<string> {
+export type BearerFetcher = (() => Promise<string>) & { invalidate(): void };
+
+export function makeBearerFetcher(cfg: OAuthConfig): BearerFetcher {
   let cachedToken: string | undefined;
   let expiresAt = 0; // epoch ms
   const SKEW_MS = 60_000; // refresh a minute before real expiry
@@ -90,11 +92,14 @@ export function makeBearerFetcher(cfg: OAuthConfig): () => Promise<string> {
     return cachedToken;
   }
 
-  return async function getToken(): Promise<string> {
+  const getToken = async function getToken(): Promise<string> {
     if (cachedToken && Date.now() < expiresAt - SKEW_MS) return cachedToken;
     if (!inFlight) {
       inFlight = fetchToken().finally(() => { inFlight = undefined; });
     }
     return inFlight;
-  };
+  } as BearerFetcher;
+  /** Drop the cached token so the next call fetches a fresh one (after a 401 on a token still within expires_in). */
+  getToken.invalidate = () => { cachedToken = undefined; expiresAt = 0; };
+  return getToken;
 }

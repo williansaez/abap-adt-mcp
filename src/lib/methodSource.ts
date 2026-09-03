@@ -7,6 +7,8 @@
 
 export interface MethodBlock {
   name: string;
+  /** Enclosing CLASS … IMPLEMENTATION (upper case), when the block sits inside one. */
+  className?: string;
   startLine: number;   // 1-based, the METHOD line
   endLine: number;     // 1-based, the ENDMETHOD line
   text: string;
@@ -16,30 +18,43 @@ export interface MethodBlock {
 const isComment = (line: string) => /^\*/.test(line) || /^\s*"/.test(line);
 const METHOD_RE = /^\s*METHOD\s+([\w~\/]+)\s*(?:\.|\s+BY\s+(DATABASE|KERNEL)\b)/i;
 const END_RE = /^\s*ENDMETHOD\s*\./i;
+const CLASS_IMPL_RE = /^\s*CLASS\s+([\w\/]+)\s+IMPLEMENTATION\s*\./i;
+const ENDCLASS_RE = /^\s*ENDCLASS\s*\./i;
 
 export function listMethods(source: string): MethodBlock[] {
   const lines = String(source || '').replace(/\r\n/g, '\n').split('\n');
   const blocks: MethodBlock[] = [];
   let open: { name: string; start: number; amdp: boolean } | undefined;
+  let currentClass: string | undefined;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (isComment(line)) continue;
     if (!open) {
+      const c = line.match(CLASS_IMPL_RE);
+      if (c) { currentClass = c[1].toUpperCase(); continue; }
+      if (ENDCLASS_RE.test(line)) { currentClass = undefined; continue; }
       const m = line.match(METHOD_RE);
       if (m) open = { name: m[1].toUpperCase(), start: i, amdp: !!m[2] };
       continue;
     }
     if (END_RE.test(line)) {
-      blocks.push({ name: open.name, startLine: open.start + 1, endLine: i + 1, text: lines.slice(open.start, i + 1).join('\n'), amdp: open.amdp });
+      blocks.push({ name: open.name, className: currentClass, startLine: open.start + 1, endLine: i + 1, text: lines.slice(open.start, i + 1).join('\n'), amdp: open.amdp });
       open = undefined;
     }
   }
   return blocks;
 }
 
-export function findMethod(source: string, methodName: string): MethodBlock | undefined {
+/** Every block with that method name, optionally restricted to one enclosing class (local/test classes reuse method names). */
+export function findMethods(source: string, methodName: string, className?: string): MethodBlock[] {
   const wanted = methodName.toUpperCase();
-  return listMethods(source).find(b => b.name === wanted);
+  const cls = className ? className.toUpperCase() : undefined;
+  return listMethods(source).filter(b => b.name === wanted && (!cls || b.className === cls));
+}
+
+/** First matching block; use findMethods when the include may hold several classes. */
+export function findMethod(source: string, methodName: string, className?: string): MethodBlock | undefined {
+  return findMethods(source, methodName, className)[0];
 }
 
 /**

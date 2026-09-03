@@ -884,6 +884,7 @@
       "params": [
         "classUrl",
         "methodName",
+        "className",
         "include"
       ]
     },
@@ -900,6 +901,7 @@
       "params": [
         "classUrl",
         "methodName",
+        "className",
         "source",
         "include",
         "lockHandle",
@@ -961,6 +963,8 @@
       "params": [
         "packageName",
         "recursive",
+        "user",
+        "allUsers",
         "preauditRequested"
       ]
     },
@@ -1947,7 +1951,7 @@
     {
       "name": "atcSummary",
       "toolset": "atc",
-      "readOnly": true,
+      "readOnly": false,
       "destructive": false,
       "required": [],
       "params": [
@@ -2476,6 +2480,7 @@
       "params": [
         "packageName",
         "targetDir",
+        "overwrite",
         "recursive",
         "objectTypes",
         "maxObjects"

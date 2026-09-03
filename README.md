@@ -132,86 +132,29 @@ For single-system setups you can use a local `.env` (see `.env.example`) instead
 
 ## Custom Instruction
 Use this Custom Instruction to explain the tool to your model (a ready-to-fill
-`agents.md` template is also available at `docs/agents.template.md`; the server
-additionally announces these workflows to MCP hosts via its `instructions` field):
+version is in `skills/abap-adt-mcp/SKILL.md`, which Claude Code loads as a skill):
+
 ```
-## abap-adt-mcp Server
+You have the abap-adt-mcp server: 173 tools over the ABAP Development Tools (ADT) REST API. Every tool takes an optional `destination` (call `listSystems` first). Errors are JSON with `kind`, `hint` and `nextTools`: follow the hint instead of retrying blindly.
 
-This server provides tools for interacting with an SAP system via ADT (ABAP Development Tools) APIs. It allows you to retrieve information about ABAP objects, modify source code, and manage transports.
+Reading:
+*   `searchObject(query)` / `findObjectPath` to find the object URL; `getObjectSource(objectSourceUrl)` with the `/source/main` suffix (page with startLine/maxLines); `getMethodSource(classUrl, methodName)` for one method.
+*   `sourceTextSearch` / `grepPackage` to find code by content; `whereUsed`, `packageTree`, `cdsViewInfo`, `objectStructure` for navigation.
 
-**Key Tools and Usage:**
+Writing (the server locks and unlocks for you; a lockHandle is only needed when you called `lock` yourself):
+*   `resolveTransport(objectUrl)` or `transportInfo` to find or create the transport for non-local packages.
+*   `editObjectSource(objectSourceUrl, replacements=[{oldText, newText}], activate=true, transport)` for targeted edits; each oldText must occur exactly once.
+*   `setMethodSource(classUrl, methodName, source, activate=true, transport)` to replace one method; `setObjectSource(objectSourceUrl, source, transport)` for the whole source.
+*   `syntaxCheckCode` before activating when in doubt; `activateByName` / `activatePackage` when you did not pass activate=true.
+*   `unitTestRun(objectUrl)` after every change to code or tests; `createAtcRun` then `atcWorklists` (or `atcSummary`) before handing over.
 
-*   **`searchObject`:** Finds ABAP objects based on a query string (e.g., class name).
-    *   `query`: (string, required) The search term.
-    *   Returns the object's URI.  Example: `/sap/bc/adt/oo/classes/zcl_invoice_xml_gen_model`
+Creating: `loadTypes` -> `validateNewObject` -> `createTransport` (unless $TMP) -> `createObject` -> `editObjectSource`/`setObjectSource` -> activate -> `unitTestRun`. `runSnippet(code, packageName)` executes throwaway ABAP; `runClass` runs an IF_OO_ADT_CLASSRUN class.
 
-*   **`transportInfo`:** Retrieves transport information for a given object.
-    *   `objSourceUrl`: (string, required) The object's URI (obtained from `searchObject`).
-    *   Returns transport details, including the transport request number (`TRKORR` or `transportInfo.LOCKS.HEADER.TRKORR` in the JSON response).
-
-*   **`lock`:** Locks an ABAP object for editing.
-    *   `objectUrl`: (string, required) The object's URI.
-    *   Returns a `lockHandle`, which is required for subsequent modifications.
-
-*   **`unLock`:** Unlocks a previously locked ABAP object.
-    *   `objectUrl`: (string, required) The object's URI.
-    *   `lockHandle`: (string, required) The lock handle obtained from the `lock` operation.
-
-*   **`setObjectSource`:** Modifies the source code of an ABAP object.
-    *   `objectSourceUrl`: (string, required) The object's URI *with the suffix `/source/main`*.  Example: `/sap/bc/adt/oo/classes/zcl_invoice_xml_gen_model/source/main`
-    *   `lockHandle`: (string, required) The lock handle obtained from the `lock` operation.
-    *   `source`: (string, required) The complete, modified ABAP source code.
-    *   `transport`: (string, optional) The transport request number.
-
-*   **`syntaxCheckCode`:** Performs a syntax check on a given ABAP source code.
-    *   `code`: (string, required) The ABAP source code to check.
-    *   `url`: (string, optional) The URL of the object.
-    *   `mainUrl`: (string, optional) The main URL.
-    *   `mainProgram`: (string, optional) The main program.
-    *   `version`: (string, optional) The version.
-    *   Returns syntax check results, including any errors.
-
-*   **`activateByName`:** Activates a single ABAP object by name and URL.
-    *   `objectName`: (string, required) Name of the object.
-    *   `objectUrl`: (string, required) The object's URI.
-    (For bulk activation use `activateObjects`; `inactiveObjects` lists what needs activating.)
-
-*   **`getObjectSource`:** Retrieves the source code of an ABAP object.
-    *   `objectSourceUrl`: (string, required) The object's URI *with the suffix `/source/main`*.
-
-**Multi-destination:** every tool accepts an optional `destination` parameter selecting the target SAP system. Call `listSystems` first to see the configured destinations (see `docs/AUTH.md` for configuration).
-
-**Workflow for Creating a New Object:**
-
-1.  **Pick the object type:** Use `loadTypes` (e.g. `CLAS/OC` for a class).
-2.  **Validate first:** Use `validateNewObject` (objtype, objname, description, packagename).
-3.  **Create a transport:** Use `createTransport` if the package is transportable (not `$TMP`).
-4.  **Create the object:** Use `createObject`.
-5.  **Write the source:** `lock` → `setObjectSource` (with `/source/main` suffix) → `unLock`.
-6.  **Activate:** Use `activateByName`.
-7.  **Test:** Use `unitTestRun`.
-
-**Workflow for Modifying ABAP Code:**
-
-1.  **Find the object URI:** Use `searchObject`.
-2.  **Read the original source code:** Use `getObjectSource` (with the `/source/main` suffix).
-3.  **Clone and Modify the source code locally:** (e.g., `write_to_file` for creating a local copy, and using `read_file`, `replace_in_file` for modifying this local copy).
-4.  **Get transport information:** Use `transportInfo`.
-5.  **Lock the object:** Use `lock`.
-6.  **Set the modified source code:** Use `setObjectSource` (with the `/source/main` suffix).
-7.  **Perform a syntax check:** Use `syntaxCheckCode`.
-8.  **Activate the object:** Use `activateByName`.
-9.  **unLock the object:** Use `unLock`.
-10. **Run unit tests:** Use `unitTestRun`.
-
-**Important Notes:**
-*   **File Handling:** SAP is completly de-coupled from the local file system. Reading source code will only return the code as tool result - it has no effect on file. Files are not synchronized with SAP but merely a local copy for our reference. FYI: It's not strictly necessary for you to create local copies of source codes, as they have no effect on SAP, but it helps us track changes. 
-*   **File Handling:** The local filenames you will use will not contain any paths, but only a filename! It's preferable to use a pattern like "[ObjectName].[ObjectType].abap". (e.g., SAPMV45A.prog.abap for a ABAP Program SAPMV45A, CL_IXML.clas.abap for a Class CL_IXML)
-*   **URL Suffix:**  Remember to add `/source/main` to the object URI when using `setObjectSource` and `getObjectSource`.
-*   **Transport Request:** Obtain the transport request number (e.g., from `transportInfo` or from the user) and include it in relevant operations.
-*   **Lock Handle:**  The `lockHandle` obtained from the `lock` operation is crucial for `setObjectSource` and `unLock`. Ensure you are using a valid `lockHandle`. If a lock fails, you may need to re-acquire the lock. Locks can expire or be released by other users.
-*   **Activation/Unlocking Order:** Activate after writing the source; `activateByName` can be used without unlocking first, but unlocking before activation is the safe default.
-* **Error Handling:** The tools return JSON responses. Check for error messages within these responses.
+Notes:
+*   SAP is decoupled from the local file system: sources come back as tool results; nothing is synchronised.
+*   `$TMP` is refused on S/4HANA Cloud (use a transportable package with a transport request).
+*   `systemProfile(destination)` tells which toolsets the backend lacks; when the debugger is unavailable use `dumps`/`dumpDetails`.
+*   Locks are per session; `listLocks` / `forceUnlock` show and clear what the server holds.
 ```
 
 ## Security
@@ -251,9 +194,9 @@ When working with ABAP objects, you may encounter errors related to unknown fiel
 ## Troubleshooting
 
 *   **Session expired mid-flow:** the server re-authenticates and retries once; if the error JSON still says `kind: "sessionExpired"`, call `login` for the destination and `lock` the object again. Any `lockHandle` from the old session is invalid (`kind: "staleLockHandle"`).
-*   **Tool refused as not available on the destination:** run `systemProfile`; S/4HANA Cloud tenants lack some ADT collections (for example the RAP generator), and the server refuses those tools before calling SAP.
+*   **Tool refused as not available on the destination:** run `systemProfile`; S/4HANA Cloud tenants lack some ADT collections (for example the RAP generator), and the server refuses those tools before calling SAP. The profile is built on the first call of such a toolset; `MCP_PROFILE_GATE=warn` only logs, `off` disables the gate.
 *   **SAP connection errors:** verify your credentials (`SAP_URL`, `SAP_USER`, `SAP_PASSWORD`, `SAP_CLIENT`), confirm the system is reachable, that your user has ADT authorizations, and that `/sap/bc/adt` is active in `SICF`.
-*   **TLS / self-signed certificate errors:** for development only, set `NODE_TLS_REJECT_UNAUTHORIZED=0` (env var or in the client `env` block).
+*   **TLS / self-signed certificate errors:** give the destination its CA bundle (`tls.ca` in systems.json, see docs/AUTH.md). `insecureTls: true` / `SAP_TLS_INSECURE=1` disables verification for that destination only and is meant for sandboxes; do not set `NODE_TLS_REJECT_UNAUTHORIZED=0`, it disables TLS checks for the whole process.
 
 ## Contributing
 

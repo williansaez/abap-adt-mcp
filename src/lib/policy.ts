@@ -33,8 +33,11 @@ export interface PolicyDecision {
   reason?: string;
 }
 
-/** Tools that never mutate SAP state and stay usable on a read-only destination. */
-const ALWAYS_ALLOWED = new Set(['login', 'logout', 'dropSession', 'listSystems', 'healthcheck', 'systemProfile']);
+/** Tools that never mutate SAP state and stay usable on a read-only destination (exportPackageSources only writes locally). */
+const ALWAYS_ALLOWED = new Set(['login', 'logout', 'dropSession', 'listSystems', 'healthcheck', 'systemProfile', 'exportPackageSources']);
+
+/** Write tools whose target package cannot be determined from their arguments: refused in closed allowedPackages mode. */
+const UNRESOLVABLE_WRITES = new Set(['gitPullRepo', 'rapGenGenerate', 'publishServiceBinding', 'unPublishServiceBinding', 'rapGenPublishService']);
 
 /** Tools whose target object (by URL) decides the package for allowedPackages. */
 const OBJECT_URL_ARGS: Record<string, string> = {
@@ -138,14 +141,35 @@ export async function evaluatePolicy(
     const tables: string[] = [];
     if (toolName === 'tableContents' && a.ddicEntityName) tables.push(String(a.ddicEntityName).toUpperCase());
     if (a.sqlQuery) tables.push(...tablesInSql(String(a.sqlQuery)));
+    // Best effort on code that is about to run or be written: SELECT/JOIN targets in the ABAP text.
+    if (toolName === 'runSnippet' && a.code) tables.push(...tablesInSql(String(a.code)));
+    if ((toolName === 'setObjectSource' || toolName === 'setMethodSource') && a.source) tables.push(...tablesInSql(String(a.source)));
     const hit = tables.find(t => matchesAny(policy.deniedTables, t));
     if (hit) return deny('deniedTables', `table ${hit} is in deniedTables`);
   }
   if (policy.allowedPackages?.length) {
     let pkg: string | undefined;
     let where = '';
-    if (toolName === 'createObject') { pkg = a.parentName; where = 'parentName'; }
+    if (toolName === 'createObject') { pkg = a.parentName || String(a.parentPath || '').match(/\/packages\/([^/?#]+)/)?.[1]; where = 'parentName'; }
     else if (toolName === 'runSnippet') { pkg = a.packageName || '$TMP'; where = 'packageName'; }
+    else if (toolName === 'activatePackage') { pkg = a.packageName; where = 'packageName'; }
+    else if (toolName === 'activateObjects') {
+      let objects: any[] = [];
+      try { objects = typeof a.objects === 'string' ? JSON.parse(a.objects) : (a.objects || []); } catch { objects = []; }
+      for (const o of objects.slice(0, 50)) {
+        const uri = o?.['adtcore:uri'] || o?.uri;
+        const p = uri ? await ctx.resolvePackage(objectUrlOf(String(uri))) : undefined;
+        if (!p) return deny('allowedPackages', `could not determine the package of ${uri || 'an object'} in activateObjects, and allowedPackages is closed`);
+        if (!matchesAny(policy.allowedPackages, p)) return deny('allowedPackages', `package ${p} (${uri}) is not in allowedPackages`);
+      }
+    } else if (toolName === 'renameExecute' || toolName === 'extractMethodExecute') {
+      let r: any = a.refactoring;
+      try { r = typeof r === 'string' ? JSON.parse(r) : r; } catch { r = undefined; }
+      const uri = r?.adtObjectUri?.uri || r?.adtObjectUri || r?.uri || (Array.isArray(r?.affectedObjects) ? r.affectedObjects[0]?.uri : r?.affectedObjects?.uri);
+      pkg = uri ? await ctx.resolvePackage(objectUrlOf(String(uri))) : undefined; where = 'refactored object package';
+    } else if (UNRESOLVABLE_WRITES.has(toolName)) {
+      return deny('allowedPackages', `${toolName} cannot be checked against allowedPackages (target package not derivable from its arguments); allow it explicitly by removing allowedPackages or use a destination without that policy`);
+    }
     else if (toolName === 'gitCreateRepo') { pkg = a.packageName; where = 'packageName'; }
     else if (toolName === 'createTestInclude' && a.clas) {
       pkg = await ctx.resolvePackage(`/sap/bc/adt/oo/classes/${encodeURIComponent(String(a.clas).toLowerCase())}`); where = 'class package';

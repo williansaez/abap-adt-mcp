@@ -45,7 +45,7 @@ export interface ReleaseIndex {
 export interface ReleaseVerdict {
   name: string;
   type?: string;
-  /** released | deprecated | classicAPI | noAPI | notInRepository | customer */
+  /** released | deprecated | classicAPI | noAPI | unknown (not in the repository) | customer */
   state: string;
   cloudReady: boolean;
   successors: Array<{ name: string; type: string }>;
@@ -58,24 +58,34 @@ export type Loader = (url: string) => Promise<string>;
 
 const memory = new Map<string, { index: ReleaseIndex; at: number }>();
 
+/** Disk cache directory: MCP_CACHE_DIR when set (tests point it at a temp dir), else ~/.abap-adt-mcp/cache. */
 function cacheFile(name: string): string {
-  return path.join(os.homedir(), '.abap-adt-mcp', 'cache', name);
+  return path.join(process.env.MCP_CACHE_DIR || path.join(os.homedir(), '.abap-adt-mcp', 'cache'), name);
 }
 
+const FETCH_TIMEOUT_MS = 15_000;
 async function fetchText(url: string): Promise<string> {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`GET ${url} failed with HTTP ${res.status}`);
   return res.text();
 }
 
-/** Read a repository file from disk cache (fresh) or the network, updating the cache. */
+/** Read a repository file from disk cache (fresh) or the network, updating the cache; a stale cache beats a failed download. */
 async function loadFile(name: string, loader: Loader): Promise<string> {
   const file = cacheFile(name);
+  let stale: string | undefined;
   try {
     const st = fs.statSync(file);
     if (Date.now() - st.mtimeMs < TTL_MS) return fs.readFileSync(file, 'utf8');
+    stale = fs.readFileSync(file, 'utf8');
   } catch { /* no cache */ }
-  const text = await loader(BASE + name);
+  let text: string;
+  try {
+    text = await loader(BASE + name);
+  } catch (e: any) {
+    if (stale) { console.error(`[abap-adt-mcp] ${name}: download failed (${e?.message || e}); using the cached copy`); return stale; }
+    throw e;
+  }
   try {
     fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
     fs.writeFileSync(file, text, { mode: 0o600 });
@@ -103,16 +113,25 @@ export function buildIndex(edition: ReleaseEdition, releaseJson: string, classif
   return { edition, byName, classificationByName, loadedAt: new Date().toISOString(), counts: { released: (rel.objectReleaseInfo || []).length, classifications } };
 }
 
+const inFlight = new Map<string, Promise<ReleaseIndex>>();
 export async function getReleaseIndex(edition: ReleaseEdition = 'cloud', loader: Loader = fetchText, force = false): Promise<ReleaseIndex> {
   const hit = memory.get(edition);
   if (hit && !force && Date.now() - hit.at < TTL_MS) return hit.index;
-  const [rel, cls] = await Promise.all([
-    loadFile(FILES[edition], loader),
-    loadFile(CLASSIFICATIONS, loader).catch(() => undefined),
-  ]);
-  const index = buildIndex(edition, rel, cls);
-  memory.set(edition, { index, at: Date.now() });
-  return index;
+  const key = `${edition}:${force}`;
+  let p = inFlight.get(key);
+  if (!p) {
+    p = (async () => {
+      const [rel, cls] = await Promise.all([
+        loadFile(FILES[edition], loader),
+        loadFile(CLASSIFICATIONS, loader).catch(() => undefined),
+      ]);
+      const index = buildIndex(edition, rel, cls);
+      memory.set(edition, { index, at: Date.now() });
+      return index;
+    })().finally(() => inFlight.delete(key));
+    inFlight.set(key, p);
+  }
+  return p;
 }
 
 /** Normalize "CLAS:CL_X", "cl_x", "TABL MARA" into { name, type? }. */
@@ -168,12 +187,15 @@ export function lookup(index: ReleaseIndex, ref: { name: string; type?: string }
     };
   }
   const customer = /^[YZ]|^\/[A-Z0-9]+\/[YZ]?/.test(name) && !/^\/(?:1BEA|1FB|1ISR|1SEM|ACCGO|AIF|BEV|CPD|DSD|IAM|ISDFPS|ISHCM|IWBEP|IWFND|IWWRK|MRSS|SAPSRM|SRMSMC|UI2|UI5)\//.test(name);
+  // Names the repository does not know are uncertain, not proven blockers: the
+  // repository lists SAP objects with a release decision, not every SAP object,
+  // and the candidate scan is heuristic (a local type or constant looks the same).
   return {
     name, type: ref.type,
-    state: customer ? 'customer' : 'notInRepository',
+    state: customer ? 'customer' : 'unknown',
     cloudReady: customer,
     successors: [],
-    note: customer ? 'Customer object (Y/Z namespace): not an SAP API; its own ABAP language version decides cloud readiness.' : 'Not listed in the SAP cloudification repository: treat as not released for ABAP Cloud.',
+    note: customer ? 'Customer object (Y/Z namespace): not an SAP API; its own ABAP language version decides cloud readiness.' : 'Not listed in the SAP cloudification repository (neither released nor classified): verify in the system (ddicElement / abapDocumentation) before treating it as a blocker.',
   };
 }
 
@@ -181,6 +203,14 @@ export function lookup(index: ReleaseIndex, ref: { name: string; type?: string }
 export function candidatesFromSource(source: string): string[] {
   const text = String(source || '').replace(/^\s*[*"].*$/gm, '').replace(/"[^\n]*$/gm, '');
   const names = new Set<string>();
+  // Names declared in the source itself (local classes, interfaces, types,
+  // constants, data, field symbols, parameters) are not SAP APIs.
+  const local = new Set<string>();
+  const declRe = /\b(?:CLASS|INTERFACE|TYPES|DATA|CONSTANTS|STATICS|FIELD-SYMBOLS|PARAMETERS|SELECT-OPTIONS|TABLES|CLASS-DATA|BEGIN\s+OF)\s+([A-Za-z_/][\w/]*)/gi;
+  let d: RegExpExecArray | null;
+  while ((d = declRe.exec(text))) local.add(d[1].toUpperCase());
+  const enumRe = /\b(?:DATA|TYPES|CONSTANTS|CLASS-DATA|STATICS)\s*:\s*([^.]+)\./gi;
+  while ((d = enumRe.exec(text))) for (const part of d[1].split(',')) { const m = part.trim().match(/^([A-Za-z_/][\w/]*)/); if (m) local.add(m[1].toUpperCase()); }
   const patterns = [
     /\b(?:FROM|JOIN|INTO\s+TABLE\s+@?\w+\s+FROM|UPDATE|MODIFY|DELETE\s+FROM|INSERT\s+INTO)\s+([A-Za-z_/][\w/]*)/gi,
     /\b(?:TYPE\s+(?:STANDARD|SORTED|HASHED)\s+TABLE\s+OF|TYPE\s+TABLE\s+OF|TYPE\s+REF\s+TO|TYPE|LIKE\s+LINE\s+OF|LIKE)\s+([A-Za-z_/][\w/]*)/gi,
@@ -195,6 +225,7 @@ export function candidatesFromSource(source: string): string[] {
       const n = m[1].toUpperCase();
       if (/^(I|C|N|D|T|X|P|F|STRING|XSTRING|INT8|DECFLOAT16|DECFLOAT34|UTCLONG|ABAP_BOOL|ANY|DATA|OBJECT|SIMPLE|CLIKE|NUMERIC|TABLE|SY|SYST|ME|SUPER)$/.test(n)) continue;
       if (/^[YZ]/.test(n)) continue;
+      if (local.has(n)) continue;
       names.add(n);
     }
   }

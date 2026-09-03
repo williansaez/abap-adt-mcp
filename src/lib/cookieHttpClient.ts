@@ -110,7 +110,8 @@ export class CookieHttpClient {
     let res = await send();
 
     // Throttled or briefly unavailable: honour Retry-After (capped) and retry once.
-    if (res.status === 429 || res.status === 503) {
+    const safeMethod = /^(GET|HEAD|OPTIONS)$/i.test(String(options.method || 'GET'));
+    if (safeMethod && (res.status === 429 || res.status === 503)) {
       const retryAfter = Number(res.headers?.['retry-after']);
       const waitMs = Math.min(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 1000, CookieHttpClient.MAX_RETRY_WAIT_MS);
       await new Promise((r) => setTimeout(r, waitMs));

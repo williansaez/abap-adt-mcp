@@ -1,3 +1,4 @@
+process.env.MCP_CACHE_DIR = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'abap-adt-mcp-cache-'));
 import { buildIndex, lookup, parseObjectRef, objectRefFromUrl, candidatesFromSource } from '../apiReleases';
 
 const REL = JSON.stringify({ formatVersion: '1', objectReleaseInfo: [
@@ -32,7 +33,7 @@ describe('apiReleases', () => {
   it('classifies customer objects and unknown SAP objects', () => {
     expect(lookup(index, { name: 'ZCL_MINE' })).toMatchObject({ state: 'customer', cloudReady: true });
     expect(lookup(index, { name: '/ACME/CL_X' })).toMatchObject({ state: 'customer' });
-    expect(lookup(index, { name: 'BAPI_UNKNOWN' })).toMatchObject({ state: 'notInRepository', cloudReady: false });
+    expect(lookup(index, { name: 'BAPI_UNKNOWN' })).toMatchObject({ state: 'unknown', cloudReady: false });
   });
 
   it('parses refs and ADT urls', () => {
@@ -50,5 +51,22 @@ describe('apiReleases', () => {
     expect(c).not.toContain('ZOLD');
     expect(c).not.toContain('VBAK');
     expect(c).not.toContain('I');
+  });
+
+  it('ignores names declared in the source and reports unknown SAP names as uncertain, not blockers', () => {
+    const src = [
+      'CLASS lcl_helper DEFINITION. ENDCLASS.',
+      'TYPES: BEGIN OF ty_row, id TYPE i, END OF ty_row.',
+      'TYPES ty_rows TYPE STANDARD TABLE OF ty_row.',
+      'DATA lo TYPE REF TO lcl_helper.',
+      'DATA lt TYPE ty_rows.',
+      'DATA lx TYPE REF TO cx_sy_zerodivide.',
+      'SELECT * FROM mara INTO TABLE @DATA(lt_mara).',
+    ].join('\n');
+    const names = candidatesFromSource(src);
+    expect(names).toEqual(expect.arrayContaining(['CX_SY_ZERODIVIDE', 'MARA']));
+    expect(names).not.toEqual(expect.arrayContaining(['LCL_HELPER', 'TY_ROW', 'TY_ROWS']));
+    const index = buildIndex('cloud', REL, CLS);
+    expect(lookup(index, { name: 'CL_SOMETHING_ODD' })).toMatchObject({ state: 'unknown', cloudReady: false });
   });
 });
