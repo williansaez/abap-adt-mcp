@@ -50,7 +50,7 @@ export class CookieHttpClient {
   private jar = new Map<string, string>();
   private axiosInstance: AxiosInstance;
 
-  constructor(private baseURL: string, cookies: HarvestedCookie[], allowUnauthorized = false, private sapClient?: string) {
+  constructor(private baseURL: string, cookies: HarvestedCookie[], allowUnauthorized = false, private sapClient?: string, agent?: https.Agent) {
     for (const c of cookies) this.jar.set(c.name, c.value);
     this.axiosInstance = axios.create({
       baseURL,
@@ -59,7 +59,7 @@ export class CookieHttpClient {
       transformResponse: [(d) => d],
       // Let the library decide what a >=400 status means (it throws itself).
       validateStatus: () => true,
-      httpsAgent: allowUnauthorized ? new https.Agent({ rejectUnauthorized: false }) : undefined,
+      httpsAgent: agent ?? (allowUnauthorized ? new https.Agent({ rejectUnauthorized: false }) : undefined),
     });
   }
 

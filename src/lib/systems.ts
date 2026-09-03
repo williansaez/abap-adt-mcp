@@ -17,6 +17,7 @@ import fs from 'fs';
 import path from 'path';
 import { readOAuthConfig, OAuthConfig } from './oauth.js';
 import { parsePolicy, SystemPolicy } from './policy.js';
+import { parseTlsConfig, TlsConfig } from './tls.js';
 
 export type AuthType = 'sso' | 'basic' | 'oauth';
 
@@ -41,6 +42,8 @@ export interface SystemConfig {
   default?: boolean;
   /** Server-side guard rails for this destination (see lib/policy.ts). */
   policy?: SystemPolicy;
+  /** CA bundle, client certificate/key or PFX for this destination (see lib/tls.ts). */
+  tls?: TlsConfig;
 }
 
 /**
@@ -131,6 +134,7 @@ function fromRawEntry(name: string, raw: any, defaultAuth: AuthType): SystemConf
     gitPassword: raw.gitPassword,
     default: raw.default === true || /^(1|true|yes)$/i.test(String(raw.default || '')),
     policy: parsePolicy(raw.policy),
+    tls: (() => { try { return parseTlsConfig(raw.tls); } catch (e: any) { throw new Error(`System "${name}": ${e.message}`); } })(),
   };
   if (authType === 'basic') {
     cfg.user = raw.user;

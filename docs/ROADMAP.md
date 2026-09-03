@@ -18,14 +18,14 @@ Source: `docs/ANALISE-ECOSSISTEMA-SAP-MCP.md` (research across 30+ SAP MCP proje
 | 12 | `runSnippet` | done |
 | 13 | `resolveTransport` | done |
 | 14 | `objectDiff` | done |
-| 15 | HTTP transport hardening (per-session transports, Origin check, `/health`) | open, only if HTTP mode is used |
+| 15 | HTTP transport hardening (per-session servers, caps, TTL, Origin/Host checks, `/health`) | done |
 | 16 | `${env:VAR}` secrets, config validation, file mode check | done |
 | 17 | `activatePackage` | done |
 | 18 | `packageTree`, `whereUsed`, `cdsViewInfo` | done |
 | 19 | JSONL audit trail (`MCP_AUDIT_FILE`) | done |
-| 20 | X.509 client certificate / CA file per destination | open |
-| 21 | MCP prompts for canonical flows | open |
-| 22 | `title`, parameter `examples`, `outputSchema` | open |
+| 20 | X.509 client certificate / CA file per destination | done |
+| 21 | MCP prompts for canonical flows | done |
+| 22 | `title`, parameter `examples`, `outputSchema` | done (title, examples); `outputSchema` deliberately not published: paged/variant responses would fail SDK validation |
 | 23 | Progress notifications for long runs | open |
 | 24 | ATC summary by priority, historic ATC results | open |
 | 25 | Source export in abapGit layout, `debugSession` composition | open |

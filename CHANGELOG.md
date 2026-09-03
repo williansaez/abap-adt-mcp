@@ -49,4 +49,7 @@ Fixes driven by a full live test round against a Public Cloud tenant (95/142 too
 - `getMethodSource`/`setMethodSource`: read or replace a single METHOD … ENDMETHOD block of a class include (main, implementations, testclasses, definitions, macros) by class name; bodies are wrapped with the existing header/footer, comments cannot close blocks early, AMDP headers recognised. `docs/ROADMAP.md` tracks the improvement list. 171 tools.
 - `runClass` and `runSnippet` execute in a stateless request: the stateful ADT session kept the old program load, so a class run right after a write and activation still produced the previous output (reproduced live; now returns the new output).
 - HTTP transport hardened: one server instance per MCP session (isolated SAP sessions and locks), `MCP_HTTP_MAX_SESSIONS`, idle expiry `MCP_HTTP_SESSION_TTL_MINUTES`, Origin/Host validation with `MCP_HTTP_ALLOWED_ORIGINS`/`MCP_HTTP_ALLOWED_HOSTS`, unauthenticated `GET /health`, JSON errors for unknown sessions.
+- Per-destination `tls` (CA bundle, X.509 client certificate/key or PFX) applied to basic, OAuth and SSO API calls; `listSystems` describes it.
+- MCP prompts capability with six workflow prompts (create-object, safe-edit, review-transport, fix-atc, clean-core-check, debug-dump) that reference the server's real tool names.
+- Every tool publishes a `title` (also in annotations) and URL/name-style parameters carry `examples`.
 

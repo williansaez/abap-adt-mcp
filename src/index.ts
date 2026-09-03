@@ -10,6 +10,8 @@ import fs from 'fs';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema,
   McpError,
   ErrorCode
 } from "@modelcontextprotocol/sdk/types.js";
@@ -25,6 +27,8 @@ import { buildSystemProfile, SystemProfile } from './lib/systemProfile.js';
 import { evaluatePolicy, objectUrlOf, summarizePolicy } from './lib/policy.js';
 import { clearLedger } from './lib/lockLedger.js';
 import { AuditLog, summarizeArgs } from './lib/audit.js';
+import { buildHttpsAgent, describeTls } from './lib/tls.js';
+import { listPrompts, getPrompt } from './prompts.js';
 import { AuthHandlers } from './handlers/AuthHandlers.js';
 import { TransportHandlers } from './handlers/TransportHandlers.js';
 import { ObjectHandlers } from './handlers/ObjectHandlers.js';
@@ -125,6 +129,35 @@ interface Destination {
   queue: Promise<unknown>;
 }
 
+/** Human-readable tool title from its camelCase name (getObjectSource -> Get Object Source). */
+function titleFromName(name: string): string {
+  return name
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/\b(Atc|Adt|Ddic|Rap|Cds|Api|Sql|Http|Url|Odata|Amdp|Abap)\b/gi, (m) => m.toUpperCase())
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
+/** Example values for the parameters agents most often get wrong (URL vs name, which URL). */
+const PARAM_EXAMPLES: Record<string, any[]> = {
+  objectUrl: ['/sap/bc/adt/oo/classes/zcl_order_service', '/sap/bc/adt/programs/programs/zreport', '/sap/bc/adt/ddic/ddl/sources/zi_product'],
+  objectSourceUrl: ['/sap/bc/adt/oo/classes/zcl_order_service/source/main', '/sap/bc/adt/programs/programs/zreport/source/main'],
+  objSourceUrl: ['/sap/bc/adt/oo/classes/zcl_order_service', '/sap/bc/adt/packages/zfin'],
+  classUrl: ['ZCL_ORDER_SERVICE', '/sap/bc/adt/oo/classes/zcl_order_service'],
+  domainUrl: ['/sap/bc/adt/ddic/domains/zdom_status'],
+  dataElementUrl: ['/sap/bc/adt/ddic/dataelements/zde_status'],
+  packageName: ['$TMP', 'ZFIN'],
+  parentName: ['$TMP', 'ZFIN'],
+  parentPath: ['/sap/bc/adt/packages/$tmp', '/sap/bc/adt/packages/zfin'],
+  transport: ['DEVK900123'],
+  transportNumber: ['DEVK900123'],
+  objtype: ['CLAS/OC', 'INTF/OI', 'PROG/P', 'DDLS/DF', 'DEVC/K'],
+  objType: ['CLAS/OC', 'PROG/P', 'DDLS/DF', 'TABL/DT'],
+  methodName: ['GET_DATA', 'IF_OO_ADT_CLASSRUN~MAIN'],
+  ddicEntityName: ['T000', 'I_PRODUCT'],
+  sqlQuery: ["SELECT matnr, mtart FROM mara WHERE mtart = 'FERT'"],
+  url: ['/sap/bc/adt/oo/classes/zcl_order_service'],
+};
+
 // Compile-time check: every handler key in the manifest exists in HandlerSet.
 const _handlerSetCheck: Record<HandlerKey, unknown> = {} as HandlerSet;
 void _handlerSetCheck;
@@ -143,7 +176,7 @@ export class AbapAdtServer extends Server {
     super(
       { name: "abap-adt-mcp", version: PACKAGE_VERSION },
       {
-        capabilities: { tools: {} },
+        capabilities: { tools: {}, prompts: {} },
         instructions: [
           'ABAP ADT MCP server. Every tool accepts an optional `destination` parameter selecting the target SAP system; call listSystems first to see the configured destinations.',
           '',
@@ -201,13 +234,15 @@ export class AbapAdtServer extends Server {
     let adtClient: ADTClient;
     let cookieClient: CookieHttpClient | undefined;
 
+    const agent = buildHttpsAgent(sys.tls, sys.insecureTls);
+    const options = agent ? { httpsAgent: agent } : undefined;
     if (sys.authType === 'sso') {
-      cookieClient = new CookieHttpClient(sys.url, [], !!sys.insecureTls, client || undefined);
+      cookieClient = new CookieHttpClient(sys.url, [], !!sys.insecureTls, client || undefined, agent);
       adtClient = new ADTClient(cookieClient as any, sys.user || 'sso', '', client, language);
     } else if (sys.authType === 'oauth') {
-      adtClient = new ADTClient(sys.url, sys.oauth!.clientId || 'oauth', makeBearerFetcher(sys.oauth!), client, language);
+      adtClient = new ADTClient(sys.url, sys.oauth!.clientId || 'oauth', makeBearerFetcher(sys.oauth!), client, language, options);
     } else {
-      adtClient = new ADTClient(sys.url, sys.user || '', sys.password || '', client, language);
+      adtClient = new ADTClient(sys.url, sys.user || '', sys.password || '', client, language, options);
     }
     adtClient.stateful = session_types.stateful;
     return { adtClient, cookieClient };
@@ -354,9 +389,14 @@ export class AbapAdtServer extends Server {
     };
     const required = Array.isArray(schema.required) ? [...schema.required] : [];
     if (!this.defaultDest && !required.includes('destination')) required.unshift('destination');
+    for (const [pname, def] of Object.entries<any>(properties)) {
+      if (def && typeof def === 'object' && !def.examples && PARAM_EXAMPLES[pname]) def.examples = PARAM_EXAMPLES[pname];
+    }
+    const title = tool.title ?? titleFromName(tool.name);
     return {
       ...tool,
-      annotations: tool.annotations ?? toolAnnotations(tool.name),
+      title,
+      annotations: { title, ...(tool.annotations ?? toolAnnotations(tool.name)) },
       inputSchema: { ...schema, type: schema.type || 'object', properties, required }
     };
   }
@@ -379,15 +419,17 @@ export class AbapAdtServer extends Server {
       .map((t) => this.withDestination(t));
     tools.push({
       name: 'listSystems',
+      title: 'List Systems',
       description: 'List the configured ABAP systems (destinations) this server can reach. Call this first to pick the destination to pass to all other tools.',
       inputSchema: { type: 'object', properties: {} },
-      annotations: toolAnnotations('listSystems'),
+      annotations: { title: 'List Systems', ...toolAnnotations('listSystems') },
     });
     tools.push({
       name: 'healthcheck',
+      title: 'Healthcheck',
       description: 'Check server health and list configured destinations.',
       inputSchema: { type: 'object', properties: {} },
-      annotations: toolAnnotations('healthcheck'),
+      annotations: { title: 'Healthcheck', ...toolAnnotations('healthcheck') },
     });
     tools.push(this.withDestination({
       name: 'systemProfile',
@@ -452,6 +494,17 @@ export class AbapAdtServer extends Server {
 
   private setupToolHandlers() {
     this.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: this.getToolCatalog() }));
+    this.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: listPrompts() }));
+    this.setRequestHandler(GetPromptRequestSchema, async (request) => {
+      try {
+        const prompt = getPrompt(request.params.name, (request.params.arguments || {}) as Record<string, string>);
+        if (!prompt) throw new McpError(ErrorCode.InvalidParams, `Unknown prompt: ${request.params.name}`);
+        return prompt;
+      } catch (e: any) {
+        if (e instanceof McpError) throw e;
+        throw new McpError(ErrorCode.InvalidParams, e.message);
+      }
+    });
 
     this.setRequestHandler(CallToolRequestSchema, async (request) => {
       const name = request.params.name;
@@ -492,6 +545,7 @@ export class AbapAdtServer extends Server {
         return {
           destination: s.name, url: s.url, client: s.client, authType: s.authType,
           ...(s.policy ? { policy: summarizePolicy(s.policy) } : {}),
+          ...(describeTls(s.tls, s.insecureTls) ? { tls: describeTls(s.tls, s.insecureTls) } : {}),
           ...(profile ? { platform: profile.platform, unavailableToolsets: profile.unavailableToolsets } : {}),
         };
       }));

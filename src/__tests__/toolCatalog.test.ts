@@ -34,6 +34,17 @@ describe('tool catalog contract', () => {
     for (const n of routed) if (n !== 'adtCompatibiliyGraph') expect(names).toContain(n);
   });
 
+  it('carries a title and examples for URL-like parameters', () => {
+    for (const t of tools) {
+      expect(typeof t.title).toBe('string');
+      expect(t.annotations.title).toBe(t.title);
+    }
+    const src = tools.find(t => t.name === 'getObjectSource');
+    expect(src.title).toBe('Get Object Source');
+    expect(src.inputSchema.properties.objectSourceUrl.examples[0]).toMatch(/\/source\/main$/);
+    expect(tools.find(t => t.name === 'createAtcRun').title).toBe('Create ATC Run');
+  });
+
   it('annotates every tool and describes every parameter', () => {
     for (const t of tools) {
       expect(typeof t.annotations.readOnlyHint).toBe('boolean');

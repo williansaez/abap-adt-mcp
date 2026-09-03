@@ -37,6 +37,26 @@ The MCP client config is then a single server:
 
 Each authentication mode below can be set per destination (`authType` in the entry).
 
+## TLS: custom CA and client certificates
+
+Per destination, `tls` supplies the material the HTTPS connection needs (paths to PEM/CRT/KEY files, or inline PEM text; `${env:VAR}` works here too):
+
+```json
+{
+  "ECC": { "url": "https://sap.example.com:44300", "client": "100", "authType": "basic",
+           "user": "DEVELOPER", "password": "${env:ECC_PW}",
+           "tls": { "ca": "/etc/ssl/corp-ca.pem", "cert": "/home/me/.abap-adt-mcp/dev.crt", "key": "/home/me/.abap-adt-mcp/dev.key", "passphrase": "${env:DEV_KEY_PW}" } }
+}
+```
+
+| Key | Purpose |
+|---|---|
+| `ca` | Extra CA bundle for self-signed or corporate certificates (keeps verification on, unlike `insecureTls`). |
+| `cert` + `key` | X.509 client certificate for mutual TLS (reverse proxies, SNC-like gateways). |
+| `pfx` + `passphrase` | PKCS#12 alternative to cert/key. |
+
+The agent applies to basic, OAuth and SSO API calls; the browser used for SSO login manages its own certificates. `listSystems` reports `tls` as a short description, never the material.
+
 ## Per-destination policy (server-side guard rails)
 
 Tool annotations only *advise* the MCP host. The `policy` block of a destination is

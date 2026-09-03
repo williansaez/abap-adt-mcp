@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to systems.json (gitignored) or point SAP_SYSTEMS_FILE at it. One entry per ABAP system (destination); tools take a `destination` argument naming one of these keys. Mark one entry with \"default\": true to use it when destination is omitted. Optional per-entry gitUser/gitPassword supply abapGit credentials so they never pass through the model. Optional per-entry \"policy\" block: readOnly, deniedTools (globs), allowFreeSql, deniedTables (globs), allowedPackages (globs, closed), allowedTransports (globs, no new transports). MCP_READ_ONLY=1 makes every destination read-only.",
+  "_comment": "Copy to systems.json (gitignored) or point SAP_SYSTEMS_FILE at it. One entry per ABAP system (destination); tools take a `destination` argument naming one of these keys. Mark one entry with \"default\": true to use it when destination is omitted. Optional per-entry gitUser/gitPassword supply abapGit credentials so they never pass through the model. Optional per-entry \"policy\" block: readOnly, deniedTools (globs), allowFreeSql, deniedTables (globs), allowedPackages (globs, closed), allowedTransports (globs, no new transports). MCP_READ_ONLY=1 makes every destination read-only. Optional per-entry \"tls\": ca (extra CA bundle), cert+key or pfx+passphrase (client certificate).",
   "DEV": {
     "url": "https://myXXXXXX.s4hana.cloud.sap",
     "client": "080",
@@ -37,6 +37,11 @@
         "transportRelease",
         "git*"
       ]
+    },
+    "tls": {
+      "ca": "/etc/ssl/corp-ca.pem",
+      "cert": "<optional client cert PEM path>",
+      "key": "<optional client key PEM path>"
     }
   },
   "Cloud-OAuth": {
