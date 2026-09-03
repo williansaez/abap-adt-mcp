@@ -2,6 +2,7 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler';
 import type { ToolDefinition } from '../types/tools';
 import { shrinkToFit, SAFE_OUTPUT_CHARS } from '../lib/responseSizing';
+import { walkPackage } from '../lib/packageWalk';
 
 interface InactiveObject {
   "adtcore:uri": string;
@@ -86,6 +87,19 @@ export class ObjectManagementHandlers extends BaseHandler {
         }
       },
       {
+        name: 'activatePackage',
+        description: 'Activate every inactive object of a package (and its sub-packages) in one activation request, the way RAP stacks (CDS, behavior definition, service definition, classes) must be activated together. Returns the activation messages and what is still inactive afterwards.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            packageName: { type: 'string', description: 'Package whose inactive objects to activate' },
+            recursive: { type: 'boolean', description: 'Include sub-packages (default true)', optional: true },
+            preauditRequested: { type: 'boolean', description: 'Run the pre-audit (default true)', optional: true }
+          },
+          required: ['packageName']
+        }
+      },
+      {
         name: 'inactiveObjects',
         description: 'Get list of inactive objects. For systems with many inactive objects across users, use startIndex/maxItems to page through the list instead of retrieving it all at once.',
         inputSchema: {
@@ -113,6 +127,8 @@ export class ObjectManagementHandlers extends BaseHandler {
         return this.handleActivateObjects(args);
       case 'activateByName':
         return this.handleActivateByName(args);
+      case 'activatePackage':
+        return this.handleActivatePackage(args);
       case 'inactiveObjects':
         return this.handleInactiveObjects(args);
       default:
@@ -251,6 +267,52 @@ export class ObjectManagementHandlers extends BaseHandler {
         ErrorCode.InternalError,
         `Failed to get inactive objects: ${this.formatAdtError(error)}`
       );
+    }
+  }
+
+  /** Inactive objects that belong to the package tree (by parent URI or by object URL prefix). */
+  private async inactiveInPackage(packageName: string, recursive: boolean): Promise<{ objects: any[]; packages: string[] }> {
+    const walk = await walkPackage(this.adtclient as any, packageName, { maxDepth: recursive ? 99 : 0, includeObjects: true, maxObjects: 5000 });
+    const pkgUrls = new Set(walk.packageUrls.map(u => u.toLowerCase()));
+    const objUrls = walk.objects.map(o => o.objectUrl.toLowerCase());
+    const records: any[] = await this.adtclient.inactiveObjects();
+    const objects = records
+      .map(r => r.object)
+      .filter(o => o && o['adtcore:uri'])
+      .filter(o => {
+        const parent = String(o['adtcore:parentUri'] || '').toLowerCase();
+        const uri = String(o['adtcore:uri']).toLowerCase();
+        return pkgUrls.has(parent) || objUrls.some(u => uri === u || uri.startsWith(u + '/'));
+      })
+      .map(o => ({ 'adtcore:uri': o['adtcore:uri'], 'adtcore:type': o['adtcore:type'], 'adtcore:name': o['adtcore:name'], 'adtcore:parentUri': o['adtcore:parentUri'] }));
+    return { objects, packages: walk.packages };
+  }
+
+  async handleActivatePackage(args: any): Promise<any> {
+    const startTime = performance.now();
+    try {
+      const recursive = args.recursive !== false;
+      const { objects, packages } = await this.inactiveInPackage(String(args.packageName), recursive);
+      if (objects.length === 0) {
+        this.trackRequest(startTime, true);
+        return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', packages, activated: 0, message: 'No inactive objects in the package tree' }) }] };
+      }
+      const result: any = await this.adtclient.activate(objects, args.preauditRequested !== false);
+      const after = await this.inactiveInPackage(String(args.packageName), recursive);
+      this.trackRequest(startTime, true);
+      const payload = {
+        status: result?.success === false ? 'error' : 'success',
+        packages,
+        requested: objects.map(o => ({ name: o['adtcore:name'], type: o['adtcore:type'], uri: o['adtcore:uri'] })),
+        success: result?.success !== false,
+        messages: result?.messages || [],
+        stillInactive: after.objects.map(o => ({ name: o['adtcore:name'], type: o['adtcore:type'], uri: o['adtcore:uri'] })),
+      };
+      const text = JSON.stringify(payload);
+      return { content: [{ type: 'text', text: text.length <= SAFE_OUTPUT_CHARS ? text : JSON.stringify({ ...payload, requested: payload.requested.length, messages: payload.messages.slice(0, 50), stillInactive: payload.stillInactive.slice(0, 50), capped: true }) }], ...(result?.success === false ? { isError: true } : {}) };
+    } catch (error: any) {
+      this.trackRequest(startTime, false);
+      throw new McpError(ErrorCode.InternalError, `Failed to activate package: ${this.formatAdtError(error)}`);
     }
   }
 }

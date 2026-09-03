@@ -1,6 +1,6 @@
 {
   "version": "0.3.2",
-  "count": 164,
+  "count": 169,
   "toolsets": {
     "core": [
       "login",
@@ -22,6 +22,7 @@
       "setPrettyPrinterSetting",
       "prettyPrinter",
       "revisions",
+      "objectDiff",
       "getTextElements",
       "setTextElements"
     ],
@@ -36,6 +37,7 @@
       "deleteObject",
       "activateObjects",
       "activateByName",
+      "activatePackage",
       "inactiveObjects",
       "objectRegistrationInfo",
       "creatableTypeDetails",
@@ -46,6 +48,9 @@
       "typeHierarchy",
       "objectStructureElements",
       "objectEnhancements",
+      "packageTree",
+      "whereUsed",
+      "cdsViewInfo",
       "sourceTextSearch",
       "grepPackage"
     ],
@@ -903,6 +908,20 @@
         "objectName",
         "objectUrl",
         "mainInclude",
+        "preauditRequested"
+      ]
+    },
+    {
+      "name": "activatePackage",
+      "toolset": "objects",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "packageName"
+      ],
+      "params": [
+        "packageName",
+        "recursive",
         "preauditRequested"
       ]
     },
@@ -2194,6 +2213,22 @@
       ]
     },
     {
+      "name": "objectDiff",
+      "toolset": "source",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "objectUrl"
+      ],
+      "params": [
+        "objectUrl",
+        "fromRevision",
+        "toRevision",
+        "clsInclude",
+        "contextLines"
+      ]
+    },
+    {
       "name": "rapGenIsAvailable",
       "toolset": "rap",
       "readOnly": true,
@@ -2358,6 +2393,51 @@
         "objectSourceUrl",
         "contextUri",
         "includeSource"
+      ]
+    },
+    {
+      "name": "packageTree",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "packageName"
+      ],
+      "params": [
+        "packageName",
+        "maxDepth",
+        "includeObjects",
+        "objectTypes",
+        "maxObjects"
+      ]
+    },
+    {
+      "name": "whereUsed",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "name"
+      ],
+      "params": [
+        "name",
+        "objType",
+        "maxResults"
+      ]
+    },
+    {
+      "name": "cdsViewInfo",
+      "toolset": "objects",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "name"
+      ],
+      "params": [
+        "name",
+        "includeSource",
+        "getTargetForAssociation",
+        "getExtensionViews"
       ]
     },
     {
