@@ -3,7 +3,7 @@ import { createReporter, withProgress, reportProgress, withHeartbeat } from '../
 describe('progress', () => {
   it('is a no-op without a reporter and forwards steps with one', async () => {
     expect(() => reportProgress('nothing')).not.toThrow();
-    const sink = jest.fn(async () => undefined);
+    const sink = jest.fn(async (_p: any) => undefined);
     const reporter = createReporter(sink);
     await withProgress(reporter, async () => {
       reportProgress('step one');
@@ -20,7 +20,7 @@ describe('progress', () => {
   });
 
   it('heartbeats while a long call runs and stops afterwards', async () => {
-    const sink = jest.fn(async () => undefined);
+    const sink = jest.fn(async (_p: any) => undefined);
     const reporter = createReporter(sink);
     reporter.report('working');
     const result = await withHeartbeat(reporter, 'unitTestRun', () => new Promise(r => setTimeout(() => r('done'), 70)), 25);

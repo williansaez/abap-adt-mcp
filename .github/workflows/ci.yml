@@ -20,6 +20,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      - name: Type-check tests
+        run: npx tsc --noEmit -p tsconfig.test.json
       - run: npm test -- --coverage=false
       - name: Tool catalog docs are up to date
         run: |
