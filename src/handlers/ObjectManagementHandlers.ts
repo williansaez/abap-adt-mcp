@@ -308,7 +308,7 @@ export class ObjectManagementHandlers extends BaseHandler {
       const { objects, packages, otherUsers } = await this.inactiveInPackage(String(args.packageName), recursive, user);
       if (objects.length === 0) {
         this.trackRequest(startTime, true);
-        return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', packages, user: user || 'all', activated: 0, message: 'No inactive objects in the package tree' + (otherUsers.length ? ` for this user (${otherUsers.length} of other users left alone)` : ''), ...(otherUsers.length ? { otherUsers: otherUsers.slice(0, 50) } : {}) }) }] };
+        return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', packages, user: user || 'all', ...(warning ? { warning } : {}), activated: 0, message: 'No inactive objects in the package tree' + (otherUsers.length ? ` for this user (${otherUsers.length} of other users left alone)` : ''), ...(otherUsers.length ? { otherUsers: otherUsers.slice(0, 50) } : {}) }) }] };
       }
       const result: any = await this.adtclient.activate(objects, args.preauditRequested !== false);
       const after = await this.inactiveInPackage(String(args.packageName), recursive, user);

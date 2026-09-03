@@ -1,3 +1,4 @@
+process.env.MCP_CACHE_DIR = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'abap-adt-mcp-cache-'));
 import { buildIndex, lookup, parseObjectRef, objectRefFromUrl, candidatesFromSource } from '../apiReleases';
 
 const REL = JSON.stringify({ formatVersion: '1', objectReleaseInfo: [

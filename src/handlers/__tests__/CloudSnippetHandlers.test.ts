@@ -7,6 +7,9 @@ const CLS = JSON.stringify({ objectClassifications: [{ tadirObject: 'CLAS', tadi
 const parse = (r: any) => JSON.parse(r.content[0].text);
 beforeEach(() => sourceCache.clear());
 
+// Never let fixture repositories land in the developer's real cache.
+process.env.MCP_CACHE_DIR = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'abap-adt-mcp-cache-'));
+
 describe('apiReleaseState', () => {
   const loader = jest.fn(async (url: string) => url.includes('Classifications') ? CLS : REL);
   function make(status = 404) {

@@ -58,8 +58,9 @@ export type Loader = (url: string) => Promise<string>;
 
 const memory = new Map<string, { index: ReleaseIndex; at: number }>();
 
+/** Disk cache directory: MCP_CACHE_DIR when set (tests point it at a temp dir), else ~/.abap-adt-mcp/cache. */
 function cacheFile(name: string): string {
-  return path.join(os.homedir(), '.abap-adt-mcp', 'cache', name);
+  return path.join(process.env.MCP_CACHE_DIR || path.join(os.homedir(), '.abap-adt-mcp', 'cache'), name);
 }
 
 const FETCH_TIMEOUT_MS = 15_000;
