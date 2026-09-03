@@ -103,7 +103,7 @@ export class SearchHandlers extends BaseHandler {
             }
             if (response.status === 404 || response.status === 405 || response.status === 501) {
                 if (packages.length) {
-                    const merged: any = { status: 'success', packages: [], totalMatches: 0, matches: [], scanned: 0 };
+                    const merged: any = { status: 'success', packages: [], totalMatches: 0, matches: [], objectsScanned: 0 };
                     let remaining = maxResults;
                     for (const pkg of packages) {
                         if (remaining <= 0) break;
@@ -112,7 +112,7 @@ export class SearchHandlers extends BaseHandler {
                         merged.packages.push(pkg);
                         merged.matches.push(...(payload.matches || []));
                         merged.totalMatches += Number(payload.totalMatches) || 0;
-                        merged.scanned += Number(payload.scanned) || 0;
+                        merged.objectsScanned += Number(payload.objectsScanned) || 0;
                         if (payload.truncated || payload.capped) merged.truncated = true;
                         remaining = maxResults - merged.matches.length;
                     }

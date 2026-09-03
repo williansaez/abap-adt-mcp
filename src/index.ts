@@ -79,9 +79,20 @@ function redactSecrets(text: string): string {
   return String(text)
     .replace(/(authorization\s*[:=]\s*)(?:basic|bearer)?\s*[^\s,;"']+/gi, '$1[REDACTED]')
     .replace(/((?:cookie|set-cookie)\s*[:=]\s*)[^\n"']+/gi, '$1[REDACTED]')
-    .replace(/((?:password|passwd|client_secret|clientsecret|sap-password)\s*[=:]\s*)[^\s&,;"']+/gi, '$1[REDACTED]')
+    .replace(/((?:password|passwd|passphrase|client_secret|clientsecret|sap-password|token|api[_-]?key|secret|lock_?handle)\s*[=:]\s*)[^\s&,;"']+/gi, '$1[REDACTED]')
     .replace(/(https?:\/\/)[^\/\s:@]+:[^\/\s:@]+@/gi, '$1[REDACTED]@');
 }
+
+/**
+ * Every diagnostic this process prints goes through the same redaction as tool
+ * results and the audit log. Startup and error diagnostics echo upstream error
+ * text (a JSON parse error can quote the file it failed on), so nothing may
+ * reach stderr unredacted.
+ */
+const rawConsoleError = console.error.bind(console);
+console.error = (...args: unknown[]) => {
+  rawConsoleError(...args.map(a => typeof a === 'string' ? redactSecrets(a) : (a instanceof Error ? redactSecrets(a.stack || a.message) : a)));
+};
 
 /** All per-domain handlers, one set bound to a single system's ADTClient. */
 interface HandlerSet {

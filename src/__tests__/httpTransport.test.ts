@@ -120,3 +120,26 @@ describe('http transport end to end', () => {
     expect((await (await fetch(`${base}/health`)).json()).sessions).toBe(0);
   });
 });
+
+describe('request body limits', () => {
+  it('applies the size limit to session requests, not only to the one that opens the session', async () => {
+    const server = new AbapAdtServer();
+    const handle = await server.startHttp(env({ MCP_HTTP_MAX_BODY_BYTES: '2048' }));
+    try {
+      const base = `http://127.0.0.1:${handle.port}`;
+      // Open a session.
+      const opened = await mcpPost(base, init());
+      expect(opened.sessionId).toBeTruthy();
+      // A request on that session carrying an oversized body is refused with 413,
+      // instead of being streamed into the SDK transport unbounded.
+      const big = { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'healthcheck', arguments: { pad: 'x'.repeat(8192) } } };
+      const r = await mcpPost(base, big, { 'mcp-session-id': opened.sessionId! });
+      expect(r.res.status).toBe(413);
+      // The session survives: a normal request still works.
+      const ok = await mcpPost(base, { jsonrpc: '2.0', id: 10, method: 'tools/list' }, { 'mcp-session-id': opened.sessionId! });
+      expect(ok.res.status).toBe(200);
+    } finally {
+      await handle.close();
+    }
+  });
+});

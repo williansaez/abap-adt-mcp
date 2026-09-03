@@ -27,6 +27,8 @@ const isLoopbackBind = (host: string) => LOOPBACK_HOSTS.has(host);
 const stripPort = (hostHeader: string) => hostHeader.replace(/:\d+$/, '').replace(/^\[(.*)\]$/, '$1');
 const list = (v: string | undefined) => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
 
+const DEFAULT_MAX_BODY_BYTES = 4 * 1024 * 1024;
+
 export function readHttpOptions(env: NodeJS.ProcessEnv, version: string): HttpOptions {
   const port = parseInt(env.MCP_HTTP_PORT || '', 10);
   // 0 = ephemeral port (tests); otherwise an unprivileged fixed port.
@@ -35,7 +37,9 @@ export function readHttpOptions(env: NodeJS.ProcessEnv, version: string): HttpOp
   }
   const ttlMin = Number(env.MCP_HTTP_SESSION_TTL_MINUTES || 30);
   const max = Number(env.MCP_HTTP_MAX_SESSIONS || 16);
+  const body = Number(env.MCP_HTTP_MAX_BODY_BYTES || DEFAULT_MAX_BODY_BYTES);
   return {
+    maxBodyBytes: Number.isFinite(body) && body > 0 ? Math.floor(body) : DEFAULT_MAX_BODY_BYTES,
     port,
     host: env.MCP_HTTP_HOST || '127.0.0.1',
     token: env.MCP_HTTP_TOKEN || '',
@@ -76,18 +80,39 @@ export interface HttpHandle {
   close(): Promise<void>;
 }
 
+class BodyTooLarge extends Error {
+  constructor(readonly limit: number) { super(`request body exceeds ${limit} bytes (MCP_HTTP_MAX_BODY_BYTES)`); }
+}
+
+/**
+ * Read a request body, refusing anything over the limit. The socket is left
+ * open on refusal so the caller can still answer 413: destroying it here would
+ * close the connection before the response is written.
+ */
 function readBody(req: http.IncomingMessage, limit: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
+    let over = false;
     req.on('data', (c: Buffer) => {
+      if (over) return;
       size += c.length;
-      if (size > limit) { reject(new Error('body too large')); req.destroy(); return; }
+      if (size > limit) { over = true; reject(new BodyTooLarge(limit)); return; }
       chunks.push(c);
     });
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    req.on('error', reject);
+    req.on('end', () => { if (!over) resolve(Buffer.concat(chunks).toString('utf8')); });
+    req.on('error', (e) => { if (!over) reject(e); });
   });
+}
+
+
+/** Answer a refused body: 413 when it was too large, 400 for malformed JSON. The connection is closed so the sender stops. */
+function tooLargeOrBadJson(req: http.IncomingMessage, res: http.ServerResponse, e: unknown): void {
+  const tooLarge = e instanceof BodyTooLarge;
+  json(res, tooLarge ? 413 : 400,
+    { error: tooLarge ? (e as BodyTooLarge).message : `Invalid JSON body: ${(e as Error)?.message}` },
+    { Connection: 'close' });
+  req.destroy();
 }
 
 const json = (res: http.ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}) => {
@@ -158,15 +183,29 @@ export async function startHttpServer(createServer: () => Server, opts: HttpOpti
         const s = sessions.get(idHeader);
         if (!s) { json(res, 404, { error: 'Unknown or expired session; send a new initialize request without mcp-session-id.' }); return; }
         s.lastActivity = Date.now();
+        // Read the body here rather than letting the SDK transport consume the
+        // stream: the same size limit must apply to every request, not only to
+        // the one that opens the session. Without this an authenticated caller
+        // could stream an unbounded body into the process.
+        if (req.method === 'POST') {
+          let body: any;
+          try {
+            body = JSON.parse(await readBody(req, opts.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES));
+          } catch (e: any) {
+            tooLargeOrBadJson(req, res, e); return;
+          }
+          await s.transport.handleRequest(req, res, body);
+          return;
+        }
         await s.transport.handleRequest(req, res);
         return;
       }
       if (req.method !== 'POST') { json(res, 400, { error: 'Missing mcp-session-id header' }); return; }
       let body: any;
       try {
-        body = JSON.parse(await readBody(req, opts.maxBodyBytes ?? 4 * 1024 * 1024));
+        body = JSON.parse(await readBody(req, opts.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES));
       } catch (e: any) {
-        json(res, 400, { error: `Invalid JSON body: ${e.message}` }); return;
+        tooLargeOrBadJson(req, res, e); return;
       }
       const isInit = Array.isArray(body) ? body.some(m => m?.method === 'initialize') : body?.method === 'initialize';
       if (!isInit) { json(res, 400, { error: 'Missing mcp-session-id header; only initialize may open a session.' }); return; }

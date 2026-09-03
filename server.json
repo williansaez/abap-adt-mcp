@@ -60,6 +60,11 @@
           "isRequired": false
         },
         {
+          "name": "MCP_HTTP_MAX_BODY_BYTES",
+          "description": "Largest request body the HTTP transport accepts, in bytes (default 4194304); larger bodies are refused with HTTP 413",
+          "isRequired": false
+        },
+        {
           "name": "MCP_HTTP_SESSION_TTL_MINUTES",
           "description": "Idle minutes after which an HTTP session (and its SAP sessions/locks) is closed (default 30)",
           "isRequired": false
@@ -179,6 +184,11 @@
         {
           "name": "MCP_SOURCE_CACHE_TTL_SECONDS",
           "description": "Lifetime of the per-session source cache used by grepPackage, cdsViewInfo and syntaxCheckCode (default 300; 0 keeps entries until logout)",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_CACHE_DIR",
+          "description": "Directory for the cached SAP cloudification repository used by apiReleaseState (default ~/.abap-adt-mcp/cache)",
           "isRequired": false
         }
       ]
