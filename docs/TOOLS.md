@@ -29,256 +29,3703 @@ Enable a subset with `MCP_TOOLSETS` (comma list, or a preset: `all`, `focused`) 
 | `debugger` | 13 | ADT debugger listeners, breakpoints, stepping, variables | no |
 | `traces` | 9 | ABAP runtime traces | no |
 
-## Destinations, health & session (6) · toolset `core`
+## Summary by toolset
+
+### Destinations, health & session (6) · toolset `core`
 
 | Tool | What it does | Key parameters |
 |---|---|---|
-| ✏️ `login` | Authenticate with ABAP system | — |
-| ✏️ `logout` | Terminate ABAP session | — |
-| ⚠️ `dropSession` | Clear local session cache | — |
-| 📖 `listSystems` | List the configured ABAP systems (destinations) this server can reach. Call this first to pick the destination to pass to all other tools. | — |
-| 📖 `healthcheck` | Check server health and list configured destinations. | — |
-| 📖 `systemProfile` | Capability profile of a destination: platform (S/4HANA Cloud vs on-prem), system information, which ADT features the backend exposes (debugger, traces, abapGit, ATC, RAP generator, text search, API releases…) and therefore which toolsets/tools will not work... | `refresh` |
+| ✏️ [`login`](#login) | Authenticate with ABAP system | none |
+| ✏️ [`logout`](#logout) | Terminate ABAP session | none |
+| ⚠️ [`dropSession`](#dropsession) | Clear local session cache | none |
+| 📖 [`listSystems`](#listsystems) | List the configured ABAP systems (destinations) this server can reach. Call this first to pick the destination to pass to all other tools. | none |
+| 📖 [`healthcheck`](#healthcheck) | Check server health and list configured destinations. | none |
+| 📖 [`systemProfile`](#systemprofile) | Capability profile of a destination: platform (S/4HANA Cloud vs on-prem), system information, which ADT features the backend exposes (debugger, traces, abapGit, ATC, RAP generator, text search, API releases…) and therefore which toolsets/tools will not work... | `refresh` |
 
-## Source code (16) · toolset `source`
-
-| Tool | What it does | Key parameters |
-|---|---|---|
-| ✏️ `lock` | Lock an ABAP object for editing and keep the lock across calls. Returns the lockHandle; the server also records it, so setObjectSource/editObjectSource/deleteObject/createTestInclude/atcApplyQuickfix on the same object may omit lockHandle while it is held.... | `objectUrl`*, `accessMode` |
-| ✏️ `unLock` | Unlock an ABAP object previously locked with lock (requires its lockHandle). | `objectUrl`*, `lockHandle` |
-| 📖 `listLocks` | List the ADT locks this server currently holds on the destination (object, lockHandle, when, whether acquired automatically). Use it when a write fails with a lock/lockHandle error or before forceUnlock. | — |
-| ⚠️ `forceUnlock` | Release every lock this server holds on the destination (or one objectUrl). With dropSession=true also drops the SAP session afterwards, which frees locks whose handles are already invalid. Use after failed writes left objects locked. | `objectUrl`, `dropSession` |
-| 📖 `getObjectSource` | Retrieves source code for ABAP objects. Omit startLine/maxLines to get as much as fits the response budget (about 40,000 characters, several hundred lines); larger sources are paged automatically and report hasMore, then continue with startLine. Pass versio... | `objectSourceUrl`*, `version`, `startLine`, `maxLines` |
-| ⚠️ `setObjectSource` | Write the full source code of an ABAP object. Locks, writes and unlocks in one call when no lockHandle is given (pass activate=true to also activate); pass a lockHandle from lock only when you hold the lock across several calls. Run syntaxCheckCode before w... | `objectSourceUrl`*, `source`*, `lockHandle`, `transport`, `activate` |
-| ⚠️ `editObjectSource` | Applies a targeted edit to an ABAP object without sending the full source. Always re-fetches the current source from SAP first, so the edit lands on the latest remote version. Two modes: (a) replacements: a JSON array of {oldText, newText} where each oldTex... | `objectSourceUrl`*, `replacements`, `startLine`, `endLine`, `newText`, `expectedText`, `lockHandle`, `transport`, `activate` |
-| 📖 `getMethodSource` | Source of one method of a class (METHOD … ENDMETHOD block with its line range) instead of the whole class. Pass the class name or URL and the method name (interface methods as if_x~m). include selects main (default: definition and implementations), implemen... | `classUrl`*, `methodName`*, `className`, `include` |
-| ⚠️ `setMethodSource` | Replace one method of a class without touching the rest: re-reads the include from SAP, swaps the METHOD … ENDMETHOD block (pass the full block, or only the body to keep the existing header/footer), writes it back under an automatic lock and optionally acti... | `classUrl`*, `methodName`*, `className`, `source`*, `include`, `lockHandle`, `transport`, `activate` |
-| 📖 `prettyPrinterSetting` | Retrieves the pretty printer settings. | — |
-| ✏️ `setPrettyPrinterSetting` | Sets the pretty printer settings. | `indent`*, `style`* |
-| 📖 `prettyPrinter` | Formats ABAP code using the pretty printer. For large sources, use startLine/maxLines to page through the reformatted result instead of retrieving it all at once. | `source`*, `startLine`, `maxLines` |
-| 📖 `revisions` | Retrieves revisions for an object. | `objectUrl`*, `clsInclude` |
-| 📖 `objectDiff` | Unified diff between two revisions of an object (default: latest against the previous one). Revisions are selected by index in the list returned by revisions (0 = newest), by version string, or by revision URI. Use it to review what a transport or a colleag... | `objectUrl`*, `fromRevision`, `toRevision`, `clsInclude`, `contextLines` |
-| 📖 `getTextElements` | Read the text elements of an object: text symbols (TEXT-001), selection texts or list headings. Pass the object URL (e.g. /sap/bc/adt/programs/programs/zreport or /sap/bc/adt/oo/classes/zcl_demo). | `objectUrl`*, `category` |
-| ⚠️ `setTextElements` | Write text elements (text symbols, selection texts or list headings) of a locked object. Pass the full list for the category: elements missing from the list are removed. Requires lock (lockHandle) and, for transportable packages, a transport. Not supported... | `objectUrl`*, `category`*, `elements`*, `lockHandle`*, `transport` |
-
-## Objects & navigation (27) · toolset `objects`
+### Source code (16) · toolset `source`
 
 | Tool | What it does | Key parameters |
 |---|---|---|
-| 📖 `objectStructure` | Get object structure details. For large/complex objects (e.g. classes with many includes), use startIndex/maxItems to page through the structure's top-level array instead of retrieving it all at once. | `objectUrl`*, `version`, `startIndex`, `maxItems` |
-| 📖 `searchObject` | Search for objects | `query`*, `objType`, `max` |
-| 📖 `findObjectPath` | Find path for an object | `objectUrl`* |
-| 📖 `objectTypes` | Retrieve the ADT object type catalog reported by the system. For picking an objtype to pass to createObject, prefer loadTypes (creatable types). | — |
-| 📖 `reentranceTicket` | Retrieves an SAP reentrance ticket. WARNING: the ticket is a live logon credential and will appear in the conversation/host logs. Disabled unless the server is started with SAP_ALLOW_REENTRANCE_TICKET=1. | — |
-| 📖 `classIncludes` | URLs of the includes of a class (main, definitions, implementations, testclasses, macros) to use with getObjectSource/editObjectSource as they are (no /source/main suffix). | `clas`* |
-| 📖 `classComponents` | List class components (methods, attributes, types). For large classes, use startIndex/maxComponents to page through the top-level component list instead of retrieving it all at once. | `url`*, `startIndex`, `maxComponents` |
-| ⚠️ `deleteObject` | Deletes an ABAP object from the system | `objectUrl`*, `lockHandle`, `transport` |
-| ✏️ `activateObjects` | Activate ABAP objects using object references. Run after setObjectSource; the entries returned by inactiveObjects can be passed here directly. For a single object, activateByName is simpler. | `objects`*, `preauditRequested` |
-| ✏️ `activateByName` | Activate a single ABAP object by name and URL. Run after setObjectSource (and unLock); after activation run unitTestRun to verify behavior. | `objectName`*, `objectUrl`*, `mainInclude`, `preauditRequested` |
-| ✏️ `activatePackage` | Activate every inactive object of a package (and its sub-packages) in one activation request, the way RAP stacks (CDS, behavior definition, service definition, classes) must be activated together. Returns the activation messages and what is still inactive a... | `packageName`*, `recursive`, `user`, `allUsers`, `preauditRequested` |
-| 📖 `inactiveObjects` | Get list of inactive objects. For systems with many inactive objects across users, use startIndex/maxItems to page through the list instead of retrieving it all at once. | `startIndex`, `maxItems` |
-| 📖 `objectRegistrationInfo` | Get registration information for an ABAP object | `objectUrl`* |
-| 📖 `creatableTypeDetails` | List the object types createObject supports, with per-type required fields, label and max name length (SAP-style get_object_type_details). Filter with typeId. For the system-reported creatable catalog see loadTypes. | `typeId` |
-| 📖 `validateNewObject` | Validate name, package and type for a new ABAP object BEFORE calling createObject. Returns field-level validation errors. Use loadTypes to discover valid objtype values first. | `objtype`*, `objname`*, `description`*, `packagename`, `fugrname`, `swcomp`, `transportLayer`, `packagetype` |
-| ✏️ `createObject` | Create a new ABAP object skeleton. Recommended flow: loadTypes to pick objtype (e.g. CLAS/OC) -> validateNewObject to check name/package -> createTransport if the package is not local ($TMP) -> createObject. Afterwards edit source with lock + setObjectSourc... | `objtype`*, `name`*, `parentName`*, `description`*, `parentPath`*, `responsible`, `transport`, `swcomp`, `transportLayer`, `packagetype`, `recordChanges`, `abapLanguageVersion` |
-| 📖 `nodeContents` | Retrieves the contents of a node in the ABAP repository tree. For large packages/namespaces, use startIndex/maxItems to page through the node list instead of retrieving it all at once. | `parent_type`*, `parent_name`, `user_name`, `parent_tech_name`, `rebuild_tree`, `parentnodes`, `startIndex`, `maxItems` |
-| 📖 `mainPrograms` | Retrieves the main programs for a given include. | `includeUrl`* |
-| 📖 `typeHierarchy` | Type hierarchy (subtypes or supertypes) of the class/interface at a given source position. Pass the source URL (…/source/main) and the 1-based line/column of the type name; the current source is re-read from SAP unless you pass it in "source". superTypes=tr... | `objectSourceUrl`*, `line`*, `offset`*, `superTypes`, `source` |
-| 📖 `objectStructureElements` | Flat list of the members (methods, attributes, events, types, fields…) of an object with name, type, visibility and flags, cheaper than objectStructure/classComponents when you only need an outline. version=inactive reads the inactive version. | `objectUrl`*, `version`, `startIndex`, `maxItems` |
-| 📖 `objectEnhancements` | Enhancement implementations (implicit/explicit enhancement points, BAdI-free source enhancements) active on an ABAP source object, with optional source of each implementation. Use before editing standard-adjacent code to see what customer enhancements alrea... | `objectSourceUrl`*, `contextUri`, `includeSource` |
-| 📖 `packageTree` | Package hierarchy with its objects in one call: sub-packages (to maxDepth) and, per package, the objects with name, type, URL and description. Cheaper than repeated nodeContents calls; use objectTypes to keep only e.g. CLAS/OC,DDLS/DF. | `packageName`*, `maxDepth`, `includeObjects`, `objectTypes`, `maxObjects` |
-| ✏️ `exportPackageSources` | Write the sources of a package (and sub-packages) to a local directory in abapGit file layout (zcl_x.clas.abap, zcl_x.clas.testclasses.abap, zi_x.ddls.asddls, zrep.prog.abap …) so local tools (grep, editors, code review, documentation pipelines) can work on... | `packageName`*, `targetDir`*, `overwrite`, `recursive`, `objectTypes`, `maxObjects` |
-| 📖 `whereUsed` | Where-used list by object name: resolves the name with searchObject and returns the usage references (using object, its URL, kind of usage). No URL or source position needed. | `name`*, `objType`, `maxResults` |
-| 📖 `cdsViewInfo` | CDS entity by name in one call: element info (fields with types, associations, extension views, secondary objects) and optionally the DDL source. Pass the entity name (ZI_PRODUCT), not a URL. | `name`*, `includeSource`, `getTargetForAssociation`, `getExtensionViews` |
-| 📖 `sourceTextSearch` | Search source code by content using the ADT repository text search index (server-side, fast). Returns matching objects with line and snippet when the backend provides them. Restrict with packages/objectTypes/objectName. Use this before reading whole sources... | `searchString`*, `packages`, `objectTypes`, `objectName`, `maxResults` |
-| 📖 `grepPackage` | Client-side grep over the sources of a package (classes, interfaces, programs, includes, CDS, behavior definitions, service definitions, function modules): downloads each source once (cached), applies the pattern and returns matches with line numbers and co... | `packageName`*, `pattern`*, `regex`, `caseSensitive`, `recursive`, `objectTypes`, `contextLines`, `maxObjects`, `maxMatches` |
+| ✏️ [`lock`](#lock) | Lock an ABAP object for editing and keep the lock across calls. Returns the lockHandle; the server also records it, so setObjectSource/editObjectSource/deleteObject/createTestInclude/atcApplyQuickfix on the same object may omit lockHandle while it is held.... | `objectUrl`*, `accessMode` |
+| ✏️ [`unLock`](#unlock) | Unlock an ABAP object previously locked with lock (requires its lockHandle). | `objectUrl`*, `lockHandle` |
+| 📖 [`listLocks`](#listlocks) | List the ADT locks this server currently holds on the destination (object, lockHandle, when, whether acquired automatically). Use it when a write fails with a lock/lockHandle error or before forceUnlock. | none |
+| ⚠️ [`forceUnlock`](#forceunlock) | Release every lock this server holds on the destination (or one objectUrl). With dropSession=true also drops the SAP session afterwards, which frees locks whose handles are already invalid. Use after failed writes left objects locked. | `objectUrl`, `dropSession` |
+| 📖 [`getObjectSource`](#getobjectsource) | Retrieves source code for ABAP objects. Omit startLine/maxLines to get as much as fits the response budget (about 40,000 characters, several hundred lines); larger sources are paged automatically and report hasMore, then continue with startLine. Pass versio... | `objectSourceUrl`*, `version`, `startLine`, `maxLines` |
+| ⚠️ [`setObjectSource`](#setobjectsource) | Write the full source code of an ABAP object. Locks, writes and unlocks in one call when no lockHandle is given (pass activate=true to also activate); pass a lockHandle from lock only when you hold the lock across several calls. Run syntaxCheckCode before w... | `objectSourceUrl`*, `source`*, `lockHandle`, `transport`, `activate` |
+| ⚠️ [`editObjectSource`](#editobjectsource) | Applies a targeted edit to an ABAP object without sending the full source. Always re-fetches the current source from SAP first, so the edit lands on the latest remote version. Two modes: (a) replacements: a JSON array of {oldText, newText} where each oldTex... | `objectSourceUrl`*, `replacements`, `startLine`, `endLine`, `newText`, `expectedText`, `lockHandle`, `transport`, `activate` |
+| 📖 [`getMethodSource`](#getmethodsource) | Source of one method of a class (METHOD … ENDMETHOD block with its line range) instead of the whole class. Pass the class name or URL and the method name (interface methods as if_x~m). include selects main (default: definition and implementations), implemen... | `classUrl`*, `methodName`*, `className`, `include` |
+| ⚠️ [`setMethodSource`](#setmethodsource) | Replace one method of a class without touching the rest: re-reads the include from SAP, swaps the METHOD … ENDMETHOD block (pass the full block, or only the body to keep the existing header/footer), writes it back under an automatic lock and optionally acti... | `classUrl`*, `methodName`*, `className`, `source`*, `include`, `lockHandle`, `transport`, `activate` |
+| 📖 [`prettyPrinterSetting`](#prettyprintersetting) | Retrieves the pretty printer settings. | none |
+| ✏️ [`setPrettyPrinterSetting`](#setprettyprintersetting) | Sets the pretty printer settings. | `indent`*, `style`* |
+| 📖 [`prettyPrinter`](#prettyprinter) | Formats ABAP code using the pretty printer. For large sources, use startLine/maxLines to page through the reformatted result instead of retrieving it all at once. | `source`*, `startLine`, `maxLines` |
+| 📖 [`revisions`](#revisions) | Retrieves revisions for an object. | `objectUrl`*, `clsInclude` |
+| 📖 [`objectDiff`](#objectdiff) | Unified diff between two revisions of an object (default: latest against the previous one). Revisions are selected by index in the list returned by revisions (0 = newest), by version string, or by revision URI. Use it to review what a transport or a colleag... | `objectUrl`*, `fromRevision`, `toRevision`, `clsInclude`, `contextLines` |
+| 📖 [`getTextElements`](#gettextelements) | Read the text elements of an object: text symbols (TEXT-001), selection texts or list headings. Pass the object URL (e.g. /sap/bc/adt/programs/programs/zreport or /sap/bc/adt/oo/classes/zcl_demo). | `objectUrl`*, `category` |
+| ⚠️ [`setTextElements`](#settextelements) | Write text elements (text symbols, selection texts or list headings) of a locked object. Pass the full list for the category: elements missing from the list are removed. Requires lock (lockHandle) and, for transportable packages, a transport. Not supported... | `objectUrl`*, `category`*, `elements`*, `lockHandle`*, `transport` |
 
-## Transports (18) · toolset `transports`
+### Objects & navigation (27) · toolset `objects`
 
 | Tool | What it does | Key parameters |
 |---|---|---|
-| 📖 `transportDetails` | Get the contents of a transport request: tasks, owners, status and the full list of objects it records. Use transportInfo / userTransports to find transport numbers first. | `transportNumber`* |
-| 📖 `transportUnifiedDiff` | Generate a unified diff of the source-code objects recorded on a transport request: for each object it compares the version predating the transport against the current source. Covers whole objects (R3TR CLAS/PROG/INTF/FUGR/DDLS/BDEF/DCLS/DDLX/SRVD) and sub-... | `transportNumber`*, `maxObjects` |
-| 📖 `transportInfo` | Get transport information for an object source | `objSourceUrl`*, `devClass`, `operation` |
-| ✏️ `resolveTransport` | Decide which transport request to use for changing an object, in one call: (1) the transport that already records/locks the object, else (2) the newest modifiable transport of the current user for that package, else (3) none for local ($TMP / non-recording)... | `objSourceUrl`*, `devClass`, `preferTransport`, `createIfMissing`, `requestText` |
-| ✏️ `createTransport` | Create a new transport request. Required before creating or changing objects in transportable (non-$TMP) packages; pass the returned transport number to createObject / setObjectSource. Use transportInfo to find existing transports for an object first. | `objSourceUrl`*, `REQUEST_TEXT`*, `DEVCLASS`*, `transportLayer` |
-| 📖 `hasTransportConfig` | Check if transport configuration exists | — |
-| 📖 `transportConfigurations` | Retrieves transport configurations. | — |
-| 📖 `getTransportConfiguration` | Retrieves a specific transport configuration. | `url`* |
-| ✏️ `setTransportsConfig` | Sets transport configurations. | `uri`*, `etag`*, `config`* |
-| ✏️ `createTransportsConfig` | Creates transport configurations. | — |
-| 📖 `userTransports` | Retrieves transports for a user. For large results (many transports/tasks), use startIndex/maxItems to page through the flattened list of transport requests instead of retrieving them all at once. | `user`*, `targets`, `startIndex`, `maxItems` |
-| 📖 `transportsByConfig` | Retrieves transports by configuration. For large results (many transports/tasks), use startIndex/maxItems to page through the flattened list of transport requests instead of retrieving them all at once. | `configUri`*, `targets`, `startIndex`, `maxItems` |
-| ⚠️ `transportDelete` | Deletes a transport. | `transportNumber`* |
-| ⚠️ `transportRelease` | Releases a transport. | `transportNumber`*, `ignoreLocks`, `IgnoreATC` |
-| ✏️ `transportSetOwner` | Sets the owner of a transport. | `transportNumber`*, `targetuser`* |
-| ✏️ `transportAddUser` | Adds a user to a transport. | `transportNumber`*, `user`* |
-| 📖 `systemUsers` | Retrieves a list of system users. For large results, use startIndex/maxItems to page through the user list instead of retrieving it all at once. | `startIndex`, `maxItems` |
-| 📖 `transportReference` | Retrieves a transport reference. | `pgmid`*, `obj_wbtype`*, `obj_name`*, `tr_number` |
+| 📖 [`objectStructure`](#objectstructure) | Get object structure details. For large/complex objects (e.g. classes with many includes), use startIndex/maxItems to page through the structure's top-level array instead of retrieving it all at once. | `objectUrl`*, `version`, `startIndex`, `maxItems` |
+| 📖 [`searchObject`](#searchobject) | Search for objects | `query`*, `objType`, `max` |
+| 📖 [`findObjectPath`](#findobjectpath) | Find path for an object | `objectUrl`* |
+| 📖 [`objectTypes`](#objecttypes) | Retrieve the ADT object type catalog reported by the system. For picking an objtype to pass to createObject, prefer loadTypes (creatable types). | none |
+| 📖 [`reentranceTicket`](#reentranceticket) | Retrieves an SAP reentrance ticket. WARNING: the ticket is a live logon credential and will appear in the conversation/host logs. Disabled unless the server is started with SAP_ALLOW_REENTRANCE_TICKET=1. | none |
+| 📖 [`classIncludes`](#classincludes) | URLs of the includes of a class (main, definitions, implementations, testclasses, macros) to use with getObjectSource/editObjectSource as they are (no /source/main suffix). | `clas`* |
+| 📖 [`classComponents`](#classcomponents) | List class components (methods, attributes, types). For large classes, use startIndex/maxComponents to page through the top-level component list instead of retrieving it all at once. | `url`*, `startIndex`, `maxComponents` |
+| ⚠️ [`deleteObject`](#deleteobject) | Deletes an ABAP object from the system | `objectUrl`*, `lockHandle`, `transport` |
+| ✏️ [`activateObjects`](#activateobjects) | Activate ABAP objects using object references. Run after setObjectSource; the entries returned by inactiveObjects can be passed here directly. For a single object, activateByName is simpler. | `objects`*, `preauditRequested` |
+| ✏️ [`activateByName`](#activatebyname) | Activate a single ABAP object by name and URL. Run after setObjectSource (and unLock); after activation run unitTestRun to verify behavior. | `objectName`*, `objectUrl`*, `mainInclude`, `preauditRequested` |
+| ✏️ [`activatePackage`](#activatepackage) | Activate every inactive object of a package (and its sub-packages) in one activation request, the way RAP stacks (CDS, behavior definition, service definition, classes) must be activated together. Returns the activation messages and what is still inactive a... | `packageName`*, `recursive`, `user`, `allUsers`, `preauditRequested` |
+| 📖 [`inactiveObjects`](#inactiveobjects) | Get list of inactive objects. For systems with many inactive objects across users, use startIndex/maxItems to page through the list instead of retrieving it all at once. | `startIndex`, `maxItems` |
+| 📖 [`objectRegistrationInfo`](#objectregistrationinfo) | Get registration information for an ABAP object | `objectUrl`* |
+| 📖 [`creatableTypeDetails`](#creatabletypedetails) | List the object types createObject supports, with per-type required fields, label and max name length (SAP-style get_object_type_details). Filter with typeId. For the system-reported creatable catalog see loadTypes. | `typeId` |
+| 📖 [`validateNewObject`](#validatenewobject) | Validate name, package and type for a new ABAP object BEFORE calling createObject. Returns field-level validation errors. Use loadTypes to discover valid objtype values first. | `objtype`*, `objname`*, `description`*, `packagename`, `fugrname`, `swcomp`, `transportLayer`, `packagetype` |
+| ✏️ [`createObject`](#createobject) | Create a new ABAP object skeleton. Recommended flow: loadTypes to pick objtype (e.g. CLAS/OC) -> validateNewObject to check name/package -> createTransport if the package is not local ($TMP) -> createObject. Afterwards edit source with lock + setObjectSourc... | `objtype`*, `name`*, `parentName`*, `description`*, `parentPath`*, `responsible`, `transport`, `swcomp`, `transportLayer`, `packagetype`, `recordChanges`, `abapLanguageVersion` |
+| 📖 [`nodeContents`](#nodecontents) | Retrieves the contents of a node in the ABAP repository tree. For large packages/namespaces, use startIndex/maxItems to page through the node list instead of retrieving it all at once. | `parent_type`*, `parent_name`, `user_name`, `parent_tech_name`, `rebuild_tree`, `parentnodes`, `startIndex`, `maxItems` |
+| 📖 [`mainPrograms`](#mainprograms) | Retrieves the main programs for a given include. | `includeUrl`* |
+| 📖 [`typeHierarchy`](#typehierarchy) | Type hierarchy (subtypes or supertypes) of the class/interface at a given source position. Pass the source URL (…/source/main) and the 1-based line/column of the type name; the current source is re-read from SAP unless you pass it in "source". superTypes=tr... | `objectSourceUrl`*, `line`*, `offset`*, `superTypes`, `source` |
+| 📖 [`objectStructureElements`](#objectstructureelements) | Flat list of the members (methods, attributes, events, types, fields…) of an object with name, type, visibility and flags, cheaper than objectStructure/classComponents when you only need an outline. version=inactive reads the inactive version. | `objectUrl`*, `version`, `startIndex`, `maxItems` |
+| 📖 [`objectEnhancements`](#objectenhancements) | Enhancement implementations (implicit/explicit enhancement points, BAdI-free source enhancements) active on an ABAP source object, with optional source of each implementation. Use before editing standard-adjacent code to see what customer enhancements alrea... | `objectSourceUrl`*, `contextUri`, `includeSource` |
+| 📖 [`packageTree`](#packagetree) | Package hierarchy with its objects in one call: sub-packages (to maxDepth) and, per package, the objects with name, type, URL and description. Cheaper than repeated nodeContents calls; use objectTypes to keep only e.g. CLAS/OC,DDLS/DF. | `packageName`*, `maxDepth`, `includeObjects`, `objectTypes`, `maxObjects` |
+| ✏️ [`exportPackageSources`](#exportpackagesources) | Write the sources of a package (and sub-packages) to a local directory in abapGit file layout (zcl_x.clas.abap, zcl_x.clas.testclasses.abap, zi_x.ddls.asddls, zrep.prog.abap …) so local tools (grep, editors, code review, documentation pipelines) can work on... | `packageName`*, `targetDir`*, `overwrite`, `recursive`, `objectTypes`, `maxObjects` |
+| 📖 [`whereUsed`](#whereused) | Where-used list by object name: resolves the name with searchObject and returns the usage references (using object, its URL, kind of usage). No URL or source position needed. | `name`*, `objType`, `maxResults` |
+| 📖 [`cdsViewInfo`](#cdsviewinfo) | CDS entity by name in one call: element info (fields with types, associations, extension views, secondary objects) and optionally the DDL source. Pass the entity name (ZI_PRODUCT), not a URL. | `name`*, `includeSource`, `getTargetForAssociation`, `getExtensionViews` |
+| 📖 [`sourceTextSearch`](#sourcetextsearch) | Search source code by content using the ADT repository text search index (server-side, fast). Returns matching objects with line and snippet when the backend provides them. Restrict with packages/objectTypes/objectName. Use this before reading whole sources... | `searchString`*, `packages`, `objectTypes`, `objectName`, `maxResults` |
+| 📖 [`grepPackage`](#greppackage) | Client-side grep over the sources of a package (classes, interfaces, programs, includes, CDS, behavior definitions, service definitions, function modules): downloads each source once (cached), applies the pattern and returns matches with line numbers and co... | `packageName`*, `pattern`*, `regex`, `caseSensitive`, `recursive`, `objectTypes`, `contextLines`, `maxObjects`, `maxMatches` |
 
-## Syntax & code analysis (16) · toolset `analysis`
-
-| Tool | What it does | Key parameters |
-|---|---|---|
-| 📖 `syntaxCheckCode` | ABAP syntax check of a source against the context of an existing object: url is the source URL of that object (…/source/main), required because the check resolves types and includes in its context; it is not a standalone check of free text. Provide the sour... | `code`, `url`*, `mainUrl`, `mainProgram`, `version` |
-| 📖 `syntaxCheckCdsUrl` | Perform ABAP syntax check with CDS URL | `cdsUrl`* |
-| 📖 `codeCompletion` | Get code completion suggestions | `sourceUrl`*, `source`*, `line`*, `column`* |
-| 📖 `findDefinition` | Find symbol definition | `url`*, `source`*, `line`*, `startCol`*, `endCol`*, `implementation`, `mainProgram` |
-| 📖 `usageReferences` | Find symbol references (system-wide "where used"). For widely-used symbols this can return hundreds/thousands of hits; use startIndex/maxItems to page through the result instead of retrieving it all at once. | `url`*, `line`, `column`, `startIndex`, `maxItems` |
-| 📖 `syntaxCheckTypes` | Retrieves syntax check types. | — |
-| 📖 `codeCompletionFull` | Performs full code completion. | `sourceUrl`*, `source`*, `line`*, `column`*, `patternKey`* |
-| ⚠️ `runClass` | Runs a class. | `className`* |
-| 📖 `codeCompletionElement` | Retrieves code completion element information. | `sourceUrl`*, `source`*, `line`*, `column`* |
-| 📖 `usageReferenceSnippets` | Retrieves usage reference snippets (source excerpts) for a list of usage references, e.g. from usageReferences. For large input lists the returned snippets can be large; use startIndex/maxItems to page through the result instead of retrieving it all at once. | `references`*, `startIndex`, `maxItems` |
-| 📖 `fixProposals` | Retrieves fix proposals. | `url`*, `source`*, `line`*, `column`* |
-| ✏️ `fixEdits` | Applies fix edits. | `proposal`*, `source`* |
-| 📖 `fragmentMappings` | Retrieves fragment mappings. | `url`*, `type`*, `name`* |
-| 📖 `abapDocumentation` | ABAP keyword documentation (the F1 help) as plain text. Two ways to ask: (a) keyword: a statement or addition such as "SELECT SINGLE", "WITH PRIVILEGED ACCESS", "LOOP AT GROUP BY" (the server builds the context for you); (b) cursor: objectUri, body (the sou... | `keyword`, `objectUri`, `body`, `line`, `column`, `language`, `startLine`, `maxLines`, `raw` |
-| 📖 `apiReleaseState` | Release state of SAP objects for ABAP Cloud / Clean Core, from SAP's official cloudification repository (released, deprecated with successors, classicAPI, noAPI) plus, when objectUrl is given, the backend's own /sap/bc/adt/apireleases answer. Check APIs bef... | `names`, `objectUrl`, `source`, `sourceUrl`, `edition`, `refresh` |
-| ⚠️ `runSnippet` | Run a piece of ABAP once and return its console output: wraps the code in a temporary IF_OO_ADT_CLASSRUN class (the "out" parameter is available: out->write( ... )), creates it in packageName (default $TMP; on S/4HANA Cloud use a customer package with ABAP... | `code`*, `packageName`, `className`, `transport`, `responsible`, `keep` |
-
-## Unit tests (4) · toolset `tests`
+### Transports (18) · toolset `transports`
 
 | Tool | What it does | Key parameters |
 |---|---|---|
-| ✏️ `unitTestRun` | Run ABAP unit tests for an object. ALWAYS run after adding tests or changing and activating source code. Tests live in the testclass include (see createTestInclude). For large results (many test classes), use startIndex/maxItems to page through the top-leve... | `url`*, `flags`, `startIndex`, `maxItems` |
-| 📖 `unitTestEvaluation` | Evaluates unit test results. For large results (many test methods), use startIndex/maxItems to page through the top-level test-method list instead of retrieving it all at once. | `clas`*, `flags`, `startIndex`, `maxItems` |
-| 📖 `unitTestOccurrenceMarkers` | Retrieves unit test occurrence markers. | `url`*, `source`* |
-| ✏️ `createTestInclude` | Creates a test include for a class. | `clas`*, `lockHandle`, `transport` |
+| 📖 [`transportDetails`](#transportdetails) | Get the contents of a transport request: tasks, owners, status and the full list of objects it records. Use transportInfo / userTransports to find transport numbers first. | `transportNumber`* |
+| 📖 [`transportUnifiedDiff`](#transportunifieddiff) | Generate a unified diff of the source-code objects recorded on a transport request: for each object it compares the version predating the transport against the current source. Covers whole objects (R3TR CLAS/PROG/INTF/FUGR/DDLS/BDEF/DCLS/DDLX/SRVD) and sub-... | `transportNumber`*, `maxObjects` |
+| 📖 [`transportInfo`](#transportinfo) | Get transport information for an object source | `objSourceUrl`*, `devClass`, `operation` |
+| ✏️ [`resolveTransport`](#resolvetransport) | Decide which transport request to use for changing an object, in one call: (1) the transport that already records/locks the object, else (2) the newest modifiable transport of the current user for that package, else (3) none for local ($TMP / non-recording)... | `objSourceUrl`*, `devClass`, `preferTransport`, `createIfMissing`, `requestText` |
+| ✏️ [`createTransport`](#createtransport) | Create a new transport request. Required before creating or changing objects in transportable (non-$TMP) packages; pass the returned transport number to createObject / setObjectSource. Use transportInfo to find existing transports for an object first. | `objSourceUrl`*, `REQUEST_TEXT`*, `DEVCLASS`*, `transportLayer` |
+| 📖 [`hasTransportConfig`](#hastransportconfig) | Check if transport configuration exists | none |
+| 📖 [`transportConfigurations`](#transportconfigurations) | Retrieves transport configurations. | none |
+| 📖 [`getTransportConfiguration`](#gettransportconfiguration) | Retrieves a specific transport configuration. | `url`* |
+| ✏️ [`setTransportsConfig`](#settransportsconfig) | Sets transport configurations. | `uri`*, `etag`*, `config`* |
+| ✏️ [`createTransportsConfig`](#createtransportsconfig) | Creates transport configurations. | none |
+| 📖 [`userTransports`](#usertransports) | Retrieves transports for a user. For large results (many transports/tasks), use startIndex/maxItems to page through the flattened list of transport requests instead of retrieving them all at once. | `user`*, `targets`, `startIndex`, `maxItems` |
+| 📖 [`transportsByConfig`](#transportsbyconfig) | Retrieves transports by configuration. For large results (many transports/tasks), use startIndex/maxItems to page through the flattened list of transport requests instead of retrieving them all at once. | `configUri`*, `targets`, `startIndex`, `maxItems` |
+| ⚠️ [`transportDelete`](#transportdelete) | Deletes a transport. | `transportNumber`* |
+| ⚠️ [`transportRelease`](#transportrelease) | Releases a transport. | `transportNumber`*, `ignoreLocks`, `IgnoreATC` |
+| ✏️ [`transportSetOwner`](#transportsetowner) | Sets the owner of a transport. | `transportNumber`*, `targetuser`* |
+| ✏️ [`transportAddUser`](#transportadduser) | Adds a user to a transport. | `transportNumber`*, `user`* |
+| 📖 [`systemUsers`](#systemusers) | Retrieves a list of system users. For large results, use startIndex/maxItems to page through the user list instead of retrieving it all at once. | `startIndex`, `maxItems` |
+| 📖 [`transportReference`](#transportreference) | Retrieves a transport reference. | `pgmid`*, `obj_wbtype`*, `obj_name`*, `tr_number` |
 
-## ATC (14) · toolset `atc`
-
-| Tool | What it does | Key parameters |
-|---|---|---|
-| 📖 `atcCustomizing` | Retrieves ATC customizing information. | — |
-| 📖 `atcQuickfixProposals` | List the quickfix proposals available at an ATC finding location. Pass the source URL and position from an atcWorklists finding. Apply a proposal with atcApplyQuickfix. Read-only. | `objectSourceUrl`*, `line`*, `column`* |
-| ⚠️ `atcApplyQuickfix` | Apply a deterministic quickfix at an ATC finding location: recomputes the proposals (see atcQuickfixProposals), applies the chosen one to the source and writes it back with setObjectSource. Requires the object to be locked (lock returns the lockHandle). Act... | `objectSourceUrl`*, `line`*, `column`*, `proposalIndex`, `lockHandle`, `transport` |
-| 📖 `atcCheckVariant` | Retrieves information about an ATC check variant. | `variant`* |
-| ✏️ `atcSummary` | Aggregated view of an ATC result: totals by priority, by check and by object, top findings with location and quickfix availability. Pass runResultId from createAtcRun, or mainUrl (+ variant) to run ATC and summarize in one call. mainUrl accepts an object UR... | `runResultId`, `mainUrl`, `variant`, `includeExempted`, `topFindings` |
-| ✏️ `createAtcRun` | Creates an ATC run. Flow: atcCustomizing (system check variant name) -> atcCheckVariant (returns a worklistId) -> createAtcRun -> atcWorklists (findings). Passing a check variant NAME here also works: it is resolved to a worklistId via atcCheckVariant autom... | `variant`*, `mainUrl`*, `maxResults` |
-| 📖 `atcWorklists` | Retrieves ATC worklists. For runs covering many objects, use startIndex/maxItems to page through the findings-per-object list instead of retrieving it all at once. | `runResultId`*, `timestamp`, `usedObjectSet`, `includeExempted`, `startIndex`, `maxItems` |
-| 📖 `atcUsers` | Retrieves a list of ATC users. | — |
-| ✏️ `atcExemptProposal` | Retrieves an ATC exemption proposal. | `markerId`* |
-| ✏️ `atcRequestExemption` | Requests an ATC exemption. | `proposal`* |
-| 📖 `isProposalMessage` | Checks if a given object is a proposal message. | `proposal`* |
-| 📖 `atcContactUri` | Retrieves the contact URI for an ATC finding. | `findingUri`* |
-| ✏️ `atcChangeContact` | Changes the contact for an ATC finding. | `itemUri`*, `userId`* |
-| 📖 `atcDocumentation` | Read the documentation of an ATC check/finding (what the check tests, why it matters, how to fix). Pass the documentation URI found in an ATC finding (atcWorklists → findings[].link / docUri). | `docUri`* |
-
-## Data access & DDIC (10) · toolset `data`
+### Syntax & code analysis (16) · toolset `analysis`
 
 | Tool | What it does | Key parameters |
 |---|---|---|
-| 📖 `annotationDefinitions` | Retrieves the CDS annotation catalog for the system. This can be large; use startIndex/maxItems to page through it instead of retrieving it all at once. | `startIndex`, `maxItems` |
-| 📖 `ddicElement` | Retrieves information about a DDIC element. For complex objects the child element list (fields/associations/secondary objects) can be large; use startIndex/maxItems to page through it instead of retrieving it all at once. | `path`*, `getTargetForAssociation`, `getExtensionViews`, `getSecondaryObjects`, `startIndex`, `maxItems` |
-| 📖 `ddicRepositoryAccess` | Accesses the DDIC repository. This can return a large list of object references; use startIndex/maxItems to page through it instead of retrieving it all at once. | `path`*, `startIndex`, `maxItems` |
-| 📖 `packageSearchHelp` | Performs a package search help. | `type`*, `name`, `startIndex`, `maxResults` |
-| 📖 `getDomainProperties` | Read a DDIC domain: data type, length, decimals, output settings and fixed values / value table. Pass the domain URL (/sap/bc/adt/ddic/domains/zdom) and optionally version=inactive. | `domainUrl`*, `version` |
-| ⚠️ `setDomainProperties` | Write a DDIC domain (type, length, fixed values, value table…). Read it first with getDomainProperties, modify the returned properties/metaData objects and pass them back as JSON. Requires lock (lockHandle) and a transport for transportable packages; activa... | `domainUrl`*, `properties`*, `metaData`*, `lockHandle`*, `transport` |
-| 📖 `getDataElementProperties` | Read a DDIC data element: type (domain or built-in), length, field labels (short/medium/long/heading), search help and flags. Pass the data element URL (/sap/bc/adt/ddic/dataelements/zde). | `dataElementUrl`*, `version` |
-| ⚠️ `setDataElementProperties` | Write a DDIC data element (type, field labels, search help…). Read it first with getDataElementProperties, modify the returned properties/metaData objects and pass them back as JSON. Requires lock (lockHandle) and a transport for transportable packages; act... | `dataElementUrl`*, `properties`*, `metaData`*, `lockHandle`*, `transport` |
-| 📖 `tableContents` | Retrieves the contents of an ABAP table or CDS entity by name (no SQL). Works on tables the data preview refuses for runQuery (dataMaintenance restricted); authorization (S_TABU_DIS/S_TABU_NAM) still applies. rowNumber caps how many rows are requested from... | `ddicEntityName`*, `rowNumber`, `decode`, `sqlQuery`, `startRow`, `maxRows` |
-| 📖 `runQuery` | Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, released API views included). Long statements are wrapped automatically to the preview's 255-character line limit, so wide select lists are fine; a single literal longer than 255 ch... | `sqlQuery`*, `rowNumber`, `decode`, `startRow`, `maxRows` |
+| 📖 [`syntaxCheckCode`](#syntaxcheckcode) | ABAP syntax check of a source against the context of an existing object: url is the source URL of that object (…/source/main), required because the check resolves types and includes in its context; it is not a standalone check of free text. Provide the sour... | `code`, `url`*, `mainUrl`, `mainProgram`, `version` |
+| 📖 [`syntaxCheckCdsUrl`](#syntaxcheckcdsurl) | Perform ABAP syntax check with CDS URL | `cdsUrl`* |
+| 📖 [`codeCompletion`](#codecompletion) | Get code completion suggestions | `sourceUrl`*, `source`*, `line`*, `column`* |
+| 📖 [`findDefinition`](#finddefinition) | Find symbol definition | `url`*, `source`*, `line`*, `startCol`*, `endCol`*, `implementation`, `mainProgram` |
+| 📖 [`usageReferences`](#usagereferences) | Find symbol references (system-wide "where used"). For widely-used symbols this can return hundreds/thousands of hits; use startIndex/maxItems to page through the result instead of retrieving it all at once. | `url`*, `line`, `column`, `startIndex`, `maxItems` |
+| 📖 [`syntaxCheckTypes`](#syntaxchecktypes) | Retrieves syntax check types. | none |
+| 📖 [`codeCompletionFull`](#codecompletionfull) | Performs full code completion. | `sourceUrl`*, `source`*, `line`*, `column`*, `patternKey`* |
+| ⚠️ [`runClass`](#runclass) | Runs a class. | `className`* |
+| 📖 [`codeCompletionElement`](#codecompletionelement) | Retrieves code completion element information. | `sourceUrl`*, `source`*, `line`*, `column`* |
+| 📖 [`usageReferenceSnippets`](#usagereferencesnippets) | Retrieves usage reference snippets (source excerpts) for a list of usage references, e.g. from usageReferences. For large input lists the returned snippets can be large; use startIndex/maxItems to page through the result instead of retrieving it all at once. | `references`*, `startIndex`, `maxItems` |
+| 📖 [`fixProposals`](#fixproposals) | Retrieves fix proposals. | `url`*, `source`*, `line`*, `column`* |
+| ✏️ [`fixEdits`](#fixedits) | Applies fix edits. | `proposal`*, `source`* |
+| 📖 [`fragmentMappings`](#fragmentmappings) | Retrieves fragment mappings. | `url`*, `type`*, `name`* |
+| 📖 [`abapDocumentation`](#abapdocumentation) | ABAP keyword documentation (the F1 help) as plain text. Two ways to ask: (a) keyword: a statement or addition such as "SELECT SINGLE", "WITH PRIVILEGED ACCESS", "LOOP AT GROUP BY" (the server builds the context for you); (b) cursor: objectUri, body (the sou... | `keyword`, `objectUri`, `body`, `line`, `column`, `language`, `startLine`, `maxLines`, `raw` |
+| 📖 [`apiReleaseState`](#apireleasestate) | Release state of SAP objects for ABAP Cloud / Clean Core, from SAP's official cloudification repository (released, deprecated with successors, classicAPI, noAPI) plus, when objectUrl is given, the backend's own /sap/bc/adt/apireleases answer. Check APIs bef... | `names`, `objectUrl`, `source`, `sourceUrl`, `edition`, `refresh` |
+| ⚠️ [`runSnippet`](#runsnippet) | Run a piece of ABAP once and return its console output: wraps the code in a temporary IF_OO_ADT_CLASSRUN class (the "out" parameter is available: out->write( ... )), creates it in packageName (default $TMP; on S/4HANA Cloud use a customer package with ABAP... | `code`*, `packageName`, `className`, `transport`, `responsible`, `keep` |
 
-## Discovery & metadata (7) · toolset `discovery`
-
-| Tool | What it does | Key parameters |
-|---|---|---|
-| 📖 `featureDetails` | Retrieves details for a given feature. | `title`* |
-| 📖 `collectionFeatureDetails` | Retrieves details for a given collection feature. | `url`* |
-| 📖 `findCollectionByUrl` | Finds a collection by its URL. | `url`* |
-| 📖 `loadTypes` | List the ABAP object types creatable on this system (version-aware). Use BEFORE createObject to pick a valid objtype value such as CLAS/OC. For the raw ADT type catalog see objectTypes. | — |
-| 📖 `adtDiscovery` | Performs ADT discovery. Returns a list of discovery collections. For large systems, use startIndex/maxItems to page through the list instead of retrieving it all at once. | `startIndex`, `maxItems` |
-| 📖 `adtCoreDiscovery` | Performs ADT core discovery. Returns a list of core discovery collections. For large systems, use startIndex/maxItems to page through the list instead of retrieving it all at once. | `startIndex`, `maxItems` |
-| 📖 `adtCompatibilityGraph` | Retrieves the ADT compatibility graph. | — |
-
-## Runtime errors (3) · toolset `runtime`
+### Unit tests (4) · toolset `tests`
 
 | Tool | What it does | Key parameters |
 |---|---|---|
-| 📖 `feeds` | Retrieves a list of feeds. | — |
-| 📖 `dumps` | List recent ABAP short dumps (runtime errors). By default returns a compact summary per dump (runtime error, exception, program, user, time, where it terminated with source URL and line, top of the call stack) instead of the raw HTML. Filter with from/to (t... | `query`, `from`, `to`, `user`, `contains`, `includeHtml`, `startIndex`, `maxItems` |
-| 📖 `dumpDetails` | Full formatted analysis of one ABAP short dump as plain text (header, what happened, error analysis, where terminated, source extract, variables, call stack). Pass the dumpId from dumps (or the full self link). Page long dumps with startLine/maxLines. | `dumpId`*, `startLine`, `maxLines` |
+| ✏️ [`unitTestRun`](#unittestrun) | Run ABAP unit tests for an object. ALWAYS run after adding tests or changing and activating source code. Tests live in the testclass include (see createTestInclude). For large results (many test classes), use startIndex/maxItems to page through the top-leve... | `url`*, `flags`, `startIndex`, `maxItems` |
+| 📖 [`unitTestEvaluation`](#unittestevaluation) | Evaluates unit test results. For large results (many test methods), use startIndex/maxItems to page through the top-level test-method list instead of retrieving it all at once. | `clas`*, `flags`, `startIndex`, `maxItems` |
+| 📖 [`unitTestOccurrenceMarkers`](#unittestoccurrencemarkers) | Retrieves unit test occurrence markers. | `url`*, `source`* |
+| ✏️ [`createTestInclude`](#createtestinclude) | Creates a test include for a class. | `clas`*, `lockHandle`, `transport` |
 
-## Refactoring (8) · toolset `refactoring`
-
-| Tool | What it does | Key parameters |
-|---|---|---|
-| 📖 `renameEvaluate` | Evaluates a rename refactoring. | `uri`*, `line`*, `startColumn`*, `endColumn`* |
-| 📖 `renamePreview` | Previews a rename refactoring. | `renameRefactoring`*, `transport` |
-| ⚠️ `renameExecute` | Executes a rename refactoring. | `refactoring`* |
-| 📖 `extractMethodEvaluate` | Evaluates an extract method refactoring. | `uri`*, `range`* |
-| 📖 `extractMethodPreview` | Previews an extract method refactoring. | `proposal`* |
-| ⚠️ `extractMethodExecute` | Executes an extract method refactoring. | `refactoring`* |
-| 📖 `changePackagePreview` | Preview moving an object to another package (change package refactoring). Returns the refactoring proposal with affected objects; pass it unchanged to changePackageExecute. Needs a transport when the target package is transportable. | `objectUrl`*, `oldPackage`*, `newPackage`*, `transport` |
-| ⚠️ `changePackageExecute` | Execute a change package refactoring previewed with changePackagePreview. Pass the refactoring returned by the preview as JSON. | `refactoring`* |
-
-## RAP generation (8) · toolset `rap`
+### ATC (14) · toolset `atc`
 
 | Tool | What it does | Key parameters |
 |---|---|---|
-| 📖 `rapGenIsAvailable` | Check whether RAP repository-object generators are available on this system. Call before the other rapGen* tools. | `genId` |
-| 📖 `rapGenGetSchema` | Get the JSON schema describing the input content of a RAP generator. Use it to build the content for rapGenValidateContent / rapGenPreview / rapGenGenerate. | `genId`*, `refObjectUri`*, `packageName`* |
-| 📖 `rapGenGetContent` | Get the proposed default generator content (names for CDS entities, behavior class, service definition/binding) for a reference object. Adjust and pass to rapGenValidateContent / rapGenGenerate. | `genId`*, `refObjectUri`*, `packageName`* |
-| 📖 `rapGenValidateInitial` | Validate that generation can start from the given reference object and package (run before rapGenGetContent). | `genId`*, `refObjectUri`*, `packageName`* |
-| 📖 `rapGenValidateContent` | Validate a full generator content (names, package, conflicts) BEFORE generating. Recommended flow: rapGenGetContent -> adjust -> rapGenValidateContent -> rapGenPreview -> rapGenGenerate. | `genId`*, `refObjectUri`*, `content`* |
-| 📖 `rapGenPreview` | Preview the list of repository objects a generation would create (CDS views, behavior definition, service definition/binding) without creating anything. | `genId`*, `refObjectUri`*, `content`* |
-| ✏️ `rapGenGenerate` | Generate the RAP repository objects (CDS views, behavior definition, service definition/binding) on the system. Requires a transport (createTransport). Validate with rapGenValidateContent and inspect rapGenPreview first. Activate the generated objects after... | `genId`*, `refObjectUri`*, `transport`*, `content`* |
-| ✏️ `rapGenPublishService` | Publish a generated service binding so its OData service becomes callable (alternative to publishServiceBinding for rapGen-created bindings). | `srvbName`* |
+| 📖 [`atcCustomizing`](#atccustomizing) | Retrieves ATC customizing information. | none |
+| 📖 [`atcQuickfixProposals`](#atcquickfixproposals) | List the quickfix proposals available at an ATC finding location. Pass the source URL and position from an atcWorklists finding. Apply a proposal with atcApplyQuickfix. Read-only. | `objectSourceUrl`*, `line`*, `column`* |
+| ⚠️ [`atcApplyQuickfix`](#atcapplyquickfix) | Apply a deterministic quickfix at an ATC finding location: recomputes the proposals (see atcQuickfixProposals), applies the chosen one to the source and writes it back with setObjectSource. Requires the object to be locked (lock returns the lockHandle). Act... | `objectSourceUrl`*, `line`*, `column`*, `proposalIndex`, `lockHandle`, `transport` |
+| 📖 [`atcCheckVariant`](#atccheckvariant) | Retrieves information about an ATC check variant. | `variant`* |
+| ✏️ [`atcSummary`](#atcsummary) | Aggregated view of an ATC result: totals by priority, by check and by object, top findings with location and quickfix availability. Pass runResultId from createAtcRun, or mainUrl (+ variant) to run ATC and summarize in one call. mainUrl accepts an object UR... | `runResultId`, `mainUrl`, `variant`, `includeExempted`, `topFindings` |
+| ✏️ [`createAtcRun`](#createatcrun) | Creates an ATC run. Flow: atcCustomizing (system check variant name) -> atcCheckVariant (returns a worklistId) -> createAtcRun -> atcWorklists (findings). Passing a check variant NAME here also works: it is resolved to a worklistId via atcCheckVariant autom... | `variant`*, `mainUrl`*, `maxResults` |
+| 📖 [`atcWorklists`](#atcworklists) | Retrieves ATC worklists. For runs covering many objects, use startIndex/maxItems to page through the findings-per-object list instead of retrieving it all at once. | `runResultId`*, `timestamp`, `usedObjectSet`, `includeExempted`, `startIndex`, `maxItems` |
+| 📖 [`atcUsers`](#atcusers) | Retrieves a list of ATC users. | none |
+| ✏️ [`atcExemptProposal`](#atcexemptproposal) | Retrieves an ATC exemption proposal. | `markerId`* |
+| ✏️ [`atcRequestExemption`](#atcrequestexemption) | Requests an ATC exemption. | `proposal`* |
+| 📖 [`isProposalMessage`](#isproposalmessage) | Checks if a given object is a proposal message. | `proposal`* |
+| 📖 [`atcContactUri`](#atccontacturi) | Retrieves the contact URI for an ATC finding. | `findingUri`* |
+| ✏️ [`atcChangeContact`](#atcchangecontact) | Changes the contact for an ATC finding. | `itemUri`*, `userId`* |
+| 📖 [`atcDocumentation`](#atcdocumentation) | Read the documentation of an ATC check/finding (what the check tests, why it matters, how to fix). Pass the documentation URI found in an ATC finding (atcWorklists → findings[].link / docUri). | `docUri`* |
 
-## Business services (4) · toolset `services`
-
-| Tool | What it does | Key parameters |
-|---|---|---|
-| ✏️ `publishServiceBinding` | Publishes a service binding. | `name`*, `version`* |
-| ⚠️ `unPublishServiceBinding` | Unpublishes a service binding. | `name`*, `version`* |
-| 📖 `fetchServiceDetails` | Fetch the OData services of a service binding BY NAME: service URLs, entity sets, navigations and preview URLs. Resolves the binding internally, so no prior objectStructure call is needed (name-based equivalent of bindingDetails). | `name`*, `index` |
-| 📖 `bindingDetails` | Retrieves details of a service binding from an already-parsed ServiceBinding object. If you only have the binding name, use fetchServiceDetails instead. | `binding`*, `index` |
-
-## abapGit (10) · toolset `git`
+### Data access & DDIC (10) · toolset `data`
 
 | Tool | What it does | Key parameters |
 |---|---|---|
-| 📖 `gitRepos` | Retrieves a list of Git repositories. | — |
-| 📖 `gitExternalRepoInfo` | Retrieves information about an external Git repository. | `repourl`*, `user`, `password` |
-| ✏️ `gitCreateRepo` | Creates a new Git repository. | `packageName`*, `repourl`*, `branch`, `transport`, `user`, `password` |
-| ✏️ `gitPullRepo` | Pulls changes from a Git repository. For repos with many changed objects, use startIndex/maxItems to page through the list of imported/changed objects returned in the response instead of retrieving it all at once. | `repoId`*, `branch`, `transport`, `user`, `password`, `startIndex`, `maxItems` |
-| ⚠️ `gitUnlinkRepo` | Unlinks a Git repository. | `repoId`* |
-| ✏️ `stageRepo` | Stages changes in a Git repository. For a large initial package push, use startIndex/maxItems to page through the staged/unstaged/ignored object lists instead of retrieving them all at once. | `repo`*, `user`, `password`, `startIndex`, `maxItems` |
-| ⚠️ `pushRepo` | Pushes changes to a Git repository. | `repo`*, `staging`*, `user`, `password` |
-| 📖 `checkRepo` | Checks a Git repository. | `repo`*, `user`, `password` |
-| 📖 `remoteRepoInfo` | Retrieves information about a remote Git repository. | `repo`*, `user`, `password` |
-| ✏️ `switchRepoBranch` | Switches the branch of a Git repository. | `repo`*, `branch`*, `create`, `user`, `password` |
+| 📖 [`annotationDefinitions`](#annotationdefinitions) | Retrieves the CDS annotation catalog for the system. This can be large; use startIndex/maxItems to page through it instead of retrieving it all at once. | `startIndex`, `maxItems` |
+| 📖 [`ddicElement`](#ddicelement) | Retrieves information about a DDIC element. For complex objects the child element list (fields/associations/secondary objects) can be large; use startIndex/maxItems to page through it instead of retrieving it all at once. | `path`*, `getTargetForAssociation`, `getExtensionViews`, `getSecondaryObjects`, `startIndex`, `maxItems` |
+| 📖 [`ddicRepositoryAccess`](#ddicrepositoryaccess) | Accesses the DDIC repository. This can return a large list of object references; use startIndex/maxItems to page through it instead of retrieving it all at once. | `path`*, `startIndex`, `maxItems` |
+| 📖 [`packageSearchHelp`](#packagesearchhelp) | Performs a package search help. | `type`*, `name`, `startIndex`, `maxResults` |
+| 📖 [`getDomainProperties`](#getdomainproperties) | Read a DDIC domain: data type, length, decimals, output settings and fixed values / value table. Pass the domain URL (/sap/bc/adt/ddic/domains/zdom) and optionally version=inactive. | `domainUrl`*, `version` |
+| ⚠️ [`setDomainProperties`](#setdomainproperties) | Write a DDIC domain (type, length, fixed values, value table…). Read it first with getDomainProperties, modify the returned properties/metaData objects and pass them back as JSON. Requires lock (lockHandle) and a transport for transportable packages; activa... | `domainUrl`*, `properties`*, `metaData`*, `lockHandle`*, `transport` |
+| 📖 [`getDataElementProperties`](#getdataelementproperties) | Read a DDIC data element: type (domain or built-in), length, field labels (short/medium/long/heading), search help and flags. Pass the data element URL (/sap/bc/adt/ddic/dataelements/zde). | `dataElementUrl`*, `version` |
+| ⚠️ [`setDataElementProperties`](#setdataelementproperties) | Write a DDIC data element (type, field labels, search help…). Read it first with getDataElementProperties, modify the returned properties/metaData objects and pass them back as JSON. Requires lock (lockHandle) and a transport for transportable packages; act... | `dataElementUrl`*, `properties`*, `metaData`*, `lockHandle`*, `transport` |
+| 📖 [`tableContents`](#tablecontents) | Retrieves the contents of an ABAP table or CDS entity by name (no SQL). Works on tables the data preview refuses for runQuery (dataMaintenance restricted); authorization (S_TABU_DIS/S_TABU_NAM) still applies. rowNumber caps how many rows are requested from... | `ddicEntityName`*, `rowNumber`, `decode`, `sqlQuery`, `startRow`, `maxRows` |
+| 📖 [`runQuery`](#runquery) | Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, released API views included). Long statements are wrapped automatically to the preview's 255-character line limit, so wide select lists are fine; a single literal longer than 255 ch... | `sqlQuery`*, `rowNumber`, `decode`, `startRow`, `maxRows` |
 
-## Debugger (13) · toolset `debugger`
-
-| Tool | What it does | Key parameters |
-|---|---|---|
-| 📖 `debuggerListeners` | Retrieves a list of debugger listeners. | `debuggingMode`*, `terminalId`*, `ideId`*, `user`*, `checkConflict` |
-| ✏️ `debuggerListen` | Listens for debugging events. | `debuggingMode`*, `terminalId`*, `ideId`*, `user`*, `checkConflict`, `isNotifiedOnConflict` |
-| ✏️ `debuggerDeleteListener` | Stops a debug listener. | `debuggingMode`*, `terminalId`*, `ideId`*, `user`* |
-| ✏️ `debuggerSetBreakpoints` | Sets breakpoints. | `debuggingMode`*, `terminalId`*, `ideId`*, `clientId`*, `breakpoints`*, `user`*, `scope`, `systemDebugging`, `deactivated`, `syncScupeUrl` |
-| ✏️ `debuggerDeleteBreakpoints` | Deletes breakpoints. | `breakpoint`*, `debuggingMode`*, `terminalId`*, `ideId`*, `requestUser`*, `scope` |
-| ✏️ `debuggerAttach` | Attaches the debugger. | `debuggingMode`*, `debuggeeId`*, `user`*, `dynproDebugging` |
-| ✏️ `debuggerSaveSettings` | Saves debugger settings. | `settings`* |
-| 📖 `debuggerStackTrace` | Retrieves the debugger stack trace. | `semanticURIs` |
-| 📖 `debuggerVariables` | Retrieves debugger variables. If an inspected parent is a large internal table, use startIndex/maxItems to page through the returned variable list instead of retrieving it all at once. | `parents`*, `startIndex`, `maxItems` |
-| 📖 `debuggerChildVariables` | Retrieves child variables of a debugger variable. If the parent is a large structure/table, use startIndex/maxItems to page through the returned child rows instead of retrieving them all at once. | `parent`, `startIndex`, `maxItems` |
-| ✏️ `debuggerStep` | Performs a debugger step. | `steptype`*, `url` |
-| ✏️ `debuggerGoToStack` | Navigates to a specific stack entry in the debugger. | `urlOrPosition`* |
-| ⚠️ `debuggerSetVariableValue` | Sets the value of a debugger variable. | `variableName`*, `value`* |
-
-## Traces (9) · toolset `traces`
+### Discovery & metadata (7) · toolset `discovery`
 
 | Tool | What it does | Key parameters |
 |---|---|---|
-| 📖 `tracesList` | Retrieves a list of traces. | `user` |
-| 📖 `tracesListRequests` | Retrieves a list of trace requests. | `user` |
-| 📖 `tracesHitList` | Retrieves the hit list for a trace. For a large hit list, use startIndex/maxItems to page through the entries instead of retrieving them all at once. | `id`*, `withSystemEvents`, `startIndex`, `maxItems` |
-| 📖 `tracesDbAccess` | Retrieves database access information for a trace. For many DB accesses, use startIndex/maxItems to page through the access list instead of retrieving it all at once. | `id`*, `withSystemEvents`, `startIndex`, `maxItems` |
-| 📖 `tracesStatements` | Retrieves statements for a trace. For many statements, use startIndex/maxItems to page through the statement list instead of retrieving it all at once. | `id`*, `options`, `startIndex`, `maxItems` |
-| ✏️ `tracesSetParameters` | Sets trace parameters. | `parameters`* |
-| ✏️ `tracesCreateConfiguration` | Creates a trace configuration. | `config`* |
-| ⚠️ `tracesDeleteConfiguration` | Deletes a trace configuration. | `id`* |
-| ⚠️ `tracesDelete` | Deletes a trace. | `id`* |
+| 📖 [`featureDetails`](#featuredetails) | Retrieves details for a given feature. | `title`* |
+| 📖 [`collectionFeatureDetails`](#collectionfeaturedetails) | Retrieves details for a given collection feature. | `url`* |
+| 📖 [`findCollectionByUrl`](#findcollectionbyurl) | Finds a collection by its URL. | `url`* |
+| 📖 [`loadTypes`](#loadtypes) | List the ABAP object types creatable on this system (version-aware). Use BEFORE createObject to pick a valid objtype value such as CLAS/OC. For the raw ADT type catalog see objectTypes. | none |
+| 📖 [`adtDiscovery`](#adtdiscovery) | Performs ADT discovery. Returns a list of discovery collections. For large systems, use startIndex/maxItems to page through the list instead of retrieving it all at once. | `startIndex`, `maxItems` |
+| 📖 [`adtCoreDiscovery`](#adtcorediscovery) | Performs ADT core discovery. Returns a list of core discovery collections. For large systems, use startIndex/maxItems to page through the list instead of retrieving it all at once. | `startIndex`, `maxItems` |
+| 📖 [`adtCompatibilityGraph`](#adtcompatibilitygraph) | Retrieves the ADT compatibility graph. | none |
+
+### Runtime errors (3) · toolset `runtime`
+
+| Tool | What it does | Key parameters |
+|---|---|---|
+| 📖 [`feeds`](#feeds) | Retrieves a list of feeds. | none |
+| 📖 [`dumps`](#dumps) | List recent ABAP short dumps (runtime errors). By default returns a compact summary per dump (runtime error, exception, program, user, time, where it terminated with source URL and line, top of the call stack) instead of the raw HTML. Filter with from/to (t... | `query`, `from`, `to`, `user`, `contains`, `includeHtml`, `startIndex`, `maxItems` |
+| 📖 [`dumpDetails`](#dumpdetails) | Full formatted analysis of one ABAP short dump as plain text (header, what happened, error analysis, where terminated, source extract, variables, call stack). Pass the dumpId from dumps (or the full self link). Page long dumps with startLine/maxLines. | `dumpId`*, `startLine`, `maxLines` |
+
+### Refactoring (8) · toolset `refactoring`
+
+| Tool | What it does | Key parameters |
+|---|---|---|
+| 📖 [`renameEvaluate`](#renameevaluate) | Evaluates a rename refactoring. | `uri`*, `line`*, `startColumn`*, `endColumn`* |
+| 📖 [`renamePreview`](#renamepreview) | Previews a rename refactoring. | `renameRefactoring`*, `transport` |
+| ⚠️ [`renameExecute`](#renameexecute) | Executes a rename refactoring. | `refactoring`* |
+| 📖 [`extractMethodEvaluate`](#extractmethodevaluate) | Evaluates an extract method refactoring. | `uri`*, `range`* |
+| 📖 [`extractMethodPreview`](#extractmethodpreview) | Previews an extract method refactoring. | `proposal`* |
+| ⚠️ [`extractMethodExecute`](#extractmethodexecute) | Executes an extract method refactoring. | `refactoring`* |
+| 📖 [`changePackagePreview`](#changepackagepreview) | Preview moving an object to another package (change package refactoring). Returns the refactoring proposal with affected objects; pass it unchanged to changePackageExecute. Needs a transport when the target package is transportable. | `objectUrl`*, `oldPackage`*, `newPackage`*, `transport` |
+| ⚠️ [`changePackageExecute`](#changepackageexecute) | Execute a change package refactoring previewed with changePackagePreview. Pass the refactoring returned by the preview as JSON. | `refactoring`* |
+
+### RAP generation (8) · toolset `rap`
+
+| Tool | What it does | Key parameters |
+|---|---|---|
+| 📖 [`rapGenIsAvailable`](#rapgenisavailable) | Check whether RAP repository-object generators are available on this system. Call before the other rapGen* tools. | `genId` |
+| 📖 [`rapGenGetSchema`](#rapgengetschema) | Get the JSON schema describing the input content of a RAP generator. Use it to build the content for rapGenValidateContent / rapGenPreview / rapGenGenerate. | `genId`*, `refObjectUri`*, `packageName`* |
+| 📖 [`rapGenGetContent`](#rapgengetcontent) | Get the proposed default generator content (names for CDS entities, behavior class, service definition/binding) for a reference object. Adjust and pass to rapGenValidateContent / rapGenGenerate. | `genId`*, `refObjectUri`*, `packageName`* |
+| 📖 [`rapGenValidateInitial`](#rapgenvalidateinitial) | Validate that generation can start from the given reference object and package (run before rapGenGetContent). | `genId`*, `refObjectUri`*, `packageName`* |
+| 📖 [`rapGenValidateContent`](#rapgenvalidatecontent) | Validate a full generator content (names, package, conflicts) BEFORE generating. Recommended flow: rapGenGetContent -> adjust -> rapGenValidateContent -> rapGenPreview -> rapGenGenerate. | `genId`*, `refObjectUri`*, `content`* |
+| 📖 [`rapGenPreview`](#rapgenpreview) | Preview the list of repository objects a generation would create (CDS views, behavior definition, service definition/binding) without creating anything. | `genId`*, `refObjectUri`*, `content`* |
+| ✏️ [`rapGenGenerate`](#rapgengenerate) | Generate the RAP repository objects (CDS views, behavior definition, service definition/binding) on the system. Requires a transport (createTransport). Validate with rapGenValidateContent and inspect rapGenPreview first. Activate the generated objects after... | `genId`*, `refObjectUri`*, `transport`*, `content`* |
+| ✏️ [`rapGenPublishService`](#rapgenpublishservice) | Publish a generated service binding so its OData service becomes callable (alternative to publishServiceBinding for rapGen-created bindings). | `srvbName`* |
+
+### Business services (4) · toolset `services`
+
+| Tool | What it does | Key parameters |
+|---|---|---|
+| ✏️ [`publishServiceBinding`](#publishservicebinding) | Publishes a service binding. | `name`*, `version`* |
+| ⚠️ [`unPublishServiceBinding`](#unpublishservicebinding) | Unpublishes a service binding. | `name`*, `version`* |
+| 📖 [`fetchServiceDetails`](#fetchservicedetails) | Fetch the OData services of a service binding BY NAME: service URLs, entity sets, navigations and preview URLs. Resolves the binding internally, so no prior objectStructure call is needed (name-based equivalent of bindingDetails). | `name`*, `index` |
+| 📖 [`bindingDetails`](#bindingdetails) | Retrieves details of a service binding from an already-parsed ServiceBinding object. If you only have the binding name, use fetchServiceDetails instead. | `binding`*, `index` |
+
+### abapGit (10) · toolset `git`
+
+| Tool | What it does | Key parameters |
+|---|---|---|
+| 📖 [`gitRepos`](#gitrepos) | Retrieves a list of Git repositories. | none |
+| 📖 [`gitExternalRepoInfo`](#gitexternalrepoinfo) | Retrieves information about an external Git repository. | `repourl`*, `user`, `password` |
+| ✏️ [`gitCreateRepo`](#gitcreaterepo) | Creates a new Git repository. | `packageName`*, `repourl`*, `branch`, `transport`, `user`, `password` |
+| ✏️ [`gitPullRepo`](#gitpullrepo) | Pulls changes from a Git repository. For repos with many changed objects, use startIndex/maxItems to page through the list of imported/changed objects returned in the response instead of retrieving it all at once. | `repoId`*, `branch`, `transport`, `user`, `password`, `startIndex`, `maxItems` |
+| ⚠️ [`gitUnlinkRepo`](#gitunlinkrepo) | Unlinks a Git repository. | `repoId`* |
+| ✏️ [`stageRepo`](#stagerepo) | Stages changes in a Git repository. For a large initial package push, use startIndex/maxItems to page through the staged/unstaged/ignored object lists instead of retrieving them all at once. | `repo`*, `user`, `password`, `startIndex`, `maxItems` |
+| ⚠️ [`pushRepo`](#pushrepo) | Pushes changes to a Git repository. | `repo`*, `staging`*, `user`, `password` |
+| 📖 [`checkRepo`](#checkrepo) | Checks a Git repository. | `repo`*, `user`, `password` |
+| 📖 [`remoteRepoInfo`](#remoterepoinfo) | Retrieves information about a remote Git repository. | `repo`*, `user`, `password` |
+| ✏️ [`switchRepoBranch`](#switchrepobranch) | Switches the branch of a Git repository. | `repo`*, `branch`*, `create`, `user`, `password` |
+
+### Debugger (13) · toolset `debugger`
+
+| Tool | What it does | Key parameters |
+|---|---|---|
+| 📖 [`debuggerListeners`](#debuggerlisteners) | Retrieves a list of debugger listeners. | `debuggingMode`*, `terminalId`*, `ideId`*, `user`*, `checkConflict` |
+| ✏️ [`debuggerListen`](#debuggerlisten) | Listens for debugging events. | `debuggingMode`*, `terminalId`*, `ideId`*, `user`*, `checkConflict`, `isNotifiedOnConflict` |
+| ✏️ [`debuggerDeleteListener`](#debuggerdeletelistener) | Stops a debug listener. | `debuggingMode`*, `terminalId`*, `ideId`*, `user`* |
+| ✏️ [`debuggerSetBreakpoints`](#debuggersetbreakpoints) | Sets breakpoints. | `debuggingMode`*, `terminalId`*, `ideId`*, `clientId`*, `breakpoints`*, `user`*, `scope`, `systemDebugging`, `deactivated`, `syncScupeUrl` |
+| ✏️ [`debuggerDeleteBreakpoints`](#debuggerdeletebreakpoints) | Deletes breakpoints. | `breakpoint`*, `debuggingMode`*, `terminalId`*, `ideId`*, `requestUser`*, `scope` |
+| ✏️ [`debuggerAttach`](#debuggerattach) | Attaches the debugger. | `debuggingMode`*, `debuggeeId`*, `user`*, `dynproDebugging` |
+| ✏️ [`debuggerSaveSettings`](#debuggersavesettings) | Saves debugger settings. | `settings`* |
+| 📖 [`debuggerStackTrace`](#debuggerstacktrace) | Retrieves the debugger stack trace. | `semanticURIs` |
+| 📖 [`debuggerVariables`](#debuggervariables) | Retrieves debugger variables. If an inspected parent is a large internal table, use startIndex/maxItems to page through the returned variable list instead of retrieving it all at once. | `parents`*, `startIndex`, `maxItems` |
+| 📖 [`debuggerChildVariables`](#debuggerchildvariables) | Retrieves child variables of a debugger variable. If the parent is a large structure/table, use startIndex/maxItems to page through the returned child rows instead of retrieving them all at once. | `parent`, `startIndex`, `maxItems` |
+| ✏️ [`debuggerStep`](#debuggerstep) | Performs a debugger step. | `steptype`*, `url` |
+| ✏️ [`debuggerGoToStack`](#debuggergotostack) | Navigates to a specific stack entry in the debugger. | `urlOrPosition`* |
+| ⚠️ [`debuggerSetVariableValue`](#debuggersetvariablevalue) | Sets the value of a debugger variable. | `variableName`*, `value`* |
+
+### Traces (9) · toolset `traces`
+
+| Tool | What it does | Key parameters |
+|---|---|---|
+| 📖 [`tracesList`](#traceslist) | Retrieves a list of traces. | `user` |
+| 📖 [`tracesListRequests`](#traceslistrequests) | Retrieves a list of trace requests. | `user` |
+| 📖 [`tracesHitList`](#traceshitlist) | Retrieves the hit list for a trace. For a large hit list, use startIndex/maxItems to page through the entries instead of retrieving them all at once. | `id`*, `withSystemEvents`, `startIndex`, `maxItems` |
+| 📖 [`tracesDbAccess`](#tracesdbaccess) | Retrieves database access information for a trace. For many DB accesses, use startIndex/maxItems to page through the access list instead of retrieving it all at once. | `id`*, `withSystemEvents`, `startIndex`, `maxItems` |
+| 📖 [`tracesStatements`](#tracesstatements) | Retrieves statements for a trace. For many statements, use startIndex/maxItems to page through the statement list instead of retrieving it all at once. | `id`*, `options`, `startIndex`, `maxItems` |
+| ✏️ [`tracesSetParameters`](#tracessetparameters) | Sets trace parameters. | `parameters`* |
+| ✏️ [`tracesCreateConfiguration`](#tracescreateconfiguration) | Creates a trace configuration. | `config`* |
+| ⚠️ [`tracesDeleteConfiguration`](#tracesdeleteconfiguration) | Deletes a trace configuration. | `id`* |
+| ⚠️ [`tracesDelete`](#tracesdelete) | Deletes a trace. | `id`* |
+
+## Tool details
+
+Full description, every parameter with its examples, and usage notes. Parameter names are tolerant: the server maps case variants and common aliases (`objectSourceUrl`/`objectUrl`/`uri` for `objSourceUrl`, `className` for `clas`, `source` for `code`, and so on) onto the names below.
+
+### Destinations, health & session · toolset `core`
+
+#### login
+
+✏️ Login · toolset `core` · writes
+
+Authenticate with ABAP system
+
+No parameters besides `destination`.
+
+**When to use.** Call it on an SSO destination to open the browser login before a long session, or on a basic/oauth destination to prove the credentials work before doing anything else. Every other tool logs in on its own (SSO through the dispatcher, basic/oauth on the first request), so mid-flow calls are rarely needed.
+
+**What comes back.** For SSO destinations `{status: "logged in to <destination> via browser SSO"}`; otherwise `{status: "success", result}` where `result` is what the ADT client returned (often `null`). A failure is an error text starting with `Login failed:` plus `kind`, `hint` and `nextTools` from the error classifier (see docs/AUTH.md for the modes).
+
+**Pitfalls.** An expired session is re-authenticated and the failing call retried once by the dispatcher (src/index.ts), so a `sessionExpired` error you still see means the retry also failed. On S/4HANA Cloud tenants named business users cannot use basic auth (the tenant forces SSO on the ADT endpoints); use an SSO or OAuth destination, or a Communication User for basic auth (docs/AUTH.md).
+
+See also: [`listSystems`](#listsystems), [`logout`](#logout), [`dropSession`](#dropsession), [`systemProfile`](#systemprofile).
+
+#### logout
+
+✏️ Logout · toolset `core` · writes
+
+Terminate ABAP session
+
+No parameters besides `destination`.
+
+**When to use.** End a working session cleanly: it releases every lock recorded in the lock ledger, clears the source cache and terminates the SAP session. Use dropSession instead when you only need a fresh session, and forceUnlock when the goal is releasing locks without logging out.
+
+**What comes back.** `{status: "Logged out successfully", locksReleased: [objectUrl...], lockReleaseFailures: [{objectUrl, error}]}`.
+
+**Pitfalls.** The next tool call on that destination logs in again (a browser window for SSO). `logout` is the one tool the dispatcher never retries after a session error, so a stale session reports the error as is.
+
+See also: [`dropSession`](#dropsession), [`forceUnlock`](#forceunlock), [`listLocks`](#listlocks), [`login`](#login).
+
+#### dropSession
+
+⚠️ Drop Session · toolset `core` · destructive
+
+Clear local session cache
+
+No parameters besides `destination`.
+
+**When to use.** Reset the local SAP session when handles are dead (CSRF rejected, `staleLockHandle` after a timeout) or the stateful session behaves oddly, for example `runClass` printing stale output. Prefer forceUnlock with dropSession=true when the reason is a lock left behind.
+
+**What comes back.** `{status: "Session cleared", locksReleased: [...], lockReleaseFailures: [...]}`; the recorded locks are released first, the source cache is cleared, then the session is dropped.
+
+**Pitfalls.** Annotated destructive: any lockHandle obtained before is invalid afterwards, and write tools re-lock on their own. It cannot break a lock held by another session (Eclipse of the same user included); the `locked` hint explains that only SM12 or that session can (docs/FIELD-NOTES.md, session B).
+
+See also: [`forceUnlock`](#forceunlock), [`logout`](#logout), [`login`](#login), [`listLocks`](#listlocks).
+
+#### listSystems
+
+📖 List Systems · toolset `core` · read-only, idempotent
+
+List the configured ABAP systems (destinations) this server can reach. Call this first to pick the destination to pass to all other tools.
+
+No parameters besides `destination`.
+
+**When to use.** First call of a session: it shows the configured destinations so you can pass `destination` to every other tool, and the policy each one enforces. It never talks to SAP.
+
+**What comes back.** `{systems: [{destination, url, client, authType, policy?, tls?, platform?, unavailableToolsets?}], default, activeToolsets}`. `platform` and `unavailableToolsets` appear only for destinations whose profile has already been built (by systemProfile or by the first call of a gated toolset).
+
+**Pitfalls.** `policy` echoes the per-destination guard rails from systems.json (readOnly, deniedTools, allowedPackages, allowedTransports, deniedTables, allowFreeSql; README section Keeping it safe and docs/AUTH.md). A `policyDenied` error points back here: the same call may be allowed on another destination.
+
+See also: [`healthcheck`](#healthcheck), [`systemProfile`](#systemprofile), [`login`](#login).
+
+#### healthcheck
+
+📖 Healthcheck · toolset `core` · read-only, idempotent
+
+Check server health and list configured destinations.
+
+No parameters besides `destination`.
+
+**When to use.** Confirm the server process is up, which version it runs and which toolsets are active, typically right after installing or changing MCP_TOOLSETS. It does not contact SAP; use login or systemProfile to prove connectivity.
+
+**What comes back.** `{status: "healthy", version, destinations: [name...], default, activeToolsets: [...], tools: <count of tools in tools/list>}`.
+
+**Pitfalls.** `tools` counts what the current toolset selection publishes, so a missing tool means its toolset is disabled (MCP_TOOLSETS / MCP_DISABLED_TOOLSETS, docs/TOOLS.md), not that the server lacks it.
+
+See also: [`listSystems`](#listsystems), [`systemProfile`](#systemprofile), [`login`](#login).
+
+#### systemProfile
+
+📖 System Profile · toolset `core` · read-only, idempotent
+
+Capability profile of a destination: platform (S/4HANA Cloud vs on-prem), system information, which ADT features the backend exposes (debugger, traces, abapGit, ATC, RAP generator, text search, API releases…) and therefore which toolsets/tools will not work there. Cached per destination; pass refresh=true to rebuild. Call it once before using debugger/traces/abapGit/RAP tools on an unfamiliar system.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `refresh` | boolean | no | Rebuild the cached profile (default false) |  |
+
+**When to use.** Call it once per unfamiliar destination before using debugger, traces, git, rap, atc, tests, data, runtime, services or refactoring tools, and whenever a call is refused with `Tool X is not available on destination`. Skip it for source/objects/transports work, which every backend supports.
+
+**What comes back.** `{destination, url, client, authType, platform: cloud|onprem|unknown, platformReason, systemInformation?, collections, features: {debugger, traces, abapGit, atc, rapGenerator, serviceBindings, textSearch, apiReleases, dataPreview, unitTests, refactorings, ...}, unavailableToolsets: [...], unavailableTools: [...], builtAt}` (src/lib/systemProfile.ts).
+
+**Pitfalls.** Cached per destination until refresh=true. The gate that refuses unavailable tools is controlled by MCP_PROFILE_GATE (enforce, warn, off) and builds the profile on its own, so the outcome does not depend on calling this tool first. `platform` comes from the host name, the system information or the ADT collection set (src/lib/systemProfile.ts) and can be `unknown` on unusual hosts.
+
+See also: [`listSystems`](#listsystems), [`healthcheck`](#healthcheck), [`adtDiscovery`](#adtdiscovery), [`dumps`](#dumps).
+
+### Source code · toolset `source`
+
+#### lock
+
+✏️ Lock · toolset `source` · writes
+
+Lock an ABAP object for editing and keep the lock across calls. Returns the lockHandle; the server also records it, so setObjectSource/editObjectSource/deleteObject/createTestInclude/atcApplyQuickfix on the same object may omit lockHandle while it is held. Not needed for a single write: those tools lock and unlock by themselves when no lock is held. Always unLock when done.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectUrl` | string | yes | URL of the object to lock | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `accessMode` | string | no | Access mode for the lock |  |
+
+**When to use.** Hold an ADT lock across several calls: setTextElements requires an explicit lockHandle, and a sequence of edits on one object saves a lock/unlock round trip per write. A single setObjectSource, editObjectSource, setMethodSource, deleteObject, createTestInclude or atcApplyQuickfix locks and unlocks by itself, so do not lock first for those.
+
+**What comes back.** `{status: "success", lockHandle, recorded: true, message}`. The handle is recorded in the per-destination ledger, so later write tools on the same object may omit `lockHandle` until you unLock.
+
+**Pitfalls.** A `locked` error whose object is not in listLocks belongs to another session (Eclipse/ADT of the same or another user) and cannot be released from here. The `allowedPackages` policy resolves the object package from `objectUrl` and refuses the lock outside the allowed packages. Always unLock; logout, dropSession and server shutdown release what is left.
+
+See also: [`unLock`](#unlock), [`listLocks`](#listlocks), [`forceUnlock`](#forceunlock), [`setObjectSource`](#setobjectsource).
+
+#### unLock
+
+✏️ Un Lock · toolset `source` · writes
+
+Unlock an ABAP object previously locked with lock (requires its lockHandle).
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectUrl` | string | yes | URL of the object to unlock | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `lockHandle` | string | no | Lock handle from lock. May be omitted when the server recorded the lock for this object. |  |
+
+**When to use.** Release a lock you acquired with lock once the last write is done. `lockHandle` may be omitted when the server recorded the lock; pass it when the lock came from another server instance.
+
+**What comes back.** `{status: "success", message: "Object unlocked successfully"}`; an InvalidParams error when neither a `lockHandle` nor a recorded lock exists for the object.
+
+**Pitfalls.** After a session expiry or dropSession the old handle is dead and SAP answers with a `staleLockHandle` error: use forceUnlock (dropSession=true) instead of retrying.
+
+See also: [`lock`](#lock), [`listLocks`](#listlocks), [`forceUnlock`](#forceunlock).
+
+#### listLocks
+
+📖 List Locks · toolset `source` · read-only, idempotent
+
+List the ADT locks this server currently holds on the destination (object, lockHandle, when, whether acquired automatically). Use it when a write fails with a lock/lockHandle error or before forceUnlock.
+
+No parameters besides `destination`.
+
+**When to use.** A write failed with a lock or lockHandle error, or you are about to call forceUnlock and want to know what this server actually holds on the destination.
+
+**What comes back.** `{status: "success", count, locks: [{objectUrl, lockHandle, accessMode?, acquiredAt, auto?}]}`; `auto: true` marks locks a write tool acquired for itself and normally releases on its own.
+
+**Pitfalls.** It reads the server ledger only, not SM12: locks of Eclipse sessions or other users never show up here, which is exactly how the `locked` hint tells the two cases apart.
+
+See also: [`lock`](#lock), [`unLock`](#unlock), [`forceUnlock`](#forceunlock), [`dropSession`](#dropsession).
+
+#### forceUnlock
+
+⚠️ Force Unlock · toolset `source` · destructive
+
+Release every lock this server holds on the destination (or one objectUrl). With dropSession=true also drops the SAP session afterwards, which frees locks whose handles are already invalid. Use after failed writes left objects locked.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectUrl` | string | no | Release only this object (default: all recorded locks) | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `dropSession` | boolean | no | Also drop the SAP session after releasing (default false) |  |
+
+**When to use.** A write reported `unlockError`, a failed call left an object locked, or a session change made the handles invalid. Pass `objectUrl` to release one object; add dropSession=true when SAP no longer accepts the recorded handles.
+
+**What comes back.** `{status: "success", released: [objectUrl...], failed: [{objectUrl, error}], sessionDropped, remaining}` where `remaining` is the number of ledger entries still held afterwards (0 after dropSession).
+
+**Pitfalls.** Annotated destructive. With dropSession=true the ledger is cleared without asking SAP, so entries in `failed` are simply forgotten. Locks of other sessions are untouched; that needs SM12 or the owning session.
+
+See also: [`listLocks`](#listlocks), [`unLock`](#unlock), [`dropSession`](#dropsession), [`lock`](#lock).
+
+#### getObjectSource
+
+📖 Get Object Source · toolset `source` · read-only, idempotent
+
+Retrieves source code for ABAP objects. Omit startLine/maxLines to get as much as fits the response budget (about 40,000 characters, several hundred lines); larger sources are paged automatically and report hasMore, then continue with startLine. Pass version=inactive to see what you wrote before activating.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectSourceUrl` | string | yes | Source URL: the object URL plus /source/main for classes, programs, interfaces, CDS, function modules and application job templates (e.g. /sap/bc/adt/oo/classes/zcl_x/source/main). Class includes use the URL from classIncludes as is (/sap/bc/adt/oo/classes/zcl_x/includes/implementations, no /source/main). Message classes: /sap/bc/adt/messageclass/<name> returns the ADT XML. A bare object URL is retried with /source/main when it answers metadata. | `/sap/bc/adt/oo/classes/zcl_order_service/source/main`, `/sap/bc/adt/programs/programs/zreport/source/main` |
+| `version` | `active` / `inactive` / `workingArea` | no | Omit to read what ADT serves by default: the inactive (not yet activated) version when one exists, otherwise the active one. Pass active to force the activated version, or inactive to require the unactivated one (fails when there is none). Read inactive to verify what you wrote before activating. |  |
+| `startLine` | number | no | 1-based line number to start from (default 1). Use with maxLines to page through large sources. |  |
+| `maxLines` | number | no | Maximum number of lines to return from startLine. Omit to return the rest of the source. |  |
+
+**When to use.** Read a whole source (class main include, program, interface, CDS DDL, function module, behavior definition). For one method use getMethodSource, for an outline objectStructureElements, and to locate code across objects sourceTextSearch or grepPackage before reading anything.
+
+**What comes back.** `{status, source, totalLines, startLine, returnedLines, hasMore}`; large sources add `autoPaged: true` and, when the requested range was shrunk, `capped: true` with a `note`. When the URL was rewritten (class include suffix removed, bare object URL retried with /source/main) the answer carries `objectSourceUrl` and `note`.
+
+**Pitfalls.** Without `version` you get what ADT serves by default: the inactive version when one exists, else the active one; pass version=active to be sure. Class include URLs from classIncludes are used without /source/main (404 otherwise, fixed in 0.3.3), message classes return ADT XML. The source is cached for about five minutes (MCP_SOURCE_CACHE_TTL_SECONDS) so syntaxCheckCode and typeHierarchy can reuse it.
+
+See also: [`getMethodSource`](#getmethodsource), [`editObjectSource`](#editobjectsource), [`classIncludes`](#classincludes), [`objectDiff`](#objectdiff).
+
+#### setObjectSource
+
+⚠️ Set Object Source · toolset `source` · destructive
+
+Write the full source code of an ABAP object. Locks, writes and unlocks in one call when no lockHandle is given (pass activate=true to also activate); pass a lockHandle from lock only when you hold the lock across several calls. Run syntaxCheckCode before writing to catch errors early. For a targeted change to a large object, prefer editObjectSource (unique text anchors) or setMethodSource instead of resending the full source, and objectDiff afterwards to review. Message classes (/sap/bc/adt/messageclass/<name>) are written as the whole ADT XML: every message lands in the transport and masterLanguage/createdAt follow the logon language and system, whatever the XML says.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectSourceUrl` | string | yes | Source URL of the object, usually the object URL plus /source/main | `/sap/bc/adt/oo/classes/zcl_order_service/source/main`, `/sap/bc/adt/programs/programs/zreport/source/main` |
+| `source` | string | yes | Full new source code (replaces the current source) |  |
+| `lockHandle` | string | no | Optional: lock handle from lock when you hold the lock yourself. Omit to let the server lock/unlock around this write. |  |
+| `transport` | string | no | Transport number for objects in transportable packages (see resolveTransport) | `DEVK900123` |
+| `activate` | boolean | no | Activate the object after writing (default false). The activation result is returned; check it for errors. |  |
+
+**When to use.** Write a complete source: the first content of an object after createObject, a rewrite of a short program, or a class whose structure changes everywhere. For a targeted change in a large object prefer editObjectSource (unique text anchors) or setMethodSource, which do not resend the whole source.
+
+**What comes back.** `{status, updated: true, lockMode: explicit|reused|auto, unlockError?, hint?, activation?}`; `activation` (with activate=true) is `{success, messages: [{objDescr, type, line, shortText, ...}], inactive: [...]}` and never throws, so check `activation.success`.
+
+**Pitfalls.** A transportable package needs `transport` (error kind `transportRequired`, next tool resolveTransport). Message classes written through this tool land every message in the transport and reset masterLanguage to the logon language (docs/FIELD-NOTES.md, session A). The `deniedTables` policy inspects the code and `allowedPackages` resolves the package from the URL; run syntaxCheckCode first, the source just written stays cached for it.
+
+See also: [`editObjectSource`](#editobjectsource), [`setMethodSource`](#setmethodsource), [`syntaxCheckCode`](#syntaxcheckcode), [`resolveTransport`](#resolvetransport).
+
+#### editObjectSource
+
+⚠️ Edit Object Source · toolset `source` · destructive
+
+Applies a targeted edit to an ABAP object without sending the full source. Always re-fetches the current source from SAP first, so the edit lands on the latest remote version. Two modes: (a) replacements: a JSON array of {oldText, newText} where each oldText must occur exactly once in the current source (0 or several matches fail with the candidate lines, so re-read and refine); this is robust to line-number drift after earlier edits. (b) line range: replace lines [startLine, endLine] (inclusive, 1-based) with newText; endLine = startLine - 1 inserts; empty newText deletes; pass expectedText (exact current content of the range, joined with \n) to fail fast on stale reads. Locks and unlocks automatically (or reuses a lockHandle you pass); the write back is a full setObjectSource of the edited source, optionally activated with activate=true.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectSourceUrl` | string | yes | Source URL of the object, usually the object URL plus /source/main | `/sap/bc/adt/oo/classes/zcl_order_service/source/main`, `/sap/bc/adt/programs/programs/zreport/source/main` |
+| `replacements` | string | no | Mode (a): JSON array of {"oldText": "...", "newText": "..."}. Each oldText must match exactly one location in the current source (include enough surrounding lines to make it unique). Applied in order, atomically: if any entry fails, nothing is written. |  |
+| `startLine` | number | no | Mode (b): 1-based first line to replace (inclusive). |  |
+| `endLine` | number | no | Mode (b): 1-based last line to replace (inclusive). Use startLine - 1 to insert without replacing any existing line. |  |
+| `newText` | string | no | Mode (b): replacement text for the given line range (use \n for multiple lines). Use an empty string to delete the range. |  |
+| `expectedText` | string | no | Optional safety check: exact current text of lines [startLine, endLine] joined with \n. If it does not match what SAP currently has, the edit is rejected instead of applied. |  |
+| `lockHandle` | string | no | Optional: lock handle from lock when you hold the lock yourself. Omit to let the server lock/unlock around this edit. |  |
+| `transport` | string | no | Transport number for objects in transportable packages (see resolveTransport) | `DEVK900123` |
+| `activate` | boolean | no | Activate the object after the edit (default false). The activation result is returned; check it for errors. |  |
+
+**When to use.** The default tool for changing existing code: `replacements` with unique oldText anchors survives line drift between calls, the line-range mode with `expectedText` is for edits driven by line numbers you just read. Use setMethodSource when the change is exactly one method, setObjectSource for full rewrites.
+
+**What comes back.** Replacements mode: `{status, updated, lockMode, mode: "replacements", replacementsApplied, applied: [{index, line, linesRemoved, linesAdded}], totalLinesBefore, totalLinesAfter, activation?}`. Line-range mode: `{..., totalLinesBefore, totalLinesAfter, linesReplaced, linesInserted}`. An anchor with several matches fails with InvalidRequest naming the lines, one with 0 matches asks for a fresh getObjectSource; nothing is written either way.
+
+**Pitfalls.** The current source is always re-fetched from SAP (ADT default: inactive if present), never from the cache; copy anchors from a fresh getObjectSource including indentation. In replacements mode CRLF is normalised on both sides; the line-range mode splits on LF only. `replacements` is declared as a JSON string in the schema; an actual array is accepted too.
+
+See also: [`setObjectSource`](#setobjectsource), [`setMethodSource`](#setmethodsource), [`getObjectSource`](#getobjectsource), [`objectDiff`](#objectdiff).
+
+#### getMethodSource
+
+📖 Get Method Source · toolset `source` · read-only, idempotent
+
+Source of one method of a class (METHOD … ENDMETHOD block with its line range) instead of the whole class. Pass the class name or URL and the method name (interface methods as if_x~m). include selects main (default: definition and implementations), implementations (local classes), testclasses, definitions or macros. When the method is not found, the methods present in that include are listed.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `classUrl` | string | yes | Class name (ZCL_DEMO) or class URL (/sap/bc/adt/oo/classes/zcl_demo) | `ZCL_ORDER_SERVICE`, `/sap/bc/adt/oo/classes/zcl_order_service` |
+| `methodName` | string | yes | Method name, e.g. GET_DATA or IF_OO_ADT_CLASSRUN~MAIN | `GET_DATA`, `IF_OO_ADT_CLASSRUN~MAIN` |
+| `className` | string | no | Enclosing class when the include holds several implementations with the same method name (local classes in implementations, test classes in testclasses). Required when the method name is ambiguous. |  |
+| `include` | `main` / `implementations` / `testclasses` / `definitions` / `macros` | no | Class include to read (default main) |  |
+
+**When to use.** Read one METHOD ... ENDMETHOD block by class name and method name instead of the whole class; interface methods as IF_X~M, local and test classes through include=implementations or testclasses.
+
+**What comes back.** `{status, classUrl, sourceUrl, include, method, className, startLine, endLine, lines, amdp, source}`. A missing method answers `isError` with `found: false`, `methodsInInclude` (class=>method labels) and a hint; an ambiguous name answers `ambiguous: true` with `candidates: [{className, startLine, endLine}]`.
+
+**Pitfalls.** Line numbers refer to the include read (`sourceUrl`), the URL to pass to editObjectSource in line-range mode; setMethodSource finds the method by name again. Definitions (method signatures) live in include=definitions for local classes and in main for the global class; this tool returns implementations.
+
+See also: [`setMethodSource`](#setmethodsource), [`getObjectSource`](#getobjectsource), [`classIncludes`](#classincludes), [`classComponents`](#classcomponents).
+
+#### setMethodSource
+
+⚠️ Set Method Source · toolset `source` · destructive
+
+Replace one method of a class without touching the rest: re-reads the include from SAP, swaps the METHOD … ENDMETHOD block (pass the full block, or only the body to keep the existing header/footer), writes it back under an automatic lock and optionally activates. Use for focused fixes in large classes.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `classUrl` | string | yes | Class name or class URL | `ZCL_ORDER_SERVICE`, `/sap/bc/adt/oo/classes/zcl_order_service` |
+| `methodName` | string | yes | Method to replace | `GET_DATA`, `IF_OO_ADT_CLASSRUN~MAIN` |
+| `className` | string | no | Enclosing class when the include holds several implementations with the same method name (local classes in implementations, test classes in testclasses). Required when the method name is ambiguous. |  |
+| `source` | string | yes | New METHOD … ENDMETHOD block, or just the body statements |  |
+| `include` | `main` / `implementations` / `testclasses` / `definitions` / `macros` | no | Class include holding the method (default main) |  |
+| `lockHandle` | string | no | Optional lock handle when you hold the lock yourself |  |
+| `transport` | string | no | Transport for transportable packages (see resolveTransport) | `DEVK900123` |
+| `activate` | boolean | no | Activate the class after the write (default false) |  |
+
+**When to use.** Replace exactly one existing method (bug fix, new implementation) in a large class; pass the full METHOD block or only the body to keep the existing header. It cannot add a method: create the definition and implementation with editObjectSource.
+
+**What comes back.** `{status, updated: true, classUrl, sourceUrl, method, replaced: {startLine, endLine}, now: {startLine, endLine}, bodyWrapped, lockMode, unlockError?, activation?}`. A missing method fails with InvalidRequest listing the methods present; an ambiguous one lists the candidates and writes nothing.
+
+**Pitfalls.** The include is re-read from SAP, so the method is swapped on the current remote text; `activation` activates the class as a whole. Pass `className` for local or test classes that repeat a method name; AMDP method headers are recognised.
+
+See also: [`getMethodSource`](#getmethodsource), [`editObjectSource`](#editobjectsource), [`setObjectSource`](#setobjectsource), [`unitTestRun`](#unittestrun).
+
+#### prettyPrinterSetting
+
+📖 Pretty Printer Setting · toolset `source` · read-only, idempotent
+
+Retrieves the pretty printer settings.
+
+No parameters besides `destination`.
+
+**When to use.** Check how prettyPrinter will format (indentation on or off, keyword case style) before formatting code you intend to write back, or to reproduce the user's Eclipse settings.
+
+**What comes back.** `{status, settings: {"abapformatter:indentation": boolean, "abapformatter:style": toLower|toUpper|keywordUpper|keywordLower|keywordAuto|none}}`.
+
+**Pitfalls.** These are the SAP user's settings, shared with Eclipse ADT for the same user.
+
+See also: [`setPrettyPrinterSetting`](#setprettyprintersetting), [`prettyPrinter`](#prettyprinter).
+
+#### setPrettyPrinterSetting
+
+✏️ Set Pretty Printer Setting · toolset `source` · writes
+
+Sets the pretty printer settings.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `indent` | boolean | yes | Whether to indent the code. |  |
+| `style` | string | yes | The pretty printer style. |  |
+
+**When to use.** Change the pretty printer settings for the SAP user, for example to enforce keywordUpper before formatting a package. Not needed for one-off formatting; prettyPrinter uses whatever is set.
+
+**What comes back.** `{status, result}` where `result` is the backend acknowledgement text.
+
+**Pitfalls.** Both parameters are required: `indent` boolean and `style` one of toLower, toUpper, keywordUpper, keywordLower, keywordAuto, none. The change also affects the same user's Eclipse pretty printer.
+
+See also: [`prettyPrinterSetting`](#prettyprintersetting), [`prettyPrinter`](#prettyprinter).
+
+#### prettyPrinter
+
+📖 Pretty Printer · toolset `source` · read-only, idempotent
+
+Formats ABAP code using the pretty printer. For large sources, use startLine/maxLines to page through the reformatted result instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `source` | string | yes | The ABAP source code to format. |  |
+| `startLine` | number | no | 1-based line number to start from (default 1). Use with maxLines to page through a large reformatted result. |  |
+| `maxLines` | number | no | Maximum number of lines to return from startLine. Omit to return the rest of the reformatted source. |  |
+
+**When to use.** Format ABAP text you are about to write (or just read) with the backend pretty printer; it does not touch the object, so write the result back with setObjectSource or editObjectSource yourself.
+
+**What comes back.** `{status, source, totalLines, startLine, returnedLines, hasMore}` with `autoPaged`/`capped` like getObjectSource when the formatted text exceeds the response budget.
+
+**Pitfalls.** Formatting follows the current prettyPrinterSetting. Paging returns line ranges of the formatted result, so reassemble all pages before writing it back.
+
+See also: [`prettyPrinterSetting`](#prettyprintersetting), [`setObjectSource`](#setobjectsource), [`getObjectSource`](#getobjectsource).
+
+#### revisions
+
+📖 Revisions · toolset `source` · read-only, idempotent
+
+Retrieves revisions for an object.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectUrl` | string | yes | The URL of the object. | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `clsInclude` | string | no | The class include. |  |
+
+**When to use.** See the version history of an object (who changed it, when, under which request) before touching it; to see the actual changes use objectDiff.
+
+**What comes back.** `{status, revisions: [{uri, date, author, version, versionTitle}]}` in backend order; the `uri` of a revision can be passed to getObjectSource to read that version.
+
+**Pitfalls.** For classes pass `clsInclude` (main, definitions, implementations, testclasses) to get the history of that include; `include` is accepted as an alias for `clsInclude` (src/lib/argAliases.ts).
+
+See also: [`objectDiff`](#objectdiff), [`transportDetails`](#transportdetails), [`getObjectSource`](#getobjectsource).
+
+#### objectDiff
+
+📖 Object Diff · toolset `source` · read-only, idempotent
+
+Unified diff between two revisions of an object (default: latest against the previous one). Revisions are selected by index in the list returned by revisions (0 = newest), by version string, or by revision URI. Use it to review what a transport or a colleague changed before touching the object.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectUrl` | string | yes | Object URL, e.g. /sap/bc/adt/oo/classes/zcl_demo | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `fromRevision` | string | no | Older revision: index (default 1), version string or URI |  |
+| `toRevision` | string | no | Newer revision: index (default 0 = current), version string or URI |  |
+| `clsInclude` | string | no | Class include for classes (main, definitions, implementations, testclasses) |  |
+| `contextLines` | number | no | Context lines around each hunk (default 3) |  |
+
+**When to use.** Review what a transport, a colleague or your own last write changed in one object: default is the newest revision against the previous one. For every object of a transport use transportUnifiedDiff instead.
+
+**What comes back.** `{status, object, from: {uri, version, title, date, author}, to: {...}, revisions, linesAdded, linesRemoved, identical, diff}` (unified diff text, `truncated: true` when cut to the response budget). Revisions are selected by index (0 = newest after sorting by date), version string, URI or a substring of the version title; an object with a single revision fails with InvalidRequest.
+
+**Pitfalls.** Two sources are downloaded sequentially on the stateful session, so it is not free on big classes; `contextLines` defaults to 3. Revisions come from SAP version management, so an edit you have not activated yet is not in the list.
+
+See also: [`revisions`](#revisions), [`transportUnifiedDiff`](#transportunifieddiff), [`getObjectSource`](#getobjectsource), [`editObjectSource`](#editobjectsource).
+
+#### getTextElements
+
+📖 Get Text Elements · toolset `source` · read-only, idempotent
+
+Read the text elements of an object: text symbols (TEXT-001), selection texts or list headings. Pass the object URL (e.g. /sap/bc/adt/programs/programs/zreport or /sap/bc/adt/oo/classes/zcl_demo).
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectUrl` | string | yes | Object URL of the program, class or function group | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `category` | `symbols` / `selections` / `headings` | no | Text element category (default symbols) |  |
+
+**When to use.** Read text symbols (TEXT-001), selection texts or list headings of a program, class or function group, typically before setTextElements or when translating literals.
+
+**What comes back.** `{status, category, textElements: [{id, text, maxLength?, ddicReference?}], programName}`.
+
+**Pitfalls.** Pass the object URL (for example /sap/bc/adt/programs/programs/zreport), not a source URL. `category` defaults to symbols.
+
+See also: [`setTextElements`](#settextelements), [`lock`](#lock), [`getObjectSource`](#getobjectsource).
+
+#### setTextElements
+
+⚠️ Set Text Elements · toolset `source` · destructive
+
+Write text elements (text symbols, selection texts or list headings) of a locked object. Pass the full list for the category: elements missing from the list are removed. Requires lock (lockHandle) and, for transportable packages, a transport. Not supported on very old releases.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectUrl` | string | yes | Object URL of the program, class or function group | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `category` | `symbols` / `selections` / `headings` | yes | Text element category |  |
+| `elements` | string | yes | JSON array of {id, text, maxLength?} entries, e.g. [{"id":"001","text":"Hello","maxLength":40}] |  |
+| `lockHandle` | string | yes | Lock handle from the lock tool |  |
+| `transport` | string | no | Transport request for transportable packages | `DEVK900123` |
+
+**When to use.** Write the complete list of one text element category. Unlike the source write tools it does not lock by itself: call lock first and pass its lockHandle, then unLock and activate.
+
+**What comes back.** `{status, updated: true, category, count}`.
+
+**Pitfalls.** The list you pass replaces the category: elements missing from it are deleted. `elements` is a JSON string of `[{id, text, maxLength?}]`; transportable packages need `transport`; very old releases do not expose the endpoint. Annotated destructive.
+
+See also: [`getTextElements`](#gettextelements), [`lock`](#lock), [`unLock`](#unlock), [`resolveTransport`](#resolvetransport).
+
+### Objects & navigation · toolset `objects`
+
+#### objectStructure
+
+📖 Object Structure · toolset `objects` · read-only, idempotent
+
+Get object structure details. For large/complex objects (e.g. classes with many includes), use startIndex/maxItems to page through the structure's top-level array instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectUrl` | string | yes | URL of the object | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `version` | string | no | Version of the object |  |
+| `startIndex` | number | no | 0-based index of the top-level array item (e.g. class includes) to start from (default 0). Only applies when the structure has a pageable array; ignored otherwise. |  |
+| `maxItems` | number | no | Maximum number of top-level array items to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Get the ADT metadata of an object (type, package, links, includes and their URLs) when you have its URL; for a member outline use objectStructureElements, for class components with visibility classComponents.
+
+**What comes back.** `{status, structure, message}` with the raw structure when it fits; otherwise the verbose `links`/`xml:base` fields are stripped and the top-level array (class `includes`) is paged with `pagedField, totalItems, startIndex, returnedItems, hasMore, autoPaged?, capped?`.
+
+**Pitfalls.** The shape differs by object type (simple structure versus class structure with includes), and objects without an array are hard truncated when too large. `version` defaults to what ADT serves.
+
+See also: [`objectStructureElements`](#objectstructureelements), [`classComponents`](#classcomponents), [`classIncludes`](#classincludes), [`findObjectPath`](#findobjectpath).
+
+#### searchObject
+
+📖 Search Object · toolset `objects` · read-only, idempotent
+
+Search for objects
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `query` | string | yes | Search query string |  |
+| `objType` | string | no | Object type filter | `CLAS/OC`, `PROG/P` |
+| `max` | number | no | Maximum number of results |  |
+
+**When to use.** Turn a name or pattern (ZCL_EXAMPLE*, CL_ABAP_CHAR_UTILITIES) into ADT URLs and types; the first step of almost every edit flow. To search inside code use sourceTextSearch or grepPackage, for usages whereUsed.
+
+**What comes back.** `{status, results: [{"adtcore:name", "adtcore:type", "adtcore:uri", "adtcore:packageName"?, "adtcore:description"?}], message}`.
+
+**Pitfalls.** The query is a quick-search pattern, so a bare name may return similar objects too; filter with `objType` (CLAS/OC, DDLS/DF, TABL/DT; only the part before the slash is sent to ADT) and check the exact name. `max` caps the result count (default 100); the URI is what the source tools need plus /source/main.
+
+See also: [`findObjectPath`](#findobjectpath), [`whereUsed`](#whereused), [`sourceTextSearch`](#sourcetextsearch), [`packageTree`](#packagetree).
+
+#### findObjectPath
+
+📖 Find Object Path · toolset `objects` · read-only, idempotent
+
+Find path for an object
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectUrl` | string | yes | URL of the object to find path for | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+
+**When to use.** Find where an object URL sits in the package hierarchy (superpackages down to the object), for example to pick the package for resolveTransport or to check an `allowedPackages` policy.
+
+**What comes back.** `{status, path: [{"adtcore:name", "adtcore:type", "adtcore:uri"}...], message}` the package steps and the object as ADT reports them (each step also carries `projectexplorer:category`).
+
+**Pitfalls.** Takes the object URL, not a name: resolve names with searchObject first.
+
+See also: [`searchObject`](#searchobject), [`packageTree`](#packagetree), [`transportInfo`](#transportinfo), [`objectRegistrationInfo`](#objectregistrationinfo).
+
+#### objectTypes
+
+📖 Object Types · toolset `objects` · read-only, idempotent
+
+Retrieve the ADT object type catalog reported by the system. For picking an objtype to pass to createObject, prefer loadTypes (creatable types).
+
+No parameters besides `destination`.
+
+**When to use.** Raw ADT object type catalog of the system, useful to map an unfamiliar type id (for example DDLX/EX) to its name. To choose an `objtype` for createObject use loadTypes (system-reported creatable types) or creatableTypeDetails (what this server can create).
+
+**What comes back.** `{status, types: [...], message}` with the full catalog as reported by ADT.
+
+**Pitfalls.** Large and unpaged; nothing here says whether a type can be created through createObject.
+
+See also: [`loadTypes`](#loadtypes), [`creatableTypeDetails`](#creatabletypedetails), [`validateNewObject`](#validatenewobject), [`createObject`](#createobject).
+
+#### reentranceTicket
+
+📖 Reentrance Ticket · toolset `objects` · read-only, idempotent
+
+Retrieves an SAP reentrance ticket. WARNING: the ticket is a live logon credential and will appear in the conversation/host logs. Disabled unless the server is started with SAP_ALLOW_REENTRANCE_TICKET=1.
+
+No parameters besides `destination`.
+
+**When to use.** Only when you deliberately need a SAP logon ticket for another client and the server owner started it with SAP_ALLOW_REENTRANCE_TICKET=1. Nothing else in this server requires it.
+
+**What comes back.** `{status, ticket, message}`; without the environment variable an InvalidRequest error explaining the opt-in (no SAP call is made).
+
+**Pitfalls.** The ticket is a live credential and lands in the conversation and host logs (README section Keeping it safe). On S/4HANA Cloud a ticket obtained through the SSO session is not accepted by ADT as a stand-alone credential, so it cannot replace an SSO or OAuth destination (docs/AUTH.md).
+
+See also: [`login`](#login), [`listSystems`](#listsystems), [`systemProfile`](#systemprofile).
+
+#### classIncludes
+
+📖 Class Includes · toolset `objects` · read-only, idempotent
+
+URLs of the includes of a class (main, definitions, implementations, testclasses, macros) to use with getObjectSource/editObjectSource as they are (no /source/main suffix).
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `clas` | string | yes | The class name (aliases accepted: className, classUrl) |  |
+
+**When to use.** Get the URLs of a class's includes (main, definitions, implementations, testclasses, macros) to read or edit local classes and unit tests; getMethodSource and setMethodSource take the include name directly, so this is mainly for getObjectSource and editObjectSource.
+
+**What comes back.** `{status, result: {main, definitions, implementations, testclasses, macros}}` mapping include names to URLs; an InvalidParams error when the name does not resolve to a class.
+
+**Pitfalls.** The parameter is `clas` (class name; className and classUrl are accepted aliases). Use the returned URLs as they are, without /source/main. A test include that does not exist yet is created with createTestInclude.
+
+See also: [`getObjectSource`](#getobjectsource), [`getMethodSource`](#getmethodsource), [`createTestInclude`](#createtestinclude), [`objectStructure`](#objectstructure).
+
+#### classComponents
+
+📖 Class Components · toolset `objects` · read-only, idempotent
+
+List class components (methods, attributes, types). For large classes, use startIndex/maxComponents to page through the top-level component list instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `url` | string | yes | The URL of the class |  |
+| `startIndex` | number | no | 0-based index of the top-level component to start from (default 0). Use with maxComponents to page through large component lists. |  |
+| `maxComponents` | number | no | Maximum number of top-level components to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** List the methods, attributes, types and events of a class with visibility and details when you need more than names; objectStructureElements is the cheaper flat outline, getMethodSource reads the implementation.
+
+**What comes back.** `{status, result}` with the class node and its `components` (links stripped); large classes are paged with `totalComponents, startIndex, returnedComponents, hasMore, autoPaged?, capped?`.
+
+**Pitfalls.** Takes the class URL in `url` (/sap/bc/adt/oo/classes/zcl_example). Components are the declared ones, so nothing here says whether a method is implemented in a local class.
+
+See also: [`objectStructureElements`](#objectstructureelements), [`getMethodSource`](#getmethodsource), [`objectStructure`](#objectstructure), [`typeHierarchy`](#typehierarchy).
+
+#### deleteObject
+
+⚠️ Delete Object · toolset `objects` · destructive
+
+Deletes an ABAP object from the system
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectUrl` | string | yes | URL of the object to delete | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `lockHandle` | string | no | Lock handle for the object |  |
+| `transport` | string | no | Transport request number | `DEVK900123` |
+
+**When to use.** Remove an object you created (cleanup of throwaway classes, snippets, test packages). It locks the object itself when no lockHandle is given and keeps nothing behind, since the object is gone on success.
+
+**What comes back.** `{status, result, message: "Object deleted successfully"}`.
+
+**Pitfalls.** Annotated destructive and irreversible; transportable packages need `transport` (resolveTransport), and the `allowedPackages` policy resolves the package from the URL. Delete the contents of a package before the package itself; the objectUrl to package memo is cleared afterwards. Verify with searchObject.
+
+See also: [`lock`](#lock), [`resolveTransport`](#resolvetransport), [`searchObject`](#searchobject), [`transportDetails`](#transportdetails).
+
+#### activateObjects
+
+✏️ Activate Objects · toolset `objects` · writes
+
+Activate ABAP objects using object references. Run after setObjectSource; the entries returned by inactiveObjects can be passed here directly. For a single object, activateByName is simpler.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objects` | string | yes | JSON array of objects to activate. Each object must have adtcore:uri, adtcore:type, adtcore:name, and adtcore:parentUri properties |  |
+| `preauditRequested` | boolean | no | Whether to perform pre-audit checks |  |
+
+**When to use.** Activate several objects in one request, typically the records returned by inactiveObjects. activateByName is simpler for one object and activatePackage for a whole package tree.
+
+**What comes back.** The raw activation result `{success, messages: [{objDescr, type, line, href, forceSupported, shortText}], inactive: [{object?, transport?}]}`.
+
+**Pitfalls.** `objects` must be a JSON string of `[{"adtcore:uri", "adtcore:type", "adtcore:name", "adtcore:parentUri"}]`; a missing field is an InvalidParams error. The `allowedPackages` policy checks the entries (the first 50) before the call.
+
+See also: [`inactiveObjects`](#inactiveobjects), [`activatePackage`](#activatepackage), [`activateByName`](#activatebyname), [`unitTestRun`](#unittestrun).
+
+#### activateByName
+
+✏️ Activate By Name · toolset `objects` · writes
+
+Activate a single ABAP object by name and URL. Run after setObjectSource (and unLock); after activation run unitTestRun to verify behavior.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectName` | string | yes | Name of the object |  |
+| `objectUrl` | string | yes | URL of the object | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `mainInclude` | string | no | Main include context |  |
+| `preauditRequested` | boolean | no | Whether to perform pre-audit checks |  |
+
+**When to use.** Activate one object after a write that did not use activate=true (or after createObject plus setObjectSource). RAP stacks whose objects depend on each other belong to activatePackage.
+
+**What comes back.** `{success, messages: [{objDescr, type, line, href, forceSupported, shortText}], inactive: [...]}`; read `messages` even when `success` is true, warnings show up there.
+
+**Pitfalls.** `objectName` is the object name (ZCL_EXAMPLE) and `objectUrl` the object URL (no /source/main). Activation of a class activates all its includes. Run unitTestRun afterwards.
+
+See also: [`activatePackage`](#activatepackage), [`activateObjects`](#activateobjects), [`setObjectSource`](#setobjectsource), [`unitTestRun`](#unittestrun).
+
+#### activatePackage
+
+✏️ Activate Package · toolset `objects` · writes
+
+Activate every inactive object of a package (and its sub-packages) in one activation request, the way RAP stacks (CDS, behavior definition, service definition, classes) must be activated together. Returns the activation messages and what is still inactive afterwards.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `packageName` | string | yes | Package whose inactive objects to activate | `$TMP`, `ZFIN` |
+| `recursive` | boolean | no | Include sub-packages (default true) |  |
+| `user` | string | no | Only inactive objects of this SAP user (default: the connected user; other users' unfinished work is left alone and listed) |  |
+| `allUsers` | boolean | no | Activate inactive objects of every user in the package tree (default false) |  |
+| `preauditRequested` | boolean | no | Run the pre-audit (default true) |  |
+
+**When to use.** Activate everything inactive in a package tree in one request, the way CDS views, behavior definitions, service definitions and classes of a RAP stack must be activated together, or to finish a batch of writes.
+
+**What comes back.** `{status, packages: [...], user, warning?, otherUsers?, requested: [{name, type, uri}], success, messages: [...], stillInactive: [{name, type, uri}]}`; `isError` when the backend reports failure, `capped: true` when lists were cut to 50 entries. With nothing inactive: `{status, packages, user, warning?, activated: 0, message, otherUsers?}`.
+
+**Pitfalls.** By default only the connected user's inactive objects are activated and other users' are listed under `otherUsers`; with SSO/OAuth the user name is unknown, so every user's objects are activated and a `warning` says so (pass `user` or allUsers=true). The package walk stops at 5000 objects; `preauditRequested` defaults to true.
+
+See also: [`inactiveObjects`](#inactiveobjects), [`activateObjects`](#activateobjects), [`activateByName`](#activatebyname), [`packageTree`](#packagetree).
+
+#### inactiveObjects
+
+📖 Inactive Objects · toolset `objects` · read-only, idempotent
+
+Get list of inactive objects. For systems with many inactive objects across users, use startIndex/maxItems to page through the list instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `startIndex` | number | no | 0-based index of the inactive-object record to start from (default 0). Use with maxItems to page through a large list. |  |
+| `maxItems` | number | no | Maximum number of inactive-object records to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** See what is inactive on the system across all users, for example to find leftovers before a transport release or to feed activateObjects.
+
+**What comes back.** When it fits, the raw array `[{object: {"adtcore:uri", "adtcore:type", "adtcore:name", "adtcore:parentUri", user, deleted}, transport?: {...}}]`; when paged, `{status, result: [...], totalObjects, startIndex, returnedObjects, hasMore, autoPaged?, capped?}`.
+
+**Pitfalls.** The unpaged answer has no `status` wrapper. The list is system-wide; activatePackage filters it by package tree and user for you.
+
+See also: [`activateObjects`](#activateobjects), [`activatePackage`](#activatepackage), [`activateByName`](#activatebyname).
+
+#### objectRegistrationInfo
+
+📖 Object Registration Info · toolset `objects` · read-only, idempotent
+
+Get registration information for an ABAP object
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectUrl` | string | yes |  | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+
+**When to use.** Read the registration data (namespace, object key information) of an existing object, mostly when working with registered namespaces or before creating objects in one.
+
+**What comes back.** `{status, info}` with the backend registration document.
+
+**Pitfalls.** Rarely needed for customer Z objects; for a new object validateNewObject already reports naming problems.
+
+See also: [`validateNewObject`](#validatenewobject), [`createObject`](#createobject), [`findObjectPath`](#findobjectpath).
+
+#### creatableTypeDetails
+
+📖 Creatable Type Details · toolset `objects` · read-only, idempotent
+
+List the object types createObject supports, with per-type required fields, label and max name length (SAP-style get_object_type_details). Filter with typeId. For the system-reported creatable catalog see loadTypes.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `typeId` | string | no | Optional type id filter, e.g. CLAS/OC |  |
+
+**When to use.** Know, without a SAP round trip, which object types createObject can create and which fields validateNewObject needs for each (DEVC/K wants swcomp, transportLayer, packagetype; FUGR/FF wants fugrname). loadTypes tells what the connected system actually offers.
+
+**What comes back.** `{status, types: [{typeId, label, maxNameLength, requiredValidationFields, createWith}]}`; filter with `typeId`.
+
+**Pitfalls.** It reflects the abap-adt-api creatable type table, not the backend, so a type listed here can still be missing on the system.
+
+See also: [`loadTypes`](#loadtypes), [`validateNewObject`](#validatenewobject), [`createObject`](#createobject), [`objectTypes`](#objecttypes).
+
+#### validateNewObject
+
+📖 Validate New Object · toolset `objects` · read-only, idempotent
+
+Validate name, package and type for a new ABAP object BEFORE calling createObject. Returns field-level validation errors. Use loadTypes to discover valid objtype values first.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objtype` | string | yes | ADT object type id, e.g. CLAS/OC (class), INTF/OI (interface), PROG/P (program), DEVC/K (package) | `CLAS/OC`, `INTF/OI` |
+| `objname` | string | yes | Name of the object to create |  |
+| `description` | string | yes | Object description |  |
+| `packagename` | string | no | Target ABAP package (required for most object types; use $TMP for local objects) |  |
+| `fugrname` | string | no | Function group name (only for function group members like FUGR/FF) |  |
+| `swcomp` | string | no | Software component (DEVC/K only), e.g. HOME or ZLOCAL |  |
+| `transportLayer` | string | no | Transport layer (DEVC/K only); empty for local/cloud packages |  |
+| `packagetype` | string | no | Package type (DEVC/K only): development, structure or main |  |
+
+**When to use.** Always before createObject: it checks name, package and type on the backend and reports naming or package problems without creating anything.
+
+**What comes back.** `{status, result: {success, SEVERITY?, SHORT_TEXT?}}`; `success: true` means the object can be created. Missing objtype/objname/description is an InvalidParams error.
+
+**Pitfalls.** `packagename` is required for most types, `fugrname` for function group members, and DEVC/K fills swcomp, transportLayer and packagetype (defaults: empty layer, development). The flat fields replaced the old `options` JSON string, which is still accepted.
+
+See also: [`creatableTypeDetails`](#creatabletypedetails), [`loadTypes`](#loadtypes), [`createObject`](#createobject), [`resolveTransport`](#resolvetransport).
+
+#### createObject
+
+✏️ Create Object · toolset `objects` · writes
+
+Create a new ABAP object skeleton. Recommended flow: loadTypes to pick objtype (e.g. CLAS/OC) -> validateNewObject to check name/package -> createTransport if the package is not local ($TMP) -> createObject. Afterwards edit source with lock + setObjectSource, then activate with activateByName and run unitTestRun.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objtype` | string | yes | ADT object type id, e.g. CLAS/OC. Discover valid values with loadTypes | `CLAS/OC`, `INTF/OI` |
+| `name` | string | yes |  |  |
+| `parentName` | string | yes | Parent object name, usually the ABAP package (e.g. $TMP or ZPACKAGE) | `$TMP`, `ZFIN` |
+| `description` | string | yes |  |  |
+| `parentPath` | string | yes | ADT path of the parent, e.g. /sap/bc/adt/packages/$TMP | `/sap/bc/adt/packages/$tmp`, `/sap/bc/adt/packages/zfin` |
+| `responsible` | string | no |  |  |
+| `transport` | string | no | Transport request number; required for objects in transportable (non-$TMP) packages. Create one with createTransport | `DEVK900123` |
+| `swcomp` | string | no | Software component; required when objtype is DEVC/K (e.g. HOME, ZLOCAL, ZCUSTOM_DEVELOPMENT) |  |
+| `transportLayer` | string | no | Transport layer for DEVC/K (e.g. YDEV); omit or empty for local packages |  |
+| `packagetype` | string | no | Package type for DEVC/K: development (default), structure or main |  |
+| `recordChanges` | boolean | no | DEVC/K only: record changes in transport requests (default true when a transportLayer is given; cloud systems require it) |  |
+| `abapLanguageVersion` | string | no | DEVC/K only: ABAP language version attribute, e.g. 5 = ABAP for Cloud Development. Omit to let the system decide |  |
+
+**When to use.** Create an empty object skeleton (class, interface, program, CDS, package) after loadTypes and validateNewObject; then fill it with setObjectSource activate=true and run unitTestRun. DEVC/K packages are created with a hand-built ADT body that supports cloud tenants.
+
+**What comes back.** `{status, result}`; `result` is usually empty because ADT answers the creation with no body (absent for DEVC/K). The new object is inactive with template content until you write and activate it.
+
+**Pitfalls.** `parentPath` is the ADT path of the parent (/sap/bc/adt/packages/ztest), `parentName` the package; non-local packages need `transport` (resolveTransport with createIfMissing). DEVC/K requires `swcomp` and cloud tenants require change recording (recordChanges defaults to true when a transportLayer is given). Some S/4HANA Cloud tenants refuse $TMP; the `allowedPackages` policy checks `parentName` (or the package in `parentPath`).
+
+See also: [`validateNewObject`](#validatenewobject), [`resolveTransport`](#resolvetransport), [`setObjectSource`](#setobjectsource), [`deleteObject`](#deleteobject).
+
+#### nodeContents
+
+📖 Node Contents · toolset `objects` · read-only, idempotent
+
+Retrieves the contents of a node in the ABAP repository tree. For large packages/namespaces, use startIndex/maxItems to page through the node list instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `parent_type` | string | yes | The type of the parent node. |  |
+| `parent_name` | string | no | The name of the parent node. |  |
+| `user_name` | string | no | The user name. |  |
+| `parent_tech_name` | string | no | The technical name of the parent node. |  |
+| `rebuild_tree` | boolean | no | Whether to rebuild the tree. |  |
+| `parentnodes` | array | no | An array of parent node IDs. |  |
+| `startIndex` | number | no | 0-based index of the node to start from (default 0). Use with maxItems to page through large node lists. |  |
+| `maxItems` | number | no | Maximum number of nodes to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Browse the repository tree one node at a time: parent_type DEVC/K with parent_name a package lists its objects and sub-packages, FUGR/F lists the function modules and includes of a function group. packageTree does the recursive walk for you and is usually the better first call.
+
+**What comes back.** `{status, nodeContents: {nodes: [{OBJECT_TYPE, OBJECT_NAME, OBJECT_URI, DESCRIPTION, ...}], categories, objectTypes}}`; when paged, `{status, result, totalItems, startIndex, returnedItems, hasMore, autoPaged?, capped?}`.
+
+**Pitfalls.** Parameter names are snake_case (parent_type, parent_name) as in the ADT request. Function modules are not listed under the package node, only under their group.
+
+See also: [`packageTree`](#packagetree), [`searchObject`](#searchobject), [`grepPackage`](#greppackage), [`findObjectPath`](#findobjectpath).
+
+#### mainPrograms
+
+📖 Main Programs · toolset `objects` · read-only, idempotent
+
+Retrieves the main programs for a given include.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `includeUrl` | string | yes | The URL of the include. |  |
+
+**When to use.** An include (PROG/I, function group include) needs its main program context: syntaxCheckCode and findDefinition take a `mainProgram` for includes.
+
+**What comes back.** `{status, mainPrograms: [...]}` with the program references (name, type and URI) the include belongs to.
+
+**Pitfalls.** Pass the include URL, not the source URL. An include used by several programs returns several entries; pick the one you are analysing.
+
+See also: [`syntaxCheckCode`](#syntaxcheckcode), [`findDefinition`](#finddefinition), [`getObjectSource`](#getobjectsource), [`objectEnhancements`](#objectenhancements).
+
+#### typeHierarchy
+
+📖 Type Hierarchy · toolset `objects` · read-only, idempotent
+
+Type hierarchy (subtypes or supertypes) of the class/interface at a given source position. Pass the source URL (…/source/main) and the 1-based line/column of the type name; the current source is re-read from SAP unless you pass it in "source". superTypes=true lists the inheritance chain upwards, false (default) lists implementers/subclasses.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectSourceUrl` | string | yes | Source URL of the object, usually the object URL plus /source/main | `/sap/bc/adt/oo/classes/zcl_order_service/source/main`, `/sap/bc/adt/programs/programs/zreport/source/main` |
+| `line` | number | yes | 1-based line of the type name in the source |  |
+| `offset` | number | yes | 0-based column of the type name in that line |  |
+| `superTypes` | boolean | no | true = supertypes (upwards), false = subtypes/implementers (default) |  |
+| `source` | string | no | Optional: the source text to analyse. Omit to re-read the current source from SAP. |  |
+
+**When to use.** List the subclasses or implementers of a class or interface at a source position (default), or the inheritance chain upwards with superTypes=true, for example before changing a signature.
+
+**What comes back.** `{status, direction: subtypes|supertypes, count, hierarchy: [...]}` with the type nodes (name, type, URI) as returned by ADT.
+
+**Pitfalls.** `line` is 1-based and `offset` 0-based, pointing at the type name in the source; the source is taken from the cache or re-read from SAP unless you pass `source`. Use the URL with /source/main.
+
+See also: [`classComponents`](#classcomponents), [`whereUsed`](#whereused), [`findDefinition`](#finddefinition), [`getObjectSource`](#getobjectsource).
+
+#### objectStructureElements
+
+📖 Object Structure Elements · toolset `objects` · read-only, idempotent
+
+Flat list of the members (methods, attributes, events, types, fields…) of an object with name, type, visibility and flags, cheaper than objectStructure/classComponents when you only need an outline. version=inactive reads the inactive version.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectUrl` | string | yes | Object URL, e.g. /sap/bc/adt/oo/classes/zcl_demo | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `version` | `active` / `inactive` / `workingArea` | no | Object version to read (default active) |  |
+| `startIndex` | number | no | 0-based index of the first element to return (default 0) |  |
+| `maxItems` | number | no | Maximum number of elements to return |  |
+
+**When to use.** The cheapest outline of an object: members with name, type, visibility and flags, enough to decide which method to read with getMethodSource. Use classComponents for full component details and objectStructure for includes and links.
+
+**What comes back.** `{status, elements: [...], totalItems, startIndex, returnedItems, hasMore, capped?}`.
+
+**Pitfalls.** `version` defaults to active here (getObjectSource defaults to the inactive one when present), so pass version=inactive to outline unactivated work. Not every object type exposes structure elements.
+
+See also: [`classComponents`](#classcomponents), [`objectStructure`](#objectstructure), [`getMethodSource`](#getmethodsource), [`cdsViewInfo`](#cdsviewinfo).
+
+#### objectEnhancements
+
+📖 Object Enhancements · toolset `objects` · read-only, idempotent
+
+Enhancement implementations (implicit/explicit enhancement points, BAdI-free source enhancements) active on an ABAP source object, with optional source of each implementation. Use before editing standard-adjacent code to see what customer enhancements already hook in.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectSourceUrl` | string | yes | Source URL of the object (…/source/main) | `/sap/bc/adt/oo/classes/zcl_order_service/source/main`, `/sap/bc/adt/programs/programs/zreport/source/main` |
+| `contextUri` | string | no | Optional context URI (main program) for includes |  |
+| `includeSource` | boolean | no | Include the source of each enhancement implementation (default false) |  |
+
+**When to use.** Before editing code near SAP standard: see which enhancement implementations (implicit or explicit enhancement points, source plug-ins) already hook into a source object, with their code when includeSource=true.
+
+**What comes back.** `{status, count, implementations: [...]}` plus the other fields of the ADT enhancement document; very long lists are cut with `returnedItems` and `capped`.
+
+**Pitfalls.** Pass the source URL (/source/main); includes need `contextUri` (their main program, see mainPrograms). Classic enhancement points are an on-premise concept; expect empty answers on S/4HANA Cloud, where extensions go through released APIs and BAdIs instead.
+
+See also: [`getObjectSource`](#getobjectsource), [`mainPrograms`](#mainprograms), [`whereUsed`](#whereused), [`revisions`](#revisions).
+
+#### packageTree
+
+📖 Package Tree · toolset `objects` · read-only, idempotent
+
+Package hierarchy with its objects in one call: sub-packages (to maxDepth) and, per package, the objects with name, type, URL and description. Cheaper than repeated nodeContents calls; use objectTypes to keep only e.g. CLAS/OC,DDLS/DF.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `packageName` | string | yes | Root package, e.g. ZFIN | `$TMP`, `ZFIN` |
+| `maxDepth` | number | no | Sub-package depth to descend (default 2; 0 = only the root) |  |
+| `includeObjects` | boolean | no | List objects per package (default true) |  |
+| `objectTypes` | string | no | Comma-separated ADT object types to keep |  |
+| `maxObjects` | number | no | Maximum objects to collect (default 500) |  |
+
+**When to use.** Get the picture of a package before working in it: sub-packages to `maxDepth` and, per package, the objects with name, type, URL and description. One call replaces a series of nodeContents calls; filter with objectTypes (CLAS/OC,DDLS/DF) to keep it small.
+
+**What comes back.** `{status, packages, objects, objectsTruncated, byType: {type: count}, tree: {package, packageUrl, description, subPackages: [...], objects: [{name, type, objectUrl, description, package}]}}`; a tree too large for one response falls back to `{packages: [...], list: [...], returned, note, capped}`.
+
+**Pitfalls.** `maxDepth` defaults to 2 and `maxObjects` to 500 (`objectsTruncated: true` when hit). Function groups appear as FUGR/F without their modules; grepPackage and exportPackageSources expand them, nodeContents FUGR/F lists them.
+
+See also: [`nodeContents`](#nodecontents), [`grepPackage`](#greppackage), [`exportPackageSources`](#exportpackagesources), [`activatePackage`](#activatepackage).
+
+#### exportPackageSources
+
+✏️ Export Package Sources · toolset `objects` · writes
+
+Write the sources of a package (and sub-packages) to a local directory in abapGit file layout (zcl_x.clas.abap, zcl_x.clas.testclasses.abap, zi_x.ddls.asddls, zrep.prog.abap …) so local tools (grep, editors, code review, documentation pipelines) can work on them. Read-only on SAP; writes only to the given directory (must be absolute; restricted to MCP_EXPORT_ROOT when set). Classes, interfaces, programs/includes, CDS, access controls, metadata extensions, behavior and service definitions are exported; other types are listed as skipped.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `packageName` | string | yes | Package to export | `$TMP`, `ZFIN` |
+| `targetDir` | string | yes | Absolute local directory inside the export root (MCP_EXPORT_ROOT, default ~/.abap-adt-mcp/exports); a sub-folder per package is created |  |
+| `overwrite` | boolean | no | Overwrite files that already exist (default false: existing files are reported and left untouched) |  |
+| `recursive` | boolean | no | Include sub-packages (default true) |  |
+| `objectTypes` | string | no | Comma-separated ADT object types to include (default: all exportable) |  |
+| `maxObjects` | number | no | Maximum objects (default 500) |  |
+
+**When to use.** Bring a package tree to the local file system in abapGit layout so local grep, editors, review or documentation tooling can work on it; read-only on SAP. For a quick in-session search use grepPackage instead.
+
+**What comes back.** `{status, targetDir, packages, objects, objectsTruncated, filesWritten, bytes, exportableTypes, skipped: [{object, type, reason}] (first 50), failed: [{object, error}] (first 20), files: [relative paths] (first 200)}`; an EXPORT.json manifest is written next to the files, one sub-folder per package.
+
+**Pitfalls.** `targetDir` must be absolute and inside MCP_EXPORT_ROOT (default ~/.abap-adt-mcp/exports), otherwise InvalidParams; existing files are skipped unless overwrite=true. Only classes (with includes), interfaces, programs and includes, CDS, access controls, metadata extensions, behavior and service definitions and function modules are exported; other types are listed as skipped. Allowed on readOnly destinations; progress notifications report the count.
+
+See also: [`packageTree`](#packagetree), [`grepPackage`](#greppackage), [`getObjectSource`](#getobjectsource), [`classIncludes`](#classincludes).
+
+#### whereUsed
+
+📖 Where Used · toolset `objects` · read-only, idempotent
+
+Where-used list by object name: resolves the name with searchObject and returns the usage references (using object, its URL, kind of usage). No URL or source position needed.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `name` | string | yes | Object name, e.g. ZCL_DEMO or ZI_PRODUCT |  |
+| `objType` | string | no | ADT object type to disambiguate, e.g. CLAS/OC, DDLS/DF, TABL/DT | `CLAS/OC`, `PROG/P` |
+| `maxResults` | number | no | Maximum references to return (default 200) |  |
+
+**When to use.** Where-used list by name (class, interface, CDS entity, table) when you have no source position; the usual first step before changing a signature or deleting something. usageReferences with a line and column is the precise variant for a symbol inside a source.
+
+**What comes back.** `{status, target: {name, type, uri, packageName}, totalReferences, returned, references: [{object, uri, parentUri, usage, canHaveChildren}], groups: [...], capped, hint}`. An unknown name fails with InvalidRequest listing candidates; a name that exists with several types asks for `objType`.
+
+**Pitfalls.** The name is resolved through searchObject (first ten hits, exact match required). When only grouping nodes come back, call usageReferences with the object URL and a position inside the definition; for the exact lines pass the references to usageReferenceSnippets. `maxResults` defaults to 200.
+
+See also: [`usageReferences`](#usagereferences), [`usageReferenceSnippets`](#usagereferencesnippets), [`searchObject`](#searchobject), [`sourceTextSearch`](#sourcetextsearch).
+
+#### cdsViewInfo
+
+📖 CDS View Info · toolset `objects` · read-only, idempotent
+
+CDS entity by name in one call: element info (fields with types, associations, extension views, secondary objects) and optionally the DDL source. Pass the entity name (ZI_PRODUCT), not a URL.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `name` | string | yes | CDS entity name |  |
+| `includeSource` | boolean | no | Also return the DDL source (default true) |  |
+| `getTargetForAssociation` | boolean | no | Resolve association targets (default false) |  |
+| `getExtensionViews` | boolean | no | Include extension views (default false) |  |
+
+**When to use.** Understand a CDS entity by name in one call: fields with types, key flags and descriptions plus the DDL source. Use ddicElement for the raw element document and runQuery to look at its data.
+
+**What comes back.** `{status, name, type, description, sqlViewName, fields (count), elements: [{name, type, dataType, length, description, isKey}], source?, sourceError?}`; hard truncated when the DDL is huge.
+
+**Pitfalls.** Pass the entity name (ZI_EXAMPLE), not a URL; the source is read from /sap/bc/adt/ddic/ddl/sources/<name>/source/main, so a failing read shows up in `sourceError` while the element info still comes back. Set getTargetForAssociation or getExtensionViews to resolve associations and extensions.
+
+See also: [`ddicElement`](#ddicelement), [`getObjectSource`](#getobjectsource), [`runQuery`](#runquery), [`syntaxCheckCdsUrl`](#syntaxcheckcdsurl).
+
+#### sourceTextSearch
+
+📖 Source Text Search · toolset `objects` · read-only, idempotent
+
+Search source code by content using the ADT repository text search index (server-side, fast). Returns matching objects with line and snippet when the backend provides them. Restrict with packages/objectTypes/objectName. Use this before reading whole sources when you need to find where a table, message, method or literal is used. If the backend has no text search (older releases), the call falls back to grepPackage when packages are given.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `searchString` | string | yes | Text to search for (the index is word/prefix based; use plain identifiers, not regex) |  |
+| `packages` | string | no | Comma-separated package names to restrict the search (e.g. ZFIN,ZSD) |  |
+| `objectTypes` | string | no | Comma-separated ADT object types to restrict (e.g. CLAS/OC,PROG/P,DDLS/DF) |  |
+| `objectName` | string | no | Object name pattern to restrict (e.g. ZCL_*) |  |
+| `maxResults` | number | no | Maximum results (default 100) |  |
+
+**When to use.** Find where an identifier (table, message, method, literal) is used across the whole system through the ADT text search index, fast and server-side, before reading any source. Restrict with packages, objectTypes or objectName; when the backend has no index it falls back to grepPackage for the packages you named.
+
+**What comes back.** `{status, searchString, filters, totalItems, returnedItems, results: [{objectUrl, name, type, packageName?, description?, line?, snippet?}], capped, hint?}`; in fallback mode `{status, packages, matches, totalMatches, objectsScanned, returnedMatches, fallback, truncated?}` with grepPackage match rows. `maxResults` defaults to 100. Without packages on a system without text search: InvalidRequest telling you to use grepPackage.
+
+**Pitfalls.** The index is word and prefix based: no regex, no substrings inside identifiers, so `hint` suggests a shorter term or grepPackage on zero hits. S/4HANA Cloud tenants often expose the resource but answer "Source Search is not supported" (docs/TESTPLAN.md); systemProfile `features.textSearch` only says whether the collection exists.
+
+See also: [`grepPackage`](#greppackage), [`whereUsed`](#whereused), [`searchObject`](#searchobject), [`systemProfile`](#systemprofile).
+
+#### grepPackage
+
+📖 Grep Package · toolset `objects` · read-only, idempotent
+
+Client-side grep over the sources of a package (classes, interfaces, programs, includes, CDS, behavior definitions, service definitions, function modules): downloads each source once (cached), applies the pattern and returns matches with line numbers and context. Works on every system, including S/4HANA Cloud. Bounded by maxObjects/maxMatches; recursive=true descends into sub-packages.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `packageName` | string | yes | Package to scan, e.g. ZFIN | `$TMP`, `ZFIN` |
+| `pattern` | string | yes | Text to find (literal by default; set regex=true for a regular expression) |  |
+| `regex` | boolean | no | Treat pattern as a JavaScript regular expression (default false) |  |
+| `caseSensitive` | boolean | no | Case-sensitive match (default false; ABAP is case-insensitive) |  |
+| `recursive` | boolean | no | Include sub-packages (default true) |  |
+| `objectTypes` | string | no | Comma-separated ADT object types to include (default: all greppable types) |  |
+| `contextLines` | number | no | Lines of context around each match (default 1) |  |
+| `maxObjects` | number | no | Maximum sources to download (default 200) |  |
+| `maxMatches` | number | no | Maximum matches to return (default 200) |  |
+
+**When to use.** Substring or regex search with context lines over the sources of a package tree, on any backend including S/4HANA Cloud; the tool for literals, message numbers, SQL fragments or patterns the text index cannot express. For a system-wide identifier lookup try sourceTextSearch first.
+
+**What comes back.** `{status, packageName, pattern, packagesScanned, objectsScanned, objectsTruncated, totalMatches, matchesTruncated, returnedMatches, matches: [{objectUrl, name, type, line, text, context?}], failures: [{objectUrl, error}] (first 20), capped}`.
+
+**Pitfalls.** Every source is downloaded once (cached about five minutes) and scanned sequentially on the single stateful session, so a big package is slow: `maxObjects` defaults to 200 and `maxMatches` to 200, and progress notifications show the scan count. Only greppable types are read (classes, interfaces, programs, includes, CDS, access controls, metadata extensions, behavior and service definitions, function modules and includes); DDIC tables and message classes are not. Matching is case-insensitive unless caseSensitive=true; `contextLines` defaults to 1; function groups are expanded only when `objectTypes` is empty or names FUGR/FF or FUGR/I.
+
+See also: [`sourceTextSearch`](#sourcetextsearch), [`packageTree`](#packagetree), [`getObjectSource`](#getobjectsource), [`exportPackageSources`](#exportpackagesources).
+
+### Transports · toolset `transports`
+
+#### transportDetails
+
+📖 Transport Details · toolset `transports` · read-only, idempotent
+
+Get the contents of a transport request: tasks, owners, status and the full list of objects it records. Use transportInfo / userTransports to find transport numbers first.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `transportNumber` | string | yes | Transport request number, e.g. DEVK900123 (TransportNumber and other spellings are accepted) | `DEVK900123` |
+
+**When to use.** Inspect a transport request whose number you already know: tasks, owners, status and every recorded object (R3TR and LIMU entries). To find the number first, use transportInfo or resolveTransport for an object, or userTransports for a user's list.
+
+**What comes back.** {status, details} where details is the request itself (tm:number, tm:owner, tm:desc, tm:status, tm:uri, links[]) with objects[] (tm:pgmid, tm:type, tm:name per entry) and tasks[] carrying the same fields per task; no paging, the whole request is returned.
+
+**Pitfalls.** Parameter spelling is tolerant (TransportNumber, transport, trkorr are mapped onto transportNumber). DDIC and customizing entries are listed but carry no source; use transportUnifiedDiff for code and getObjectSource for the rest.
+
+See also: [`transportUnifiedDiff`](#transportunifieddiff), [`transportInfo`](#transportinfo), [`userTransports`](#usertransports), [`resolveTransport`](#resolvetransport).
+
+#### transportUnifiedDiff
+
+📖 Transport Unified Diff · toolset `transports` · read-only, idempotent
+
+Generate a unified diff of the source-code objects recorded on a transport request: for each object it compares the version predating the transport against the current source. Covers whole objects (R3TR CLAS/PROG/INTF/FUGR/DDLS/BDEF/DCLS/DDLX/SRVD) and sub-objects (LIMU CINC class includes such as the CCIMP of a RAP behavior pool, METH/CLSD/CPUB/CPRO/CPRI class parts, REPS includes, FUNC function modules). Messages (LIMU MESS), DDIC and customizing entries have no source history and are listed in skipped with the reason.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `transportNumber` | string | yes | Transport request number, e.g. DEVK900123 (TransportNumber and other spellings are accepted) | `DEVK900123` |
+| `maxObjects` | number | no | Maximum number of objects to diff (default 20) |  |
+
+**When to use.** Review what a transport changes in code before releasing or handing it over: one call diffs every source object on the request against the revision that predates the transport. Use objectDiff when you want a single object between two chosen revisions.
+
+**What comes back.** {status, transport, totalObjects, diffs[], skipped[]}: each diff has type, name, uri, optional include, baselineRevision {version, date, title}, exactTransportMatch and the unified diff text; skipped lists entries with a reason (messages, DDIC, customizing, maxObjects reached, object deleted, already covered by another part's diff).
+
+**Pitfalls.** Default maxObjects is 20; raise it for big requests. When no revision is tagged with the transport number the baseline falls back to the previous revision and exactTransportMatch is false. Several LIMU parts of one class collapse into a single diff of that include.
+
+See also: [`transportDetails`](#transportdetails), [`objectDiff`](#objectdiff), [`revisions`](#revisions), [`getObjectSource`](#getobjectsource).
+
+#### transportInfo
+
+📖 Transport Info · toolset `transports` · read-only, idempotent
+
+Get transport information for an object source
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objSourceUrl` | string | yes | Object URL or its source URL, e.g. /sap/bc/adt/oo/classes/zcl_x (aliases accepted: objectUrl, objectSourceUrl, uri) | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `devClass` | string | no | Development class |  |
+| `operation` | string | no | Transport operation |  |
+
+**When to use.** Raw ADT transport check for an object URL: its package, whether the package records changes, which transport already locks the object and which modifiable requests the user could pick. Prefer resolveTransport, which interprets this answer and returns a decision.
+
+**What comes back.** {status, transportInfo} with DEVCLASS, RECORDING, DLVUNIT, LOCKS (HEADER.TRKORR and TASKS when the object is already recorded), TRANSPORTS[] candidates (TRKORR, AS4TEXT, TRSTATUS, AS4USER, TARSYSTEM, AS4DATE) and MESSAGES[] with SEVERITY and TEXT.
+
+**Pitfalls.** Pass devClass for objects that do not exist yet. A message with severity E, A or X means the package cannot be changed; resolveTransport raises it as an error, this tool only lists it. objectUrl, objectSourceUrl and uri are accepted as aliases of objSourceUrl.
+
+See also: [`resolveTransport`](#resolvetransport), [`createTransport`](#createtransport), [`transportDetails`](#transportdetails), [`userTransports`](#usertransports).
+
+#### resolveTransport
+
+✏️ Resolve Transport · toolset `transports` · writes
+
+Decide which transport request to use for changing an object, in one call: (1) the transport that already records/locks the object, else (2) the newest modifiable transport of the current user for that package, else (3) none for local ($TMP / non-recording) packages, else (4) create one when createIfMissing=true. Returns {transport, needsTransport, reason, candidates}. Call before lock/setObjectSource/createObject instead of interpreting transportInfo yourself.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objSourceUrl` | string | yes | URL of the object (or its source URL) you are about to change | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `devClass` | string | no | Package name; required when the object does not exist yet (createObject) |  |
+| `preferTransport` | string | no | Use this transport if it is among the modifiable candidates |  |
+| `createIfMissing` | boolean | no | Create a new transport when the package needs one and no modifiable transport exists (default false) |  |
+| `requestText` | string | no | Description for the transport created when createIfMissing=true |  |
+
+**When to use.** Call it right before any write to a non-local package (setObjectSource, editObjectSource, createObject, deleteObject) to obtain the transport number to pass along. It is the default choice; fall back to transportInfo only when you need the raw candidate list.
+
+**What comes back.** {status, transport, needsTransport, reason, devClass, recording, candidates[], messages[]} plus tasks[] when a transport lock exists and created=true when createIfMissing made a new request; transport is null for local packages (needsTransport=false) or when nothing modifiable exists (needsTransport=true with a reason telling you to create one).
+
+**Pitfalls.** createIfMissing is refused when the destination policy sets allowedTransports. A transport lock always wins over preferTransport. Error messages from the transport check are raised as an InvalidRequest error instead of being returned in the payload.
+
+See also: [`createTransport`](#createtransport), [`transportInfo`](#transportinfo), [`setObjectSource`](#setobjectsource), [`createObject`](#createobject).
+
+#### createTransport
+
+✏️ Create Transport · toolset `transports` · writes
+
+Create a new transport request. Required before creating or changing objects in transportable (non-$TMP) packages; pass the returned transport number to createObject / setObjectSource. Use transportInfo to find existing transports for an object first.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objSourceUrl` | string | yes | Object URL or its source URL, e.g. /sap/bc/adt/oo/classes/zcl_x (aliases accepted: objectUrl, objectSourceUrl, uri) | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `REQUEST_TEXT` | string | yes | Description of the transport request (alias accepted: description) |  |
+| `DEVCLASS` | string | yes | The ABAP package, e.g. ZPACKAGE (alias accepted: packageName) |  |
+| `transportLayer` | string | no | Transport layer |  |
+
+**When to use.** Create a workbench request explicitly when resolveTransport reports needsTransport=true with no candidates and you want control over the description or the transport layer. For the usual flow prefer resolveTransport with createIfMissing=true.
+
+**What comes back.** {status, transportNumber, message}; transportNumber is the new request (DEVK900123 style).
+
+**Pitfalls.** Parameter names are BAPI style (REQUEST_TEXT, DEVCLASS); description and packageName are accepted as aliases. Denied on destinations whose policy lists allowedTransports; readOnly destinations refuse it as well.
+
+See also: [`resolveTransport`](#resolvetransport), [`transportInfo`](#transportinfo), [`transportRelease`](#transportrelease), [`transportDelete`](#transportdelete).
+
+#### hasTransportConfig
+
+📖 Has Transport Config · toolset `transports` · read-only, idempotent
+
+Check if transport configuration exists
+
+No parameters besides `destination`.
+
+**When to use.** Check whether the backend exposes the transport-organizer configuration feature before calling transportConfigurations or transportsByConfig. Not needed for the everyday object workflow, where resolveTransport is enough.
+
+**What comes back.** {status, hasConfig} with a boolean.
+
+See also: [`transportConfigurations`](#transportconfigurations), [`createTransportsConfig`](#createtransportsconfig), [`transportsByConfig`](#transportsbyconfig).
+
+#### transportConfigurations
+
+📖 Transport Configurations · toolset `transports` · read-only, idempotent
+
+Retrieves transport configurations.
+
+No parameters besides `destination`.
+
+**When to use.** List the saved transport-organizer view configurations (filters over users, targets and status) of the current user; their links feed getTransportConfiguration and transportsByConfig. For a plain per-user list use userTransports.
+
+**What comes back.** {status, configurations[]}: each entry carries its link (URL), etag and creation data as returned by ADT; no paging.
+
+**Pitfalls.** Links can carry an echoed sap-client query in the middle of the path; getTransportConfiguration strips it, so pass the link as returned rather than rebuilding it.
+
+See also: [`getTransportConfiguration`](#gettransportconfiguration), [`transportsByConfig`](#transportsbyconfig), [`hasTransportConfig`](#hastransportconfig), [`setTransportsConfig`](#settransportsconfig).
+
+#### getTransportConfiguration
+
+📖 Get Transport Configuration · toolset `transports` · read-only, idempotent
+
+Retrieves a specific transport configuration.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `url` | string | yes | The URL of the transport configuration. |  |
+
+**When to use.** Read one transport-organizer configuration by the URL taken from transportConfigurations, typically to see its filter settings before changing them with setTransportsConfig (the etag for that call comes from the transportConfigurations entry, not from this answer).
+
+**What comes back.** {status, configuration} with the filter settings as parsed by abap-adt-api: DateFilter (plus FromDate and ToDate for a date range), User, WorkbenchRequests, CustomizingRequests, TransportOfCopies, Modifiable and Released.
+
+**Pitfalls.** The server removes a ?sap-client=NNN segment that some backends inject mid-path; without that the GET would land on the list endpoint.
+
+See also: [`transportConfigurations`](#transportconfigurations), [`setTransportsConfig`](#settransportsconfig), [`transportsByConfig`](#transportsbyconfig).
+
+#### setTransportsConfig
+
+✏️ Set Transports Config · toolset `transports` · writes
+
+Sets transport configurations.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `uri` | string | yes | The URI for the transport configuration. |  |
+| `etag` | string | yes | The ETag for the transport configuration. |  |
+| `config` | string | yes | The transport configuration. |  |
+
+**When to use.** Update an existing transport-organizer configuration (filters) using its uri and current etag. Rarely needed from an agent; use it only when transportsByConfig must show a different slice of requests.
+
+**What comes back.** {status, result} with the stored configuration (same DateFilter, User, WorkbenchRequests, CustomizingRequests, TransportOfCopies, Modifiable, Released fields); an etag mismatch comes back as an ADT error.
+
+**Pitfalls.** config is forwarded verbatim as a string; take uri and etag from the matching transportConfigurations entry (link and etag) and the current filter values from getTransportConfiguration. Write tool: refused on readOnly destinations.
+
+See also: [`getTransportConfiguration`](#gettransportconfiguration), [`transportConfigurations`](#transportconfigurations), [`createTransportsConfig`](#createtransportsconfig).
+
+#### createTransportsConfig
+
+✏️ Create Transports Config · toolset `transports` · writes
+
+Creates transport configurations.
+
+No parameters besides `destination`.
+
+**When to use.** Create the default transport-organizer configuration for the current user when transportConfigurations returns nothing and you need transportsByConfig. Not required for resolveTransport or userTransports.
+
+**What comes back.** {status, result} with the created configuration's filter settings (DateFilter, User, WorkbenchRequests, CustomizingRequests, TransportOfCopies, Modifiable, Released); list it afterwards with transportConfigurations to get its link and etag.
+
+**Pitfalls.** Write tool, refused on readOnly destinations. Takes no parameters; the backend decides the defaults.
+
+See also: [`transportConfigurations`](#transportconfigurations), [`hasTransportConfig`](#hastransportconfig), [`transportsByConfig`](#transportsbyconfig).
+
+#### userTransports
+
+📖 User Transports · toolset `transports` · read-only, idempotent
+
+Retrieves transports for a user. For large results (many transports/tasks), use startIndex/maxItems to page through the flattened list of transport requests instead of retrieving them all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `user` | string | yes | The user. |  |
+| `targets` | boolean | no | Whether to include target systems. |  |
+| `startIndex` | number | no | 0-based index of the flattened transport-request list to start from (default 0). Use with maxItems to page through large result sets. |  |
+| `maxItems` | number | no | Maximum number of transport requests to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** List the workbench and customizing requests of a SAP user (modifiable and released, per target system), for example to find open requests or to audit what a colleague owns. For the request that fits one object use resolveTransport instead.
+
+**What comes back.** {status, transports} in the raw shape {workbench[], customizing[]} of targets with modifiable[] and released[] requests when small; when paged or oversized it becomes a flattened list of {category, targetName, targetDesc, listType, request} with totalItems, startIndex, returnedItems, hasMore and autoPaged or capped flags.
+
+**Pitfalls.** user is the SAP user id; targets=true adds target-system information. The response shape changes between the small and the paged case, so check for totalItems before reading.
+
+See also: [`transportsByConfig`](#transportsbyconfig), [`transportDetails`](#transportdetails), [`resolveTransport`](#resolvetransport), [`systemUsers`](#systemusers).
+
+#### transportsByConfig
+
+📖 Transports By Config · toolset `transports` · read-only, idempotent
+
+Retrieves transports by configuration. For large results (many transports/tasks), use startIndex/maxItems to page through the flattened list of transport requests instead of retrieving them all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `configUri` | string | yes | The configuration URI. |  |
+| `targets` | boolean | no | Whether to include target systems. |  |
+| `startIndex` | number | no | 0-based index of the flattened transport-request list to start from (default 0). Use with maxItems to page through large result sets. |  |
+| `maxItems` | number | no | Maximum number of transport requests to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Same listing as userTransports but driven by a saved transport-organizer configuration (configUri from transportConfigurations), useful when the filters go beyond one user.
+
+**What comes back.** Same shape as userTransports: raw {workbench, customizing} when small, otherwise a flattened, paged list with totalItems, startIndex, returnedItems and hasMore.
+
+**Pitfalls.** Needs an existing configuration (transportConfigurations, or createTransportsConfig first); configUri must be the link exactly as listed.
+
+See also: [`userTransports`](#usertransports), [`transportConfigurations`](#transportconfigurations), [`getTransportConfiguration`](#gettransportconfiguration), [`transportDetails`](#transportdetails).
+
+#### transportDelete
+
+⚠️ Transport Delete · toolset `transports` · destructive
+
+Deletes a transport.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `transportNumber` | string | yes | The transport number. | `DEVK900123` |
+
+**When to use.** Delete an empty, modifiable request or task, for example one created by mistake with createTransport or resolveTransport(createIfMissing). Requests that record objects cannot be deleted; remove the objects or release instead.
+
+**What comes back.** {status: 'success'} only (the ADT call returns no body); ADT refusals (not the owner, request not empty, already released) surface as tool errors.
+
+**Pitfalls.** Destructive and irreversible; refused on readOnly destinations and when the number is not in allowedTransports. Check transportDetails first to be sure the request is empty.
+
+See also: [`transportDetails`](#transportdetails), [`createTransport`](#createtransport), [`transportRelease`](#transportrelease), [`resolveTransport`](#resolvetransport).
+
+#### transportRelease
+
+⚠️ Transport Release · toolset `transports` · destructive
+
+Releases a transport.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `transportNumber` | string | yes | The transport number. | `DEVK900123` |
+| `ignoreLocks` | boolean | no | Whether to ignore locks. |  |
+| `IgnoreATC` | boolean | no | Whether to ignore ATC checks. |  |
+
+**When to use.** Release a request or task once the objects are active, unit tests are green and ATC is clean. It is the only tool that moves changes toward the next system, so treat it as a deliberate final step, not part of the edit loop.
+
+**What comes back.** {status, result[]} of release reports, one per released task or request: chkrun:status (released or abortrelapifail), chkrun:statusText, chkrun:triggeringUri and messages[] with chkrun:uri, chkrun:type and chkrun:shortText.
+
+**Pitfalls.** Check chkrun:status in every report: a release blocked by inactive objects, open tasks or ATC findings can come back as a report with abortrelapifail and messages rather than as an exception. ignoreLocks and IgnoreATC (capital I) bypass checks configured by the administrators; leave them unset unless asked. Refused on readOnly destinations and outside allowedTransports. Release tasks before the request when the backend requires it.
+
+See also: [`transportDetails`](#transportdetails), [`atcSummary`](#atcsummary), [`unitTestRun`](#unittestrun), [`transportUnifiedDiff`](#transportunifieddiff).
+
+#### transportSetOwner
+
+✏️ Transport Set Owner · toolset `transports` · writes
+
+Sets the owner of a transport.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `transportNumber` | string | yes | The transport number. | `DEVK900123` |
+| `targetuser` | string | yes | The target user. |  |
+
+**When to use.** Hand a request or task over to another user (targetuser), for instance before that person releases it. Use transportAddUser when the original owner keeps the request and only a task for a colleague is needed.
+
+**What comes back.** {status, result} with tm:number and tm:targetuser as confirmed by ADT.
+
+**Pitfalls.** Write tool, subject to readOnly and allowedTransports policy. Authorization S_TRANSPRT applies; systemUsers helps to spell the target user.
+
+See also: [`transportAddUser`](#transportadduser), [`systemUsers`](#systemusers), [`transportDetails`](#transportdetails).
+
+#### transportAddUser
+
+✏️ Transport Add User · toolset `transports` · writes
+
+Adds a user to a transport.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `transportNumber` | string | yes | The transport number. | `DEVK900123` |
+| `user` | string | yes | The user to add. |  |
+
+**When to use.** Add a task for another user to an existing request so that person can record changes under it. Prefer this over creating a second request for the same change.
+
+**What comes back.** {status, result} with tm:number, tm:targetuser, tm:uri and tm:useraction as returned by ADT.
+
+**Pitfalls.** Write tool, subject to readOnly and allowedTransports policy. The request must be modifiable and owned by the current user.
+
+See also: [`transportSetOwner`](#transportsetowner), [`transportDetails`](#transportdetails), [`systemUsers`](#systemusers), [`userTransports`](#usertransports).
+
+#### systemUsers
+
+📖 System Users · toolset `transports` · read-only, idempotent
+
+Retrieves a list of system users. For large results, use startIndex/maxItems to page through the user list instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `startIndex` | number | no | 0-based index of the user list to start from (default 0). Use with maxItems to page through a large user list. |  |
+| `maxItems` | number | no | Maximum number of users to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Look up SAP user ids and names (for transportSetOwner, transportAddUser, atcChangeContact or the responsible field of createObject) when you only know part of the name.
+
+**What comes back.** {status, users[]} with id and title (the user's name) per user; large lists are paged with totalItems, startIndex, returnedItems, hasMore (autoPaged when the server shrank the list).
+
+**Pitfalls.** Long on production-sized systems; pass maxItems. Some cloud tenants restrict the endpoint by authorization.
+
+See also: [`transportSetOwner`](#transportsetowner), [`transportAddUser`](#transportadduser), [`atcUsers`](#atcusers), [`userTransports`](#usertransports).
+
+#### transportReference
+
+📖 Transport Reference · toolset `transports` · read-only, idempotent
+
+Retrieves a transport reference.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `pgmid` | string | yes | The program ID. |  |
+| `obj_wbtype` | string | yes | The object type. |  |
+| `obj_name` | string | yes | The object name. |  |
+| `tr_number` | string | no | The transport number. |  |
+
+**When to use.** Resolve the transport-organizer reference of an object from its TADIR key (pgmid R3TR or LIMU, obj_wbtype such as CLAS, obj_name), optionally narrowed to one request with tr_number. Useful to build the /sap/bc/adt/cts/transportrequests URLs that atcSummary accepts or to check which request records a given object part.
+
+**What comes back.** {status, reference} where reference is a string: the href of the transport-organizer reference link ADT returns.
+
+**Pitfalls.** LIMU object names follow the padded E071 convention; for the plain question of which transport holds an object, resolveTransport or transportInfo is easier.
+
+See also: [`transportInfo`](#transportinfo), [`transportDetails`](#transportdetails), [`resolveTransport`](#resolvetransport), [`atcSummary`](#atcsummary).
+
+### Syntax & code analysis · toolset `analysis`
+
+#### syntaxCheckCode
+
+📖 Syntax Check Code · toolset `analysis` · read-only, idempotent
+
+ABAP syntax check of a source against the context of an existing object: url is the source URL of that object (…/source/main), required because the check resolves types and includes in its context; it is not a standalone check of free text. Provide the source in "code" (alias: source), or omit it to reuse the source last read/written for "url" this session. Returns line, offset, severity and text per finding. To try free ABAP without an object, use runSnippet on a development system.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `code` | string | no | The ABAP source to check. Optional if the source for "url" was already read or written this session. |  |
+| `url` | string | yes | Source URL of the object the code belongs to, e.g. /sap/bc/adt/oo/classes/zcl_x/source/main (aliases accepted: objectSourceUrl, objectUrl) |  |
+| `mainUrl` | string | no | Main program URL for includes (defaults to url) |  |
+| `mainProgram` | string | no |  |  |
+| `version` | string | no |  |  |
+
+**When to use.** Check a candidate source before writing it: pass url (the object's …/source/main) and the code; url is required because types and includes are resolved in that object's context. For CDS objects use syntaxCheckCdsUrl; to try free-standing ABAP use runSnippet.
+
+**What comes back.** {status, usedCachedSource, result[]} with one entry per finding: uri, line, offset, severity (E, W, I) and text; an empty result means clean.
+
+**Pitfalls.** Omit code to re-check the source last read or written for that url in this session; otherwise the call fails with InvalidParams. mainUrl matters for includes of programs and function groups. A clean check activates nothing. source, objectSourceUrl and objectUrl are accepted as aliases.
+
+See also: [`setObjectSource`](#setobjectsource), [`editObjectSource`](#editobjectsource), [`runSnippet`](#runsnippet), [`syntaxCheckCdsUrl`](#syntaxcheckcdsurl).
+
+#### syntaxCheckCdsUrl
+
+📖 Syntax Check CDS URL · toolset `analysis` · read-only, idempotent
+
+Perform ABAP syntax check with CDS URL
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `cdsUrl` | string | yes |  |  |
+
+**When to use.** Syntax check of a CDS object (DDLS, DCLS, DDLX, BDEF) by URL without sending the source: the backend checks the version it holds. Use syntaxCheckCode when you want to test a modified source before writing it.
+
+**What comes back.** {status, result[]} with the same finding entries as syntaxCheckCode (uri, line, offset, severity, text).
+
+**Pitfalls.** Checks what is on the server (inactive version included), not what you have locally: write first, then check, or use activateByName, which also reports errors.
+
+See also: [`syntaxCheckCode`](#syntaxcheckcode), [`cdsViewInfo`](#cdsviewinfo), [`activateByName`](#activatebyname).
+
+#### codeCompletion
+
+📖 Code Completion · toolset `analysis` · read-only, idempotent
+
+Get code completion suggestions
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `sourceUrl` | string | yes |  |  |
+| `source` | string | yes |  |  |
+| `line` | number | yes |  |  |
+| `column` | number | yes |  |  |
+
+**When to use.** Ask ADT for completion proposals at a cursor position in a source you supply (sourceUrl gives the context). Useful to discover method names, parameters and types of an unfamiliar class while writing code; unnecessary when you already know the API.
+
+**What comes back.** {status, result[]} of proposals as sent by the backend: IDENTIFIER (the text to complete), KIND, ROLE, VISIBILITY, PREFIXLENGTH, IS_INHERITED and further numeric flags; there is no description text.
+
+**Pitfalls.** line is 1-based and the source must be the full text. Pair a proposal's IDENTIFIER with codeCompletionFull to get the insertion text.
+
+See also: [`codeCompletionFull`](#codecompletionfull), [`codeCompletionElement`](#codecompletionelement), [`findDefinition`](#finddefinition), [`classComponents`](#classcomponents).
+
+#### findDefinition
+
+📖 Find Definition · toolset `analysis` · read-only, idempotent
+
+Find symbol definition
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `url` | string | yes |  |  |
+| `source` | string | yes |  |  |
+| `line` | number | yes |  |  |
+| `startCol` | number | yes |  |  |
+| `endCol` | number | yes |  |  |
+| `implementation` | boolean | no |  |  |
+| `mainProgram` | string | no |  |  |
+
+**When to use.** Jump from a usage to its definition: given a source, line and the column range of the identifier, ADT returns the object and position that defines it (implementation=true goes to the implementation instead of the declaration). Use searchObject when you only have a name.
+
+**What comes back.** {status, result} with url, line and column of the definition.
+
+**Pitfalls.** startCol and endCol must delimit the identifier exactly; for includes pass mainProgram. ADT parses the source you pass, so send the current one.
+
+See also: [`usageReferences`](#usagereferences), [`searchObject`](#searchobject), [`findObjectPath`](#findobjectpath), [`codeCompletionElement`](#codecompletionelement).
+
+#### usageReferences
+
+📖 Usage References · toolset `analysis` · read-only, idempotent
+
+Find symbol references (system-wide "where used"). For widely-used symbols this can return hundreds/thousands of hits; use startIndex/maxItems to page through the result instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `url` | string | yes |  |  |
+| `line` | number | no |  |  |
+| `column` | number | no |  |  |
+| `startIndex` | number | no | 0-based index of the first reference to return (default 0). Use with maxItems to page through large result sets. |  |
+| `maxItems` | number | no | Maximum number of references to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** System-wide where-used list for an object (url only) or for the symbol at line and column of its source. Prefer whereUsed for the compact, agent-oriented answer; use this one when you need the raw reference list to feed usageReferenceSnippets.
+
+**What comes back.** {status, result[]} of references with uri, objectIdentifier, parentUri, adtcore:name, adtcore:type, usageInformation and packageRef; large lists are paged with totalItems, startIndex, returnedItems, hasMore and autoPaged or capped flags.
+
+**Pitfalls.** Widely used objects return thousands of hits; pass maxItems. Results point at objects, not lines, until you call usageReferenceSnippets.
+
+See also: [`usageReferenceSnippets`](#usagereferencesnippets), [`whereUsed`](#whereused), [`findDefinition`](#finddefinition), [`grepPackage`](#greppackage).
+
+#### syntaxCheckTypes
+
+📖 Syntax Check Types · toolset `analysis` · read-only, idempotent
+
+Retrieves syntax check types.
+
+No parameters besides `destination`.
+
+**When to use.** List the check types the backend's syntax check service supports (ABAP, CDS and others). Informational; there is nothing to pass on to the other syntax tools.
+
+**What comes back.** {status, result}; the library returns the catalog as a JavaScript Map, which JSON.stringify renders as an empty object, so result is {} in practice.
+
+**Pitfalls.** Informational at best: because the Map is serialized as {}, the tool currently confirms only that the /sap/bc/adt/checkruns/reporters endpoint answers. Read the type list from the raw endpoint via adtDiscovery if you need it.
+
+See also: [`syntaxCheckCode`](#syntaxcheckcode), [`syntaxCheckCdsUrl`](#syntaxcheckcdsurl), [`adtDiscovery`](#adtdiscovery).
+
+#### codeCompletionFull
+
+📖 Code Completion Full · toolset `analysis` · read-only, idempotent
+
+Performs full code completion.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `sourceUrl` | string | yes |  |  |
+| `source` | string | yes |  |  |
+| `line` | number | yes |  |  |
+| `column` | number | yes |  |  |
+| `patternKey` | string | yes | IDENTIFIER of a completion proposal previously returned by codeCompletion at the same position (the insertion endpoint completes that proposal); arbitrary values raise an exception |  |
+
+**When to use.** Get the full insertion text (method call pattern with parameters) for a proposal returned by codeCompletion at the same position, identified by its IDENTIFIER as patternKey.
+
+**What comes back.** {status, result} with the completed text or pattern for that proposal.
+
+**Pitfalls.** patternKey must be an IDENTIFIER from a codeCompletion call at the same sourceUrl, line and column; arbitrary values raise a backend exception.
+
+See also: [`codeCompletion`](#codecompletion), [`codeCompletionElement`](#codecompletionelement).
+
+#### runClass
+
+⚠️ Run Class · toolset `analysis` · destructive
+
+Runs a class.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `className` | string | yes |  |  |
+
+**When to use.** Run an existing class that implements IF_OO_ADT_CLASSRUN and capture its console output, typically after a write plus activation. For throwaway code use runSnippet, which creates and deletes the class for you.
+
+**What comes back.** {status, result, runMode} where result is the console text and runMode is clone or stateless; locksInvalidated[] and a note appear when explicit locks had to be released.
+
+**Pitfalls.** Runs on a fresh program load so the output reflects the latest activation; on SSO (cookie) destinations that resets the stateful session and drops locks held via lock, so re-lock before writing again. Classified destructive because the class may change data.
+
+See also: [`runSnippet`](#runsnippet), [`activateByName`](#activatebyname), [`lock`](#lock), [`listLocks`](#listlocks).
+
+#### codeCompletionElement
+
+📖 Code Completion Element · toolset `analysis` · read-only, idempotent
+
+Retrieves code completion element information.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `sourceUrl` | string | yes |  |  |
+| `source` | string | yes |  |  |
+| `line` | number | yes |  |  |
+| `column` | number | yes |  |  |
+
+**When to use.** Element information (type, signature, documentation link) for the identifier under the cursor in a supplied source, the hover help of ADT. For the keyword documentation itself use abapDocumentation.
+
+**What comes back.** {status, result} with the element's name, type, href, doc and components[] (each with adtcore:type, adtcore:name and entries[] of key/value pairs); the backend may answer with a plain string instead of an object.
+
+**Pitfalls.** Needs the full source text and a 1-based line; an empty result usually means the cursor is not on an identifier.
+
+See also: [`codeCompletion`](#codecompletion), [`findDefinition`](#finddefinition), [`abapDocumentation`](#abapdocumentation).
+
+#### usageReferenceSnippets
+
+📖 Usage Reference Snippets · toolset `analysis` · read-only, idempotent
+
+Retrieves usage reference snippets (source excerpts) for a list of usage references, e.g. from usageReferences. For large input lists the returned snippets can be large; use startIndex/maxItems to page through the result instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `references` | array | yes |  |  |
+| `startIndex` | number | no | 0-based index of the first snippet to return (default 0). Use with maxItems to page through large result sets. |  |
+| `maxItems` | number | no | Maximum number of snippets to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Turn the references from usageReferences into source excerpts with line numbers, so you can read the actual usage without fetching whole objects.
+
+**What comes back.** {status, result[]} of {objectIdentifier, snippets[]} where each snippet has uri {uri, start, end with line and column}, matches, content (the source excerpt) and description; paged with totalItems, startIndex, returnedItems, hasMore when large.
+
+**Pitfalls.** The input list is not capped; send a slice of the usageReferences result rather than everything. Snippets multiply the payload, so use maxItems.
+
+See also: [`usageReferences`](#usagereferences), [`whereUsed`](#whereused), [`grepPackage`](#greppackage), [`getObjectSource`](#getobjectsource).
+
+#### fixProposals
+
+📖 Fix Proposals · toolset `analysis` · read-only, idempotent
+
+Retrieves fix proposals.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `url` | string | yes |  |  |
+| `source` | string | yes |  |  |
+| `line` | number | yes |  |  |
+| `column` | number | yes |  |  |
+
+**When to use.** List the ADT quick fixes (quick assists) available at a position of a supplied source: create missing method, declare unknown variable, and the ATC quick fixes. For ATC findings the wrapper atcQuickfixProposals fetches the source for you.
+
+**What comes back.** {status, result[]} of proposals with adtcore:name, adtcore:description and adtcore:type.
+
+**Pitfalls.** Pass the full current source; column is 0-based as reported by ADT. Apply a proposal with fixEdits (raw deltas) or atcApplyQuickfix (applied and written).
+
+See also: [`fixEdits`](#fixedits), [`atcQuickfixProposals`](#atcquickfixproposals), [`atcApplyQuickfix`](#atcapplyquickfix), [`syntaxCheckCode`](#syntaxcheckcode).
+
+#### fixEdits
+
+✏️ Fix Edits · toolset `analysis` · writes
+
+Applies fix edits.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `proposal` | string | yes |  |  |
+| `source` | string | yes |  |  |
+
+**When to use.** Compute the text edits for one proposal from fixProposals when you want to inspect or apply them yourself. For the common case of an ATC finding use atcApplyQuickfix, which applies and writes in one call.
+
+**What comes back.** {status, result[]} of deltas, each with uri, range {start, end} (1-based lines, 0-based columns), name, type and content.
+
+**Pitfalls.** Nothing is written to SAP; you still need setObjectSource or editObjectSource. Deltas can target objects other than the one you checked. The tool is nevertheless classified as a write (not in the read-only set), so readOnly destinations refuse it.
+
+See also: [`fixProposals`](#fixproposals), [`atcApplyQuickfix`](#atcapplyquickfix), [`editObjectSource`](#editobjectsource), [`setObjectSource`](#setobjectsource).
+
+#### fragmentMappings
+
+📖 Fragment Mappings · toolset `analysis` · read-only, idempotent
+
+Retrieves fragment mappings.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `url` | string | yes |  |  |
+| `type` | string | yes |  |  |
+| `name` | string | yes |  |  |
+
+**When to use.** Map a named fragment of an object (type and name of a method, include or part) to its position in the source URL, to locate a method body when you only have its name. getMethodSource and classIncludes cover the class case more directly.
+
+**What comes back.** {status, result} with the fragment's uri, line and column (a single position, not a range).
+
+**Pitfalls.** Thin wrapper over the ADT fragment endpoint; the type codes follow ADT conventions.
+
+See also: [`getMethodSource`](#getmethodsource), [`classIncludes`](#classincludes), [`objectStructure`](#objectstructure), [`findDefinition`](#finddefinition).
+
+#### abapDocumentation
+
+📖 ABAP Documentation · toolset `analysis` · read-only, idempotent
+
+ABAP keyword documentation (the F1 help) as plain text. Two ways to ask: (a) keyword: a statement or addition such as "SELECT SINGLE", "WITH PRIVILEGED ACCESS", "LOOP AT GROUP BY" (the server builds the context for you); (b) cursor: objectUri, body (the source; fetched from objectUri when omitted), line and column of the element to explain. Long documents are paged with startLine/maxLines.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `keyword` | string | no | ABAP statement or addition to look up, e.g. "SELECT SINGLE", "WITH PRIVILEGED ACCESS" |  |
+| `objectUri` | string | no | Source URL giving the context (…/source/main); optional with keyword |  |
+| `body` | string | no | Source text the cursor refers to; omitted: read from objectUri |  |
+| `line` | number | no | 1-based line of the element (cursor mode) |  |
+| `column` | number | no | 1-based column of the element (cursor mode) |  |
+| `language` | string | no |  |  |
+| `startLine` | number | no | 1-based first line of the text to return (default 1) |  |
+| `maxLines` | number | no | Maximum lines to return (default: as many as fit) |  |
+| `raw` | boolean | no | Return the HTML instead of plain text |  |
+
+**When to use.** Read the ABAP keyword documentation (F1 help) as plain text: pass keyword for a statement or addition, or objectUri with line and column for the element under a cursor. Use it before guessing the syntax of a newer statement.
+
+**What comes back.** {status, title, keyword, text, totalLines, startLine, returnedLines, hasMore, capped}; raw=true returns the HTML instead.
+
+**Pitfalls.** Long chapters are paged with startLine and maxLines. In cursor mode the body is read from objectUri (cached source first) when omitted; line and column are 1-based.
+
+See also: [`codeCompletionElement`](#codecompletionelement), [`syntaxCheckCode`](#syntaxcheckcode), [`apiReleaseState`](#apireleasestate).
+
+#### apiReleaseState
+
+📖 API Release State · toolset `analysis` · read-only, idempotent, reaches the internet
+
+Release state of SAP objects for ABAP Cloud / Clean Core, from SAP's official cloudification repository (released, deprecated with successors, classicAPI, noAPI) plus, when objectUrl is given, the backend's own /sap/bc/adt/apireleases answer. Check APIs before writing cloud code instead of recalling from memory. Pass names as "CL_X", "TABL:MARA", "FUGR:BAPI_..." (comma-separated) or a source to scan every referenced object.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `names` | string | no | Comma-separated object names, optionally prefixed with the TADIR type (CLAS:, INTF:, TABL:, DDLS:, FUGR:, FUNC:) |  |
+| `objectUrl` | string | no | ADT object URL to check (also queried on the backend when it exposes apireleases) | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `source` | string | no | ABAP source to scan: every referenced SAP object (SELECT targets, TYPE references, CL_/IF_/CX_ classes, function modules) is checked |  |
+| `sourceUrl` | string | no | Source URL (…/source/main) to read and scan instead of passing the text |  |
+| `edition` | `cloud` / `btp` / `pce2023` / `pce2022` | no | Target edition: cloud (S/4HANA Cloud Public Edition, default), btp (BTP ABAP Environment), pce2023/pce2022 (Private Cloud 3-tier) |  |
+| `refresh` | boolean | no | Re-download the repository data (default: 24h cache) |  |
+
+**When to use.** Before using an SAP object in ABAP Cloud code, check its release state against SAP's cloudification repository: names (CL_X, TABL:MARA, FUGR:...), an objectUrl, or a whole source or sourceUrl to scan every referenced object. edition selects cloud, btp, pce2023 or pce2022.
+
+**What comes back.** {status, edition, repository {loadedAt, releasedEntries, classificationEntries}, summary {checked, cloudReady, notCloudReady, unknown, customerObjects}, blockers[] (up to 50), results[] with state and successors, unknown[] plus unknownNote (only when something is unknown), scannedIdentifiers (source scans), backendApiRelease (whenever objectUrl is given: available=true with attributes, or available=false with httpStatus or error when the backend has no /sap/bc/adt/apireleases), capped}.
+
+**Pitfalls.** Needs internet access to raw.githubusercontent.com (24h cache, refresh=true to re-download). unknown means not in the repository, not a blocker; verify in the system. Source scanning is heuristic on identifiers.
+
+See also: [`systemProfile`](#systemprofile), [`atcSummary`](#atcsummary), [`abapDocumentation`](#abapdocumentation), [`getObjectSource`](#getobjectsource).
+
+#### runSnippet
+
+⚠️ Run Snippet · toolset `analysis` · destructive
+
+Run a piece of ABAP once and return its console output: wraps the code in a temporary IF_OO_ADT_CLASSRUN class (the "out" parameter is available: out->write( ... )), creates it in packageName (default $TMP; on S/4HANA Cloud use a customer package with ABAP for Cloud Development plus its transport, $TMP is refused there), activates, runs it, and deletes it again unless keep=true. A full CLASS … DEFINITION/IMPLEMENTATION implementing if_oo_adt_classrun is accepted as well. Activation errors are returned with messages instead of running. Pass responsible (your SAP user) on cloud systems. Needs development authorization (S_DEVELOP) on the destination: development systems only; test/quality and production systems refuse it, so read data there with runQuery/tableContents instead.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `code` | string | yes | ABAP statements for the main method (or a complete class implementing if_oo_adt_classrun) |  |
+| `packageName` | string | no | Package for the temporary class (default $TMP) | `$TMP`, `ZFIN` |
+| `className` | string | no | Name of the temporary class (default ZCL_MCP_SNIP_xxxxxx) |  |
+| `transport` | string | no | Transport request, only for transportable packages | `DEVK900123` |
+| `responsible` | string | no | SAP user set as responsible (required by some cloud systems) |  |
+| `keep` | boolean | no | Keep the class after running (default false: it is deleted) |  |
+
+**When to use.** Execute a few ABAP statements once (out->write( ... )) on a development system and read the console output: data diagnosis, API probing, checking a computation. Prefer runQuery or tableContents for pure reads, and always on test or production systems.
+
+**What comes back.** {status, className, packageName, wrapped, kept, output, runMode, steps[], cleanupError, locksInvalidated?}; activation failures come back as {status: 'error', phase: 'activation', messages, hint} with isError set.
+
+**Pitfalls.** Needs S_DEVELOP. On S/4HANA Cloud $TMP is refused (S_ABPLNGVS): pass packageName, transport and responsible. Line numbers in activation errors refer to the generated class (the body starts at line 8). Subject to deniedTables and allowedPackages policy; locks held via lock may be invalidated on SSO destinations.
+
+See also: [`runClass`](#runclass), [`runQuery`](#runquery), [`tableContents`](#tablecontents), [`resolveTransport`](#resolvetransport).
+
+### Unit tests · toolset `tests`
+
+#### unitTestRun
+
+✏️ Unit Test Run · toolset `tests` · writes
+
+Run ABAP unit tests for an object. ALWAYS run after adding tests or changing and activating source code. Tests live in the testclass include (see createTestInclude). For large results (many test classes), use startIndex/maxItems to page through the top-level test-class list.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `url` | string | yes | ADT URL of the object to test, e.g. /sap/bc/adt/oo/classes/zcl_my_class |  |
+| `flags` | string | no | Optional JSON string of UnitTestRunFlags: {"harmless":true,"dangerous":false,"critical":false,"short":true,"medium":true,"long":false} |  |
+| `startIndex` | number | no | 0-based index of the top-level test-class list to start from (default 0). Use with maxItems to page through large test runs. |  |
+| `maxItems` | number | no | Maximum number of test classes to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Run the ABAP Unit tests of a class, program or package URL after every change and activation; the default flags run only harmless, short tests. It is the acceptance gate before transportRelease.
+
+**What comes back.** {status, result[]} of test classes with testmethods[] and alerts[] (kind, severity, title, details, stack trimmed to 15 entries with stackTruncated); paged with totalItems, startIndex, returnedItems, hasMore when large.
+
+**Pitfalls.** flags is a JSON string, for example {"medium":true,"dangerous":true}; medium, long, dangerous and critical tests are skipped unless you set them. An empty result means no test classes were found; the object must be active. Not in the read-only set (tests can change data), so readOnly destinations refuse it.
+
+See also: [`unitTestEvaluation`](#unittestevaluation), [`createTestInclude`](#createtestinclude), [`activateByName`](#activatebyname), [`unitTestOccurrenceMarkers`](#unittestoccurrencemarkers).
+
+#### unitTestEvaluation
+
+📖 Unit Test Evaluation · toolset `tests` · read-only, idempotent
+
+Evaluates unit test results. For large results (many test methods), use startIndex/maxItems to page through the top-level test-method list instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `clas` | string | yes | The class to evaluate. |  |
+| `flags` | string | no | Flags for the unit test evaluation. |  |
+| `startIndex` | number | no | 0-based index of the top-level test-method list to start from (default 0). Use with maxItems to page through large evaluations. |  |
+| `maxItems` | number | no | Maximum number of test methods to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Detailed evaluation of one test class: pass the class name (or its URL), the server runs the tests and evaluates the first test class of the result, listing methods with their alerts. Use unitTestRun for the plain pass or fail picture over all test classes.
+
+**What comes back.** {status, result[]} of test methods (adtcore:name, adtcore:uri, executionTime, unit, alerts[]); paged with totalItems, startIndex, returnedItems, hasMore.
+
+**Pitfalls.** Only the first test class returned by the run is evaluated. When the class has no test classes the call fails with an error whose message says 'No test classes found' (surfaced as InternalError, not InvalidParams).
+
+See also: [`unitTestRun`](#unittestrun), [`createTestInclude`](#createtestinclude), [`getObjectSource`](#getobjectsource).
+
+#### unitTestOccurrenceMarkers
+
+📖 Unit Test Occurrence Markers · toolset `tests` · read-only, idempotent
+
+Retrieves unit test occurrence markers.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `url` | string | yes | The URL of the object. |  |
+| `source` | string | yes | The source code. |  |
+
+**When to use.** Get the positions of test classes and test methods in a supplied source (the markers ADT shows in the gutter), useful to navigate a large test include.
+
+**What comes back.** {status, markers[]} with kind, keepsResult and location {uri, range {start, end} with line and column} per marker.
+
+**Pitfalls.** Pass the source text of the test include (getObjectSource on the testclasses include URL from classIncludes), not the main class.
+
+See also: [`unitTestRun`](#unittestrun), [`classIncludes`](#classincludes), [`getObjectSource`](#getobjectsource).
+
+#### createTestInclude
+
+✏️ Create Test Include · toolset `tests` · writes
+
+Creates a test include for a class.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `clas` | string | yes | The class name. |  |
+| `lockHandle` | string | no | The lock handle. |  |
+| `transport` | string | no | The transport. | `DEVK900123` |
+
+**When to use.** Create the empty testclasses include of a class before writing tests into it with setObjectSource on the include URL from classIncludes. Skip it when classIncludes already lists testclasses.
+
+**What comes back.** {status, message} (the ADT call returns no body, so no result field is present).
+
+**Pitfalls.** Locks and unlocks the class by itself; pass lockHandle only when you hold a lock from lock. Needs transport for transportable packages (resolveTransport). The allowedPackages policy resolves the class package.
+
+See also: [`classIncludes`](#classincludes), [`setObjectSource`](#setobjectsource), [`unitTestRun`](#unittestrun), [`resolveTransport`](#resolvetransport).
+
+### ATC · toolset `atc`
+
+#### atcCustomizing
+
+📖 ATC Customizing · toolset `atc` · read-only, idempotent
+
+Retrieves ATC customizing information.
+
+No parameters besides `destination`.
+
+**When to use.** Read the ATC settings of the system, mainly the name of the system check variant to pass to createAtcRun or atcSummary. Skip it when you already use ABAP_CLOUD_DEVELOPMENT_DEFAULT on a cloud tenant.
+
+**What comes back.** {status, result} with properties[] (name and value pairs, among them the system check variant) and excemptions[] (id, title, justificationMandatory) describing the exemption reasons the system accepts.
+
+See also: [`atcCheckVariant`](#atccheckvariant), [`createAtcRun`](#createatcrun), [`atcSummary`](#atcsummary).
+
+#### atcQuickfixProposals
+
+📖 ATC Quickfix Proposals · toolset `atc` · read-only, idempotent
+
+List the quickfix proposals available at an ATC finding location. Pass the source URL and position from an atcWorklists finding. Apply a proposal with atcApplyQuickfix. Read-only.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectSourceUrl` | string | yes | Source URL of the object with the finding, usually the object URL plus /source/main | `/sap/bc/adt/oo/classes/zcl_order_service/source/main`, `/sap/bc/adt/programs/programs/zreport/source/main` |
+| `line` | number | yes | Line of the finding (1-based) |  |
+| `column` | number | yes | Column of the finding (0-based, as reported by ADT) |  |
+
+**When to use.** List the quick fixes available at a finding location (objectSourceUrl, line, column from atcWorklists or atcSummary) before applying one with atcApplyQuickfix.
+
+**What comes back.** {status, proposals[]} with index, name, description and type; empty when the finding has no automatic fix.
+
+**Pitfalls.** Reads the current source from SAP itself; line is 1-based, column 0-based as reported by ATC. A finding marked quickfix in atcSummary may still have no proposal at that exact column.
+
+See also: [`atcApplyQuickfix`](#atcapplyquickfix), [`atcWorklists`](#atcworklists), [`atcSummary`](#atcsummary), [`fixProposals`](#fixproposals).
+
+#### atcApplyQuickfix
+
+⚠️ ATC Apply Quickfix · toolset `atc` · destructive
+
+Apply a deterministic quickfix at an ATC finding location: recomputes the proposals (see atcQuickfixProposals), applies the chosen one to the source and writes it back with setObjectSource. Requires the object to be locked (lock returns the lockHandle). Activate afterwards with activateByName and re-run ATC to confirm the finding is gone.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectSourceUrl` | string | yes | Source URL of the object with the finding (object URL plus /source/main) | `/sap/bc/adt/oo/classes/zcl_order_service/source/main`, `/sap/bc/adt/programs/programs/zreport/source/main` |
+| `line` | number | yes | Line of the finding (1-based) |  |
+| `column` | number | yes | Column of the finding (0-based) |  |
+| `proposalIndex` | number | no | Index of the proposal to apply, from atcQuickfixProposals (default 0) |  |
+| `lockHandle` | string | no | Optional lock handle from lock; omit to let the server lock/unlock around the write |  |
+| `transport` | string | no | Transport number for transportable packages | `DEVK900123` |
+
+**When to use.** Apply one proposal (proposalIndex) at a finding location and write the result back: the fastest way to clear deterministic findings. Activate with activateByName and re-run atcSummary afterwards.
+
+**What comes back.** {status, applied {name, description}, editsApplied, editsSkipped[] (edits that target other objects), message}.
+
+**Pitfalls.** Locks and unlocks by itself unless lockHandle is given; needs transport for transportable packages. InvalidParams when the index does not exist, an error when every edit targets another object. Nothing is activated.
+
+See also: [`atcQuickfixProposals`](#atcquickfixproposals), [`activateByName`](#activatebyname), [`atcSummary`](#atcsummary), [`lock`](#lock).
+
+#### atcCheckVariant
+
+📖 ATC Check Variant · toolset `atc` · read-only, idempotent
+
+Retrieves information about an ATC check variant.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `variant` | string | yes | The name of the ATC check variant. |  |
+
+**When to use.** Resolve a check variant name (from atcCustomizing) to the worklist id that createAtcRun expects. createAtcRun and atcSummary do this automatically, so call it directly only to inspect the variant.
+
+**What comes back.** {status, result} where result is the worklist id (32-character hex).
+
+See also: [`createAtcRun`](#createatcrun), [`atcCustomizing`](#atccustomizing), [`atcSummary`](#atcsummary).
+
+#### atcSummary
+
+✏️ ATC Summary · toolset `atc` · writes
+
+Aggregated view of an ATC result: totals by priority, by check and by object, top findings with location and quickfix availability. Pass runResultId from createAtcRun, or mainUrl (+ variant) to run ATC and summarize in one call. mainUrl accepts an object URL, a package URL (/sap/bc/adt/packages/zfin) or a transport URL (/sap/bc/adt/cts/transportrequests/DEVK900123).
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `runResultId` | string | no | Result id returned by createAtcRun |  |
+| `mainUrl` | string | no | Object, package or transport URL to check when no runResultId is given |  |
+| `variant` | string | no | Check variant name or worklist id (default ABAP_CLOUD_DEVELOPMENT_DEFAULT when running) |  |
+| `includeExempted` | boolean | no | Include exempted findings (default false) |  |
+| `topFindings` | number | no | How many findings to list in detail (default 30) |  |
+
+**When to use.** The one-call ATC check: pass mainUrl (object, package or transport URL) with an optional variant and get totals by priority, check and object plus the top findings; or pass runResultId to summarize an existing run. Prefer it over createAtcRun plus atcWorklists unless you need every finding.
+
+**What comes back.** {status, runResultId, runInfos?, worklistId, usedObjectSet, objectSetIsComplete, totals {objectsChecked, objectsWithFindings, findings, exempted, quickfixable}, byPriority, byCheck[], byObject[] (top 50), topFindings[] (default 30, with uri, line, quickfix, exemption), clean, hint}.
+
+**Pitfalls.** The default variant ABAP_CLOUD_DEVELOPMENT_DEFAULT is wrong for classic on-prem code; take the name from atcCustomizing. Running ATC is a write on the server side, so readOnly destinations refuse it. Package runs on big packages take a while.
+
+See also: [`createAtcRun`](#createatcrun), [`atcWorklists`](#atcworklists), [`atcQuickfixProposals`](#atcquickfixproposals), [`atcDocumentation`](#atcdocumentation).
+
+#### createAtcRun
+
+✏️ Create ATC Run · toolset `atc` · writes
+
+Creates an ATC run. Flow: atcCustomizing (system check variant name) -> atcCheckVariant (returns a worklistId) -> createAtcRun -> atcWorklists (findings). Passing a check variant NAME here also works: it is resolved to a worklistId via atcCheckVariant automatically.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `variant` | string | yes | Worklist id returned by atcCheckVariant (32-char hex). A check variant name (e.g. ABAP_CLOUD_DEVELOPMENT_DEFAULT) is accepted and resolved automatically. |  |
+| `mainUrl` | string | yes | The main URL for the ATC run. |  |
+| `maxResults` | number | no | The maximum number of results to retrieve. |  |
+
+**When to use.** Start an ATC run explicitly when you need the raw worklist afterwards (atcWorklists) or a custom maxResults; a check variant name is resolved to a worklist id for you. For a digest use atcSummary.
+
+**What comes back.** {status, result} with the run id (pass it as runResultId), timestamp and infos[].
+
+**Pitfalls.** variant accepts a name or the 32-character worklist id; mainUrl can be an object, a package (/sap/bc/adt/packages/zpkg) or a transport URL. Refused on readOnly destinations.
+
+See also: [`atcWorklists`](#atcworklists), [`atcSummary`](#atcsummary), [`atcCheckVariant`](#atccheckvariant), [`atcCustomizing`](#atccustomizing).
+
+#### atcWorklists
+
+📖 ATC Worklists · toolset `atc` · read-only, idempotent
+
+Retrieves ATC worklists. For runs covering many objects, use startIndex/maxItems to page through the findings-per-object list instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `runResultId` | string | yes | The ID of the ATC run result. |  |
+| `timestamp` | number | no | The timestamp. |  |
+| `usedObjectSet` | string | no | The used object set. |  |
+| `includeExempted` | boolean | no | Whether to include exempted findings. |  |
+| `startIndex` | number | no | 0-based index of the object (with its findings) to start from (default 0). Use with maxItems to page through large worklists. |  |
+| `maxItems` | number | no | Maximum number of objects (each with its findings) to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Read all findings of a run (runResultId from createAtcRun) grouped by object, including exemption state and quickfix info, when the top list of atcSummary is not enough.
+
+**What comes back.** {status, result {id, usedObjectSet, objectSetIsComplete, objects[] with findings[] (uri, location, priority, checkId, checkTitle, messageTitle, quickfixInfo, exemptionKind, link)}}; paged per object with totalObjects, startIndex, returnedObjects, hasMore.
+
+**Pitfalls.** includeExempted defaults to false. Column values in findings are 0-based; pass them unchanged to atcQuickfixProposals.
+
+See also: [`createAtcRun`](#createatcrun), [`atcSummary`](#atcsummary), [`atcQuickfixProposals`](#atcquickfixproposals), [`atcDocumentation`](#atcdocumentation).
+
+#### atcUsers
+
+📖 ATC Users · toolset `atc` · read-only, idempotent
+
+Retrieves a list of ATC users.
+
+No parameters besides `destination`.
+
+**When to use.** List the users known to ATC (approvers and contacts) when preparing an exemption request or changing a finding's contact. For general user lookup use systemUsers.
+
+**What comes back.** {status, result[]} of users with id and title (the user's name).
+
+See also: [`atcRequestExemption`](#atcrequestexemption), [`atcChangeContact`](#atcchangecontact), [`systemUsers`](#systemusers).
+
+#### atcExemptProposal
+
+✏️ ATC Exempt Proposal · toolset `atc` · writes
+
+Retrieves an ATC exemption proposal.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `markerId` | string | yes | The ID of the marker. |  |
+
+**When to use.** Fetch the exemption proposal template for a finding's markerId (from atcWorklists) as the first step of requesting an exemption; fill in reason, justification and approver and pass it to atcRequestExemption.
+
+**What comes back.** {status, result} with the proposal object (finding reference, reason codes, approver, validity).
+
+**Pitfalls.** Classified as a write tool, so refused on readOnly destinations. Not every finding is exemptible; the backend answers with a message instead of a proposal, which isProposalMessage detects.
+
+See also: [`atcRequestExemption`](#atcrequestexemption), [`isProposalMessage`](#isproposalmessage), [`atcUsers`](#atcusers), [`atcWorklists`](#atcworklists).
+
+#### atcRequestExemption
+
+✏️ ATC Request Exemption · toolset `atc` · writes
+
+Requests an ATC exemption.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `proposal` | object | yes | The ATC exemption proposal. |  |
+
+**When to use.** Submit an exemption request built from atcExemptProposal; only for findings that are genuine false positives or accepted risks, since an approver has to act on it.
+
+**What comes back.** {status, result} with the backend's message object {type, message} confirming or refusing the request.
+
+**Pitfalls.** The proposal must be the object returned by atcExemptProposal with the required fields filled; check it with isProposalMessage when in doubt. Write tool.
+
+See also: [`atcExemptProposal`](#atcexemptproposal), [`isProposalMessage`](#isproposalmessage), [`atcUsers`](#atcusers), [`atcWorklists`](#atcworklists).
+
+#### isProposalMessage
+
+📖 Is Proposal Message · toolset `atc` · read-only, idempotent
+
+Checks if a given object is a proposal message.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `proposal` | object | yes | The ATC exemption proposal. |  |
+
+**When to use.** Check whether the object returned by atcExemptProposal is a real proposal or only a message (for example that no exemption is possible) before calling atcRequestExemption.
+
+**What comes back.** {status, result} with a boolean: true means the object is a message, not a proposal.
+
+See also: [`atcExemptProposal`](#atcexemptproposal), [`atcRequestExemption`](#atcrequestexemption).
+
+#### atcContactUri
+
+📖 ATC Contact Uri · toolset `atc` · read-only, idempotent
+
+Retrieves the contact URI for an ATC finding.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `findingUri` | string | yes | The URI of the ATC finding. |  |
+
+**When to use.** Find the contact (responsible person) endpoint of a finding from its finding URI in atcWorklists, before changing it with atcChangeContact.
+
+**What comes back.** {status, result} with the contact URI.
+
+See also: [`atcChangeContact`](#atcchangecontact), [`atcWorklists`](#atcworklists), [`atcUsers`](#atcusers).
+
+#### atcChangeContact
+
+✏️ ATC Change Contact · toolset `atc` · writes
+
+Changes the contact for an ATC finding.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `itemUri` | string | yes | The URI of the item. |  |
+| `userId` | string | yes | The ID of the user. |  |
+
+**When to use.** Assign a finding to a user (userId) so it shows up in their ATC worklist; itemUri comes from atcContactUri.
+
+**What comes back.** {status: 'success'} only; the ADT call returns no body.
+
+**Pitfalls.** Write tool; the user must be one listed by atcUsers.
+
+See also: [`atcContactUri`](#atccontacturi), [`atcUsers`](#atcusers), [`atcWorklists`](#atcworklists).
+
+#### atcDocumentation
+
+📖 ATC Documentation · toolset `atc` · read-only, idempotent
+
+Read the documentation of an ATC check/finding (what the check tests, why it matters, how to fix). Pass the documentation URI found in an ATC finding (atcWorklists → findings[].link / docUri).
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `docUri` | string | yes | Documentation URI from an ATC finding |  |
+
+**When to use.** Read what a check tests, why it matters and how to fix it, from the documentation URI of a finding (atcWorklists findings[].link), before deciding between a fix and an exemption.
+
+**What comes back.** {status, docUri, documentation (HTML converted to plain text), capped}.
+
+**Pitfalls.** Text longer than the safe output size is cut with capped=true; there is no paging.
+
+See also: [`atcWorklists`](#atcworklists), [`atcSummary`](#atcsummary), [`atcQuickfixProposals`](#atcquickfixproposals).
+
+### Data access & DDIC · toolset `data`
+
+#### annotationDefinitions
+
+📖 Annotation Definitions · toolset `data` · read-only, idempotent
+
+Retrieves the CDS annotation catalog for the system. This can be large; use startIndex/maxItems to page through it instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `startIndex` | number | no | 0-based index of the first entry to return (default 0). Only applies when the result contains a pageable list. Use with maxItems to page through a large catalog. |  |
+| `maxItems` | number | no | Maximum number of entries to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Browse the CDS annotation catalog of the system (names, scopes, allowed values) when writing annotations you are not sure exist on this release. Unnecessary for the common UI and OData annotations you already know.
+
+**What comes back.** {status, result} with the parsed catalog; when large, the first array inside it is paged with totalItems, startIndex, returnedItems, hasMore.
+
+**Pitfalls.** The catalog is big; pass maxItems. The result shape depends on the backend's XML and can be an object wrapping the list, with a hard truncation as last resort.
+
+See also: [`cdsViewInfo`](#cdsviewinfo), [`ddicElement`](#ddicelement), [`syntaxCheckCdsUrl`](#syntaxcheckcdsurl).
+
+#### ddicElement
+
+📖 DDIC Element · toolset `data` · read-only, idempotent
+
+Retrieves information about a DDIC element. For complex objects the child element list (fields/associations/secondary objects) can be large; use startIndex/maxItems to page through it instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `path` | string | yes | The path to the DDIC element. |  |
+| `getTargetForAssociation` | boolean | no | Whether to get the target for association. |  |
+| `getExtensionViews` | boolean | no | Whether to get extension views. |  |
+| `getSecondaryObjects` | boolean | no | Whether to get secondary objects. |  |
+| `startIndex` | number | no | 0-based index of the first child element to return (default 0). Use with maxItems to page through a large children list. |  |
+| `maxItems` | number | no | Maximum number of child elements to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Describe a DDIC entity or CDS view through the ADT element info service: fields with types, associations (getTargetForAssociation), extension views and secondary objects. Use it to learn a table's columns before writing runQuery SQL; for a single data element or domain use the dedicated get*Properties tools.
+
+**What comes back.** {status, result} with name, type, properties and children[] (fields, associations); children is paged with totalItems, startIndex, returnedItems, hasMore.
+
+**Pitfalls.** path is the element path ADT expects (a table or CDS entity name, optionally with a field), not an ADT object URL. A single oversized child falls back to a hard truncation.
+
+See also: [`ddicRepositoryAccess`](#ddicrepositoryaccess), [`cdsViewInfo`](#cdsviewinfo), [`getDataElementProperties`](#getdataelementproperties), [`runQuery`](#runquery).
+
+#### ddicRepositoryAccess
+
+📖 DDIC Repository Access · toolset `data` · read-only, idempotent
+
+Accesses the DDIC repository. This can return a large list of object references; use startIndex/maxItems to page through it instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `path` | string | yes | The path to the DDIC element. |  |
+| `startIndex` | number | no | 0-based index of the first reference to return (default 0). Use with maxItems to page through a large result set. |  |
+| `maxItems` | number | no | Maximum number of references to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Value-help style lookup of DDIC repository objects by path or name pattern (tables, views, data elements) when searchObject is too generic or you want the DDIC-specific list.
+
+**What comes back.** {status, result[]} of object references with uri, type, name and path; paged with totalItems, startIndex, returnedItems, hasMore.
+
+See also: [`ddicElement`](#ddicelement), [`searchObject`](#searchobject), [`packageSearchHelp`](#packagesearchhelp).
+
+#### packageSearchHelp
+
+📖 Package Search Help · toolset `data` · read-only, idempotent
+
+Performs a package search help.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `type` | string | yes | The package value help type. |  |
+| `name` | string | no | The package name. |  |
+| `startIndex` | number | no | 0-based index of the first result to return (default 0). Use with maxResults to page through a large result set. |  |
+| `maxResults` | number | no | Maximum number of results to return from startIndex. Omit to return the rest (still subject to the safe response size backstop). |  |
+
+**When to use.** Value help for package attributes when creating or validating a package: type selects the help (applicationcomponents, softwarecomponents, transportlayers or translationrelevances) and name filters it.
+
+**What comes back.** {status, result[]} with name, description and data per entry; paged client-side with totalItems, startIndex, returnedItems, hasMore (the parameter is maxResults, not maxItems).
+
+**Pitfalls.** The underlying ADT call has no limit, so the whole list is fetched and cut locally; slow on large systems. type must be one of the four PackageValueHelpType values above; there is no help for package names themselves (use searchObject with DEVC).
+
+See also: [`validateNewObject`](#validatenewobject), [`createObject`](#createobject), [`ddicRepositoryAccess`](#ddicrepositoryaccess).
+
+#### getDomainProperties
+
+📖 Get Domain Properties · toolset `data` · read-only, idempotent
+
+Read a DDIC domain: data type, length, decimals, output settings and fixed values / value table. Pass the domain URL (/sap/bc/adt/ddic/domains/zdom) and optionally version=inactive.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `domainUrl` | string | yes | Domain URL, e.g. /sap/bc/adt/ddic/domains/zmy_domain | `/sap/bc/adt/ddic/domains/zdom_status` |
+| `version` | `active` / `inactive` / `workingArea` | no | Object version (default active) |  |
+
+**When to use.** Read a domain (type, length, decimals, conversion exit, fixed values, value table), for example to learn the internal format of a key before querying it or to prepare a setDomainProperties change.
+
+**What comes back.** {status, properties, metaData} spread at top level: properties carries typeInformation {datatype, length, decimals}, outputInformation {length, style, conversionExit, signExists, lowercase, ampmFormat} and valueInformation {valueTableRef, appendExists, fixValues[] with low, high, text}; metaData carries name, description, language, masterLanguage, masterSystem, responsible and packageName. version selects active, inactive or workingArea.
+
+See also: [`setDomainProperties`](#setdomainproperties), [`getDataElementProperties`](#getdataelementproperties), [`runQuery`](#runquery).
+
+#### setDomainProperties
+
+⚠️ Set Domain Properties · toolset `data` · destructive
+
+Write a DDIC domain (type, length, fixed values, value table…). Read it first with getDomainProperties, modify the returned properties/metaData objects and pass them back as JSON. Requires lock (lockHandle) and a transport for transportable packages; activate afterwards with activateByName.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `domainUrl` | string | yes | Domain URL | `/sap/bc/adt/ddic/domains/zdom_status` |
+| `properties` | string | yes | JSON object: the "properties" returned by getDomainProperties, modified as needed |  |
+| `metaData` | string | yes | JSON object: the "metaData" returned by getDomainProperties (description, package, responsible…) |  |
+| `lockHandle` | string | yes | Lock handle from the lock tool |  |
+| `transport` | string | no | Transport request for transportable packages | `DEVK900123` |
+
+**When to use.** Change a domain (add fixed values, change length) by passing back the properties and metaData from getDomainProperties, modified. Read first, lock, write, then activateByName.
+
+**What comes back.** {status, updated: true, next: 'activateByName'}.
+
+**Pitfalls.** lockHandle from lock is required (no auto-lock here) and transport for transportable packages. properties and metaData must be JSON objects or JSON strings, otherwise InvalidParams. Changing a domain used by many tables triggers a mass activation.
+
+See also: [`getDomainProperties`](#getdomainproperties), [`lock`](#lock), [`activateByName`](#activatebyname), [`resolveTransport`](#resolvetransport).
+
+#### getDataElementProperties
+
+📖 Get Data Element Properties · toolset `data` · read-only, idempotent
+
+Read a DDIC data element: type (domain or built-in), length, field labels (short/medium/long/heading), search help and flags. Pass the data element URL (/sap/bc/adt/ddic/dataelements/zde).
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `dataElementUrl` | string | yes | Data element URL, e.g. /sap/bc/adt/ddic/dataelements/zmy_element | `/sap/bc/adt/ddic/dataelements/zde_status` |
+| `version` | `active` / `inactive` / `workingArea` | no | Object version (default active) |  |
+
+**When to use.** Read a data element (domain or built-in type, length, field labels, search help): the tool that answers how a key is stored (leading zeros, conversion exit through its domain) so runQuery filters match.
+
+**What comes back.** {status, properties, metaData} spread at top level: properties carries typeName, dataType, dataTypeLength, dataTypeDecimals, fieldLabels, searchHelp, searchHelpParameter, setGetParameter and the flags (changeDocument, deactivateInputHistory and so on); metaData carries name, description, language, responsible and packageName. version selects active, inactive or workingArea.
+
+See also: [`setDataElementProperties`](#setdataelementproperties), [`getDomainProperties`](#getdomainproperties), [`runQuery`](#runquery), [`ddicElement`](#ddicelement).
+
+#### setDataElementProperties
+
+⚠️ Set Data Element Properties · toolset `data` · destructive
+
+Write a DDIC data element (type, field labels, search help…). Read it first with getDataElementProperties, modify the returned properties/metaData objects and pass them back as JSON. Requires lock (lockHandle) and a transport for transportable packages; activate afterwards with activateByName.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `dataElementUrl` | string | yes | Data element URL | `/sap/bc/adt/ddic/dataelements/zde_status` |
+| `properties` | string | yes | JSON object: the "properties" returned by getDataElementProperties, modified as needed |  |
+| `metaData` | string | yes | JSON object: the "metaData" returned by getDataElementProperties |  |
+| `lockHandle` | string | yes | Lock handle from the lock tool |  |
+| `transport` | string | no | Transport request for transportable packages | `DEVK900123` |
+
+**When to use.** Change field labels, type or search help of a data element by passing back the objects from getDataElementProperties, modified. Read, lock, write, then activateByName.
+
+**What comes back.** {status, updated: true, next: 'activateByName'}.
+
+**Pitfalls.** lockHandle required (call lock first) and transport for transportable packages. properties and metaData as JSON objects or strings. Refused on readOnly destinations.
+
+See also: [`getDataElementProperties`](#getdataelementproperties), [`lock`](#lock), [`activateByName`](#activatebyname), [`resolveTransport`](#resolvetransport).
+
+#### tableContents
+
+📖 Table Contents · toolset `data` · read-only, idempotent
+
+Retrieves the contents of an ABAP table or CDS entity by name (no SQL). Works on tables the data preview refuses for runQuery (dataMaintenance restricted); authorization (S_TABU_DIS/S_TABU_NAM) still applies. rowNumber caps how many rows are requested from SAP itself (default 100 if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `ddicEntityName` | string | yes | The name of the DDIC entity (table or view). | `T000`, `I_PRODUCT` |
+| `rowNumber` | number | no | The maximum number of rows to retrieve from SAP. Defaults to 100 if omitted. |  |
+| `decode` | boolean | no | Whether to decode the data. |  |
+| `sqlQuery` | string | no | An optional SQL query to filter the data. | `SELECT matnr, mtart FROM mara WHERE mtart = 'FERT'` |
+| `startRow` | number | no | 0-based index of the returned row to start from (default 0). Use with maxRows to page through a large result set. |  |
+| `maxRows` | number | no | Maximum number of rows to return from startRow. Omit to return the rest of the retrieved rows. |  |
+
+**When to use.** Read rows of a table or CDS entity by name without SQL, and the fallback when runQuery is refused for a table with restricted dataMaintenance. Use runQuery for joins, projections and filters.
+
+**What comes back.** {status, result {columns[], values[]}}; paged with totalRows, startRow, returnedRows, hasMore and autoPaged or capped flags when large.
+
+**Pitfalls.** rowNumber (default 100) caps the rows requested from SAP; startRow and maxRows only page what was fetched. sqlQuery on this tool counts as free SQL under allowFreeSql=false, and deniedTables applies. Display authorization S_TABU_DIS or S_TABU_NAM is still required.
+
+See also: [`runQuery`](#runquery), [`ddicElement`](#ddicelement), [`getDataElementProperties`](#getdataelementproperties), [`runSnippet`](#runsnippet).
+
+#### runQuery
+
+📖 Run Query · toolset `data` · read-only, idempotent
+
+Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, released API views included). Long statements are wrapped automatically to the preview's 255-character line limit, so wide select lists are fine; a single literal longer than 255 characters is not. Tables whose DDIC dataMaintenance is restricted are refused by the preview: use tableContents for those. Key fields keep their internal format (leading zeros, see getDataElementProperties). rowNumber caps how many rows are requested from SAP itself (default 100 if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `sqlQuery` | string | yes | The SQL query to execute. | `SELECT matnr, mtart FROM mara WHERE mtart = 'FERT'` |
+| `rowNumber` | number | no | The maximum number of rows to retrieve from SAP. Defaults to 100 if omitted. |  |
+| `decode` | boolean | no | Whether to decode the data. |  |
+| `startRow` | number | no | 0-based index of the returned row to start from (default 0). Use with maxRows to page through a large result set. |  |
+| `maxRows` | number | no | Maximum number of rows to return from startRow. Omit to return the rest of the retrieved rows. |  |
+
+**When to use.** Run an ABAP SQL SELECT through the ADT data preview over tables and CDS views (released views included): the standard way to look at business data. Switch to tableContents when the preview refuses the table.
+
+**What comes back.** {status, result {columns[] with name and type, values[]}, note?}; paged with totalRows, startRow, returnedRows, hasMore; note says when the statement was re-wrapped.
+
+**Pitfalls.** The preview reads 255-character lines; the server re-flows long statements, but a single literal over 255 characters is an error. Keys keep their internal format (leading zeros). Errors carry hints for restricted tables and missing authorization. Refused when the policy sets allowFreeSql=false or lists the table in deniedTables.
+
+See also: [`tableContents`](#tablecontents), [`ddicElement`](#ddicelement), [`getDataElementProperties`](#getdataelementproperties), [`runSnippet`](#runsnippet).
+
+### Discovery & metadata · toolset `discovery`
+
+#### featureDetails
+
+📖 Feature Details · toolset `discovery` · read-only, idempotent
+
+Retrieves details for a given feature.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `title` | string | yes | The title of the feature. |  |
+
+**When to use.** Details of one ADT feature by its title as listed in the discovery document (accepted content types, template links). For per-toolset availability use systemProfile, which already interprets discovery.
+
+**What comes back.** {status, details} with the feature's discovery entry (title and collection[] with href, title and templateLinks); details is absent when no feature carries that title.
+
+See also: [`collectionFeatureDetails`](#collectionfeaturedetails), [`adtDiscovery`](#adtdiscovery), [`systemProfile`](#systemprofile).
+
+#### collectionFeatureDetails
+
+📖 Collection Feature Details · toolset `discovery` · read-only, idempotent
+
+Retrieves details for a given collection feature.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `url` | string | yes | The URL of the collection feature. |  |
+
+**When to use.** Details of a discovery collection by its URL (from adtDiscovery), such as supported content types and template links; low-level, for troubleshooting a backend that refuses a request.
+
+**What comes back.** {status, details} with the discovery entry that owns the collection (title and collection[] with href, title and templateLinks); details is absent when the URL matches nothing.
+
+See also: [`findCollectionByUrl`](#findcollectionbyurl), [`adtDiscovery`](#adtdiscovery), [`featureDetails`](#featuredetails).
+
+#### findCollectionByUrl
+
+📖 Find Collection By URL · toolset `discovery` · read-only, idempotent
+
+Finds a collection by its URL.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `url` | string | yes | The URL of the collection. |  |
+
+**When to use.** Look up the discovery collection that serves a given ADT URL, to confirm the backend exposes an endpoint before calling a tool that depends on it (for example /sap/bc/adt/datapreview).
+
+**What comes back.** {status, collection} where collection is {discoveryResult, collection {href, title, templateLinks[]}}; when nothing matches the call still succeeds and the collection field is simply missing (no error is raised).
+
+See also: [`adtDiscovery`](#adtdiscovery), [`collectionFeatureDetails`](#collectionfeaturedetails), [`systemProfile`](#systemprofile).
+
+#### loadTypes
+
+📖 Load Types · toolset `discovery` · read-only, idempotent
+
+List the ABAP object types creatable on this system (version-aware). Use BEFORE createObject to pick a valid objtype value such as CLAS/OC. For the raw ADT type catalog see objectTypes.
+
+No parameters besides `destination`.
+
+**When to use.** List the creatable object types with their objtype codes (CLAS/OC, INTF/OI, PROG/P, DEVC/K, DDLS/DF and so on) before validateNewObject and createObject. Use objectTypes for the raw ADT type catalog and creatableTypeDetails for the fields one type needs.
+
+**What comes back.** {status, types[]} with OBJECT_TYPE (the objtype code such as CLAS/OC), OBJECT_TYPE_LABEL, CATEGORY, CATEGORY_LABEL, CAPABILITIES[], OBJNAME_MAXLENGTH, PARENT_OBJECT_TYPE and URI_TEMPLATE per creatable type; no paging.
+
+**Pitfalls.** Version-aware: cloud tenants list only the types allowed in ABAP for Cloud Development.
+
+See also: [`validateNewObject`](#validatenewobject), [`createObject`](#createobject), [`creatableTypeDetails`](#creatabletypedetails), [`objectTypes`](#objecttypes).
+
+#### adtDiscovery
+
+📖 ADT Discovery · toolset `discovery` · read-only, idempotent
+
+Performs ADT discovery. Returns a list of discovery collections. For large systems, use startIndex/maxItems to page through the list instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `startIndex` | number | no | 0-based index of the discovery entry to start from (default 0). Use with maxItems to page through a large discovery list. |  |
+| `maxItems` | number | no | Maximum number of discovery entries to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Dump the full ADT discovery document (workspaces and collections with hrefs) to see what a backend offers; it is the input systemProfile reads. Mostly for diagnosing a missing endpoint on a cloud tenant.
+
+**What comes back.** {status, discovery[]} of workspaces with collection[]; paged with totalItems, startIndex, returnedItems, hasMore when large (several hundred collections on a current system).
+
+See also: [`systemProfile`](#systemprofile), [`adtCoreDiscovery`](#adtcorediscovery), [`findCollectionByUrl`](#findcollectionbyurl).
+
+#### adtCoreDiscovery
+
+📖 ADT Core Discovery · toolset `discovery` · read-only, idempotent
+
+Performs ADT core discovery. Returns a list of core discovery collections. For large systems, use startIndex/maxItems to page through the list instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `startIndex` | number | no | 0-based index of the core discovery entry to start from (default 0). Use with maxItems to page through a large list. |  |
+| `maxItems` | number | no | Maximum number of core discovery entries to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** The smaller core discovery document (basic ADT services) when the full adtDiscovery is more than you need.
+
+**What comes back.** {status, discovery[]} of entries with title and a single collection {href, title, category} each (unlike adtDiscovery, whose entries carry a collection array); paged like adtDiscovery.
+
+See also: [`adtDiscovery`](#adtdiscovery), [`systemProfile`](#systemprofile), [`featureDetails`](#featuredetails).
+
+#### adtCompatibilityGraph
+
+📖 ADT Compatibility Graph · toolset `discovery` · read-only, idempotent
+
+Retrieves the ADT compatibility graph.
+
+No parameters besides `destination`.
+
+**When to use.** Read the ADT compatibility graph (nodes and edges describing which client versions and services fit together); rarely useful from an agent, kept for completeness and troubleshooting.
+
+**What comes back.** {status, graph {nodes[], edges[]}}; hard-truncated to the safe output size, no paging.
+
+**Pitfalls.** The legacy misspelling adtCompatibiliyGraph still routes to this tool but is not listed.
+
+See also: [`adtDiscovery`](#adtdiscovery), [`adtCoreDiscovery`](#adtcorediscovery), [`systemProfile`](#systemprofile).
+
+### Runtime errors · toolset `runtime`
+
+#### feeds
+
+📖 Feeds · toolset `runtime` · read-only, idempotent
+
+Retrieves a list of feeds.
+
+No parameters besides `destination`.
+
+**When to use.** Discover which ADT feeds the backend publishes (the short-dump feed among them) and the attributes, operators and query variants each accepts, before composing a `dumps(query)` string. It is a metadata call only: for the dumps themselves go straight to `dumps`.
+
+**What comes back.** `{status, feeds: [{author, href, published, summary, title, updated, accept, refresh: {value, unit}, paging?, operators, dataTypes, attributes, queryVariants, queryIsObligatory?, queryDepth?}]}` as abap-adt-api parses `/sap/bc/adt/feeds`, unpaged.
+
+**Pitfalls.** The `runtime` toolset is gated on `/sap/bc/adt/feeds` (see [docs/CONFIGURATION.md](CONFIGURATION.md), The platform gate); nothing in the answer is filtered or shrunk, so a system with many feeds returns a long list.
+
+See also: [`dumps`](#dumps), [`dumpDetails`](#dumpdetails), [`systemProfile`](#systemprofile).
+
+#### dumps
+
+📖 Dumps · toolset `runtime` · read-only, idempotent
+
+List recent ABAP short dumps (runtime errors). By default returns a compact summary per dump (runtime error, exception, program, user, time, where it terminated with source URL and line, top of the call stack) instead of the raw HTML. Filter with from/to (timestamps), user, or a substring in program/runtime error. Use dumpDetails(dumpId) for the full analysis of one dump. This is the root-cause path when the debugger toolset is unavailable on the destination (see systemProfile; some cloud tenants and users lack it). Filters apply to the dumps the feed returns (the recent window, not the whole history). Timestamps without a zone are taken literally as system time.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `query` | string | no | Optional ADT feed query string passed through to the server. |  |
+| `from` | string | no | Only dumps at or after this time: YYYYMMDDHHMMSS, YYYYMMDD, YYYY-MM-DD or ISO 8601. Values without a zone are read as system time literally; an explicit zone is converted to UTC. |  |
+| `to` | string | no | Only dumps at or before this time (same formats as from). |  |
+| `user` | string | no | Only dumps of this SAP user (case-insensitive). |  |
+| `contains` | string | no | Only dumps whose runtime error, exception, program or short text contains this text (case-insensitive). |  |
+| `includeHtml` | boolean | no | Return the raw HTML text of each dump as well (large). Default false. |  |
+| `startIndex` | number | no | 0-based index of the dump to start from (default 0). Use with maxItems to page through a large dump list. |  |
+| `maxItems` | number | no | Maximum number of dumps to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** First stop for a runtime error: recent short dumps as compact summaries, filtered by `from`/`to`, `user` or a `contains` substring, with `terminatedAt` and `stack` ready for `getObjectSource`. It is the root-cause path whenever the destination lacks the `debugger` toolset; for one dump whose id you already hold, call `dumpDetails`.
+
+**What comes back.** `{status, feed: {href, title, updated}, totalInFeed, totalItems, startIndex, returnedItems, hasMore, dumps: [{dumpId, timestamp, user, runtimeError, exception, shortText, program, applicationComponent, dateTime, client, host, terminatedAt: {objectSourceUrl, line}, whatHappened, errorAnalysis, whereTerminated, stack: [{no, event, program, include, line, sourceUrl}]}], filters?, autoPaged?, capped?, note?}`; `includeHtml=true` adds `html` per dump. A `from`/`to` value in an unknown format fails with InvalidParams.
+
+**Pitfalls.** Filters apply only to the recent window the feed returns (`totalInFeed`), not to the whole ST22 history; timestamps without a zone are taken literally as system time; `user` is matched exactly after upper-casing. Full walk-through in [docs/WORKFLOWS.md](WORKFLOWS.md), Runtime and diagnosis.
+
+See also: [`dumpDetails`](#dumpdetails), [`getObjectSource`](#getobjectsource), [`whereUsed`](#whereused), [`systemProfile`](#systemprofile).
+
+#### dumpDetails
+
+📖 Dump Details · toolset `runtime` · read-only, idempotent
+
+Full formatted analysis of one ABAP short dump as plain text (header, what happened, error analysis, where terminated, source extract, variables, call stack). Pass the dumpId from dumps (or the full self link). Page long dumps with startLine/maxLines.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `dumpId` | string | yes | dumpId as returned by dumps, or its self/id link |  |
+| `startLine` | number | no | 1-based first line of the text to return (default 1) |  |
+| `maxLines` | number | no | Maximum number of lines to return |  |
+
+**When to use.** Full text of one dump (header, what happened, error analysis, where terminated, source extract, variables, call stack) once `dumps` gave you a `dumpId` or the summary is not enough. For triage across many dumps stay with `dumps`.
+
+**What comes back.** `{status, dumpId, text, totalLines, startLine, returnedLines, hasMore, capped?}`; `text` is the plain-text rendering ADT serves for `/sap/bc/adt/runtime/dump/<id>`.
+
+**Pitfalls.** The id keeps ADT's percent-encoding (it contains spaces); pass it exactly as `dumps` returned it or as the full self link, both are normalized (`id` is accepted as an alias). Long dumps are shrunk to `MCP_MAX_RESPONSE_CHARS`; page with `startLine`/`maxLines`.
+
+See also: [`dumps`](#dumps), [`getObjectSource`](#getobjectsource), [`runSnippet`](#runsnippet).
+
+### Refactoring · toolset `refactoring`
+
+#### renameEvaluate
+
+📖 Rename Evaluate · toolset `refactoring` · read-only, idempotent
+
+Evaluates a rename refactoring.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `uri` | string | yes | The URI of the object to rename. |  |
+| `line` | number | yes | The line number. |  |
+| `startColumn` | number | yes | The starting column. |  |
+| `endColumn` | number | yes | The ending column. |  |
+
+**When to use.** Start of a rename: point at the identifier (source URL, `line`, `startColumn`, `endColumn` as ADT counts them) and get the proposal listing `oldName` and the affected objects; set `newName` and pass it to `renamePreview`. Nothing is written. For a plain text substitution in one include `editObjectSource` is cheaper; renaming a whole object (class, table) is not what this refactoring does.
+
+**What comes back.** `{status, result: RenameRefactoringProposal {oldName, newName, transport?, title?, ignoreSyntaxErrorsAllowed, ignoreSyntaxErrors, adtObjectUri, affectedObjects: [...], userContent}}`.
+
+**Pitfalls.** `uri` is a `/source/main` URL or an include URL from `classIncludes`; columns follow the ADT selection model. The `refactoring` toolset is not in the `focused` preset and is gated on `/sap/bc/adt/refactorings`.
+
+See also: [`renamePreview`](#renamepreview), [`renameExecute`](#renameexecute), [`getObjectSource`](#getobjectsource), [`classIncludes`](#classincludes).
+
+#### renamePreview
+
+📖 Rename Preview · toolset `refactoring` · read-only, idempotent
+
+Previews a rename refactoring.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `renameRefactoring` | object | yes | The rename refactoring proposal. |  |
+| `transport` | string | no | The transport. | `DEVK900123` |
+
+**When to use.** Second step: send the edited proposal (`newName` filled in) plus the `transport` for transportable packages and get the executable refactoring with every affected object and text delta. Still read-only.
+
+**What comes back.** `{status, result: RenameRefactoring}`, the proposal plus the `transport` field; pass `result` unchanged to `renameExecute`. Backend refusals come back as the ADT message with `kind`/`hint` (`transportRequired` when the package needs one).
+
+**Pitfalls.** `renameRefactoring` is accepted as an object or a JSON string (a string that is not valid JSON fails with InvalidParams). The `transport` given here is what the execute step records on; `resolveTransport` picks it.
+
+See also: [`renameEvaluate`](#renameevaluate), [`renameExecute`](#renameexecute), [`resolveTransport`](#resolvetransport).
+
+#### renameExecute
+
+⚠️ Rename Execute · toolset `refactoring` · destructive
+
+Executes a rename refactoring.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `refactoring` | object | yes | The rename refactoring. |  |
+
+**When to use.** Apply the rename previewed by `renamePreview`; destructive, it rewrites every affected object. Follow with activation, `unitTestRun` and `objectDiff` on the touched objects.
+
+**What comes back.** `{status, result: the RenameRefactoring as executed}`. Refused with `kind: policyDenied` when the destination's `allowedPackages` policy excludes the package of `adtObjectUri` (see README.md, Keeping it safe); `allowedTransports` is not evaluated for this tool because the transport travels inside the refactoring object, so choose it with `resolveTransport` at the `renamePreview` step.
+
+**Pitfalls.** The rewritten objects are not activated by this call: run `activateObjects` or `activateByName` afterwards. The server clears its objectUrl-to-package memo after the call so later policy checks see the new state.
+
+See also: [`renamePreview`](#renamepreview), [`activateObjects`](#activateobjects), [`unitTestRun`](#unittestrun), [`objectDiff`](#objectdiff).
+
+#### extractMethodEvaluate
+
+📖 Extract Method Evaluate · toolset `refactoring` · read-only, idempotent
+
+Evaluates an extract method refactoring.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `uri` | string | yes | The URI of the object. |  |
+| `range` | string | yes | The range to extract, as a JSON string, e.g. {"start":{"line":1,"column":0},"end":{"line":5,"column":10}} |  |
+
+**When to use.** Turn a statement range of a method into a new method: pass the source URL and `range` as a JSON string (`{"start":{"line","column"},"end":{"line","column"}}`) and receive the proposal with the detected parameters and exceptions. For a simple cut-and-paste `editObjectSource` is cheaper.
+
+**What comes back.** `{status, result: ExtractMethodProposal {name, isStatic, isForTesting, visibility, classBasedExceptions, genericRefactoring: {title, adtObjectUri, transport, affectedObjects, ...}, content, className, isEventAllowed, isEvent, userContent, parameters: [{id, name, direction, byValue, typeType, type}], exceptions}}`; set `name` and `visibility` before `extractMethodPreview`.
+
+**Pitfalls.** When the stateful session answers 'No selection supplied' the server retries once in stateless mode (a live finding, see CHANGELOG.md); `range` must parse as JSON or the call fails with InvalidParams.
+
+See also: [`extractMethodPreview`](#extractmethodpreview), [`extractMethodExecute`](#extractmethodexecute), [`getMethodSource`](#getmethodsource), [`editObjectSource`](#editobjectsource).
+
+#### extractMethodPreview
+
+📖 Extract Method Preview · toolset `refactoring` · read-only, idempotent
+
+Previews an extract method refactoring.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `proposal` | string | yes | The extract method proposal returned by extractMethodEvaluate, as a JSON string. |  |
+
+**When to use.** Second step: send the edited proposal (JSON string or object) and get the generic refactoring with affected objects and deltas that `extractMethodExecute` applies. Nothing is written.
+
+**What comes back.** `{status, result: GenericRefactoring {title, adtObjectUri, transport, ignoreSyntaxErrorsAllowed, ignoreSyntaxErrors, userContent, affectedObjects}}`.
+
+**Pitfalls.** There is no `transport` argument: the transport travels inside the proposal's `genericRefactoring.transport`, so set it there for transportable packages.
+
+See also: [`extractMethodEvaluate`](#extractmethodevaluate), [`extractMethodExecute`](#extractmethodexecute), [`resolveTransport`](#resolvetransport).
+
+#### extractMethodExecute
+
+⚠️ Extract Method Execute · toolset `refactoring` · destructive
+
+Executes an extract method refactoring.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `refactoring` | string | yes | The refactoring returned by extractMethodPreview, as a JSON string. |  |
+
+**When to use.** Apply the extract-method refactoring returned by `extractMethodPreview`; destructive. Then activate and rerun the unit tests (the live test plan in [docs/TESTPLAN.md](TESTPLAN.md) executed the full evaluate, preview, execute cycle this way).
+
+**What comes back.** `{status, result: GenericRefactoring as executed}`; `policyDenied` under `allowedPackages` (package of `adtObjectUri`). `allowedTransports` is not evaluated here: the transport sits inside the refactoring, so pick it at the preview step.
+
+**Pitfalls.** No activation is triggered; call `activateObjects` afterwards. Until then the include is inactive, which is what `getObjectSource` shows by default.
+
+See also: [`extractMethodPreview`](#extractmethodpreview), [`activateObjects`](#activateobjects), [`unitTestRun`](#unittestrun), [`objectDiff`](#objectdiff).
+
+#### changePackagePreview
+
+📖 Change Package Preview · toolset `refactoring` · read-only, idempotent
+
+Preview moving an object to another package (change package refactoring). Returns the refactoring proposal with affected objects; pass it unchanged to changePackageExecute. Needs a transport when the target package is transportable.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `objectUrl` | string | yes | URL of the object to move, e.g. /sap/bc/adt/oo/classes/zcl_demo | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
+| `oldPackage` | string | yes | Current package name |  |
+| `newPackage` | string | yes | Target package name |  |
+| `transport` | string | no | Transport request (required for transportable target packages) | `DEVK900123` |
+
+**When to use.** Move an object to another package: object URL, `oldPackage`, `newPackage` and a `transport` when the target package is transportable; returns the refactoring with the affected objects. Prefer it to delete-and-recreate, which loses history and transport records.
+
+**What comes back.** `{status, refactoring: ChangePackageRefactoring {oldPackage, newPackage, transport, adtObjectUri, ignoreSyntaxErrorsAllowed, ignoreSyntaxErrors, affectedObjects, userContent}, next: "changePackageExecute"}`.
+
+**Pitfalls.** `transport` is optional in the schema, but the backend rejects the move to a transportable target without one (`transportRequired` hint). The server builds the proposal with `ignoreSyntaxErrors=false`, so a syntactically broken object cannot be moved until fixed. Under a policy, this is the step where the object's current package (resolved from `objectUrl`) is checked against `allowedPackages` and `transport` against `allowedTransports`.
+
+See also: [`changePackageExecute`](#changepackageexecute), [`resolveTransport`](#resolvetransport), [`transportInfo`](#transportinfo), [`packageTree`](#packagetree).
+
+#### changePackageExecute
+
+⚠️ Change Package Execute · toolset `refactoring` · destructive
+
+Execute a change package refactoring previewed with changePackagePreview. Pass the refactoring returned by the preview as JSON.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `refactoring` | string | yes | The refactoring object returned by changePackagePreview, as JSON |  |
+
+**When to use.** Execute the move previewed by `changePackagePreview` (pass the `refactoring` unchanged, JSON string or object); destructive.
+
+**What comes back.** `{status, result: ChangePackageRefactoring as executed}`.
+
+**Pitfalls.** Runs in a stateful session; afterwards the server drops its package memo so `allowedPackages` evaluates the new package on later writes. Under `allowedPackages`, `changePackagePreview` checks the current package and this call checks `newPackage`, so both must match the policy.
+
+See also: [`changePackagePreview`](#changepackagepreview), [`activateObjects`](#activateobjects), [`transportDetails`](#transportdetails).
+
+### RAP generation · toolset `rap`
+
+#### rapGenIsAvailable
+
+📖 RAP Gen Is Available · toolset `rap` · read-only, idempotent
+
+Check whether RAP repository-object generators are available on this system. Call before the other rapGen* tools.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `genId` | `uiservice` / `webapiservice` | no | Generator id: uiservice (OData UI service) or webapiservice (Web API service) |  |
+
+**When to use.** First call before any other `rapGen*` tool: says whether the RAP repository-object generators exist on this system, optionally for one `genId` (`uiservice` or `webapiservice`). The tested S/4HANA Cloud tenant answered `false`, so do not assume availability (README.md, S/4HANA Cloud versus on-prem).
+
+**What comes back.** `{status, result: true | false}`.
+
+**Pitfalls.** The whole `rap` toolset is gated on `/sap/bc/adt/businessservices/generators` and left out of the `focused` preset; when the gate refuses the call, `systemProfile` explains why.
+
+See also: [`systemProfile`](#systemprofile), [`rapGenValidateInitial`](#rapgenvalidateinitial), [`rapGenGetContent`](#rapgengetcontent).
+
+#### rapGenGetSchema
+
+📖 RAP Gen Get Schema · toolset `rap` · read-only, idempotent
+
+Get the JSON schema describing the input content of a RAP generator. Use it to build the content for rapGenValidateContent / rapGenPreview / rapGenGenerate.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `genId` | `uiservice` / `webapiservice` | yes | Generator id: uiservice (OData UI service) or webapiservice (Web API service) |  |
+| `refObjectUri` | string | yes | ADT URI of the reference object the generation starts from, typically a database table or CDS entity (e.g. /sap/bc/adt/ddic/tables/ztravel) |  |
+| `packageName` | string | yes | Target ABAP package | `$TMP`, `ZFIN` |
+
+**When to use.** You need the exact JSON schema of the generator content for a reference object and package (field names, allowed `bindingType` values) before editing the proposal. If you only rename what `rapGenGetContent` proposed, the schema is optional.
+
+**What comes back.** `{status, result: the schema as a JSON string from SAP}`.
+
+**Pitfalls.** The schema differs per `genId` and release; the `content` argument of the later tools remains a JSON string (an object is accepted too).
+
+See also: [`rapGenGetContent`](#rapgengetcontent), [`rapGenValidateContent`](#rapgenvalidatecontent), [`rapGenPreview`](#rapgenpreview).
+
+#### rapGenGetContent
+
+📖 RAP Gen Get Content · toolset `rap` · read-only, idempotent
+
+Get the proposed default generator content (names for CDS entities, behavior class, service definition/binding) for a reference object. Adjust and pass to rapGenValidateContent / rapGenGenerate.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `genId` | `uiservice` / `webapiservice` | yes | Generator id: uiservice (OData UI service) or webapiservice (Web API service) |  |
+| `refObjectUri` | string | yes | ADT URI of the reference object the generation starts from, typically a database table or CDS entity (e.g. /sap/bc/adt/ddic/tables/ztravel) |  |
+| `packageName` | string | yes | Target ABAP package | `$TMP`, `ZFIN` |
+
+**When to use.** Get SAP's proposed names (CDS entities, behavior class, draft table, service definition and binding) for a table or CDS entity in a package; adjust them and feed the result to `rapGenValidateContent`. Run `rapGenValidateInitial` first.
+
+**What comes back.** `{status, result: RapGeneratorContent {metadata?: {package, masterLanguage?}, general: {referenceObjectName?, description}, businessObject: {dataModelEntity: {cdsName, entityName?}, behavior: {implementationType, implementationClass, draftTable}}, serviceProjection: {name}, businessService: {serviceDefinition: {name}, serviceBinding: {name, bindingType}}}}`.
+
+**Pitfalls.** `refObjectUri` is an ADT URI such as `/sap/bc/adt/ddic/tables/ztravel`, not a bare table name; `searchObject` gives it.
+
+See also: [`rapGenValidateInitial`](#rapgenvalidateinitial), [`rapGenValidateContent`](#rapgenvalidatecontent), [`rapGenPreview`](#rapgenpreview), [`rapGenGenerate`](#rapgengenerate).
+
+#### rapGenValidateInitial
+
+📖 RAP Gen Validate Initial · toolset `rap` · read-only, idempotent
+
+Validate that generation can start from the given reference object and package (run before rapGenGetContent).
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `genId` | `uiservice` / `webapiservice` | yes | Generator id: uiservice (OData UI service) or webapiservice (Web API service) |  |
+| `refObjectUri` | string | yes | ADT URI of the reference object the generation starts from, typically a database table or CDS entity (e.g. /sap/bc/adt/ddic/tables/ztravel) |  |
+| `packageName` | string | yes | Target ABAP package | `$TMP`, `ZFIN` |
+
+**When to use.** Check that generation can start from the reference object and target package (authorizations, package type, object state) before spending calls on content.
+
+**What comes back.** `{status, result: {severity: "ok" | "error" | "warning" | "info", shortText, longText?}}`.
+
+**Pitfalls.** A `severity: error` is the backend's verdict inside a successful call; read `result.severity` instead of waiting for an exception.
+
+See also: [`rapGenIsAvailable`](#rapgenisavailable), [`rapGenGetContent`](#rapgengetcontent), [`validateNewObject`](#validatenewobject).
+
+#### rapGenValidateContent
+
+📖 RAP Gen Validate Content · toolset `rap` · read-only, idempotent
+
+Validate a full generator content (names, package, conflicts) BEFORE generating. Recommended flow: rapGenGetContent -> adjust -> rapGenValidateContent -> rapGenPreview -> rapGenGenerate.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `genId` | `uiservice` / `webapiservice` | yes | Generator id: uiservice (OData UI service) or webapiservice (Web API service) |  |
+| `refObjectUri` | string | yes | ADT URI of the reference object the generation starts from, typically a database table or CDS entity (e.g. /sap/bc/adt/ddic/tables/ztravel) |  |
+| `content` | string | yes | JSON string of the generator content, following the schema returned by rapGenGetSchema: { metadata?, general: { referenceObjectName?, description }, businessObject: { dataModelEntity: { cdsName, entityName? }, behavior: { implementationType, implementationClass, draftTable } }, serviceProjection: { name }, businessService: { serviceDefinition: { name }, serviceBinding: { name, bindingType } } } |  |
+
+**When to use.** Validate the full edited content (names, package, conflicts) before `rapGenPreview` and `rapGenGenerate`; cheap and side-effect free.
+
+**What comes back.** `{status, result: {severity, shortText, longText?}}`; InvalidParams when `content` is not valid JSON.
+
+**Pitfalls.** `content` is a JSON string following `rapGenGetSchema` (an object works as well); the same string is what `rapGenPreview` and `rapGenGenerate` take.
+
+See also: [`rapGenGetContent`](#rapgengetcontent), [`rapGenPreview`](#rapgenpreview), [`rapGenGenerate`](#rapgengenerate).
+
+#### rapGenPreview
+
+📖 RAP Gen Preview · toolset `rap` · read-only, idempotent
+
+Preview the list of repository objects a generation would create (CDS views, behavior definition, service definition/binding) without creating anything.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `genId` | `uiservice` / `webapiservice` | yes | Generator id: uiservice (OData UI service) or webapiservice (Web API service) |  |
+| `refObjectUri` | string | yes | ADT URI of the reference object the generation starts from, typically a database table or CDS entity (e.g. /sap/bc/adt/ddic/tables/ztravel) |  |
+| `content` | string | yes | JSON string of the generator content, following the schema returned by rapGenGetSchema: { metadata?, general: { referenceObjectName?, description }, businessObject: { dataModelEntity: { cdsName, entityName? }, behavior: { implementationType, implementationClass, draftTable } }, serviceProjection: { name }, businessService: { serviceDefinition: { name }, serviceBinding: { name, bindingType } } } |  |
+
+**When to use.** List the repository objects a generation would create without creating anything; show it to the user before `rapGenGenerate` (the live test plan stops here on shared tenants).
+
+**What comes back.** `{status, result: [{uri, type, name, description}]}`.
+
+**Pitfalls.** Read-only but still behind the `rap` platform gate; name clashes appear in `rapGenValidateContent`, not here.
+
+See also: [`rapGenValidateContent`](#rapgenvalidatecontent), [`rapGenGenerate`](#rapgengenerate), [`searchObject`](#searchobject).
+
+#### rapGenGenerate
+
+✏️ RAP Gen Generate · toolset `rap` · writes
+
+Generate the RAP repository objects (CDS views, behavior definition, service definition/binding) on the system. Requires a transport (createTransport). Validate with rapGenValidateContent and inspect rapGenPreview first. Activate the generated objects afterwards with activateObjects.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `genId` | `uiservice` / `webapiservice` | yes | Generator id: uiservice (OData UI service) or webapiservice (Web API service) |  |
+| `refObjectUri` | string | yes | ADT URI of the reference object the generation starts from, typically a database table or CDS entity (e.g. /sap/bc/adt/ddic/tables/ztravel) |  |
+| `transport` | string | yes | Transport request number (see createTransport) | `DEVK900123` |
+| `content` | string | yes | JSON string of the generator content, following the schema returned by rapGenGetSchema: { metadata?, general: { referenceObjectName?, description }, businessObject: { dataModelEntity: { cdsName, entityName? }, behavior: { implementationType, implementationClass, draftTable } }, serviceProjection: { name }, businessService: { serviceDefinition: { name }, serviceBinding: { name, bindingType } } } |  |
+
+**When to use.** Create the CDS views, behavior definition, service definition and binding on the system; needs a `transport` (from `resolveTransport` or `createTransport`) and a validated, previewed `content`. This is not a dry run.
+
+**What comes back.** `{status, result: [{uri, type, name, description}]}` of the generated objects, still inactive.
+
+**Pitfalls.** Refused with `policyDenied` on any destination that sets `allowedPackages` (the package cannot be derived from the arguments) and under `allowedTransports` when the transport does not match; activate afterwards with `activatePackage` or `activateObjects`, then `rapGenPublishService`. See [docs/WORKFLOWS.md](WORKFLOWS.md), RAP generator and service bindings.
+
+See also: [`rapGenPreview`](#rapgenpreview), [`resolveTransport`](#resolvetransport), [`activatePackage`](#activatepackage), [`rapGenPublishService`](#rapgenpublishservice).
+
+#### rapGenPublishService
+
+✏️ RAP Gen Publish Service · toolset `rap` · writes
+
+Publish a generated service binding so its OData service becomes callable (alternative to publishServiceBinding for rapGen-created bindings).
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `srvbName` | string | yes | Name of the service binding to publish |  |
+
+**When to use.** Publish the service binding created by `rapGenGenerate` (by `srvbName`) so its OData service answers; the alternative `publishServiceBinding` needs name and version.
+
+**What comes back.** `{status, result: {severity, shortText, longText?}}`.
+
+**Pitfalls.** Refused under `allowedPackages`; verify the outcome with `fetchServiceDetails` (`binding.published` and the preview URLs).
+
+See also: [`rapGenGenerate`](#rapgengenerate), [`publishServiceBinding`](#publishservicebinding), [`fetchServiceDetails`](#fetchservicedetails).
+
+### Business services · toolset `services`
+
+#### publishServiceBinding
+
+✏️ Publish Service Binding · toolset `services` · writes
+
+Publishes a service binding.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `name` | string | yes | The name of the service binding. |  |
+| `version` | string | yes | The version of the service binding. |  |
+
+**When to use.** Publish a service binding by `name` and `version` (for example `0001`) so the OData service becomes callable; read `fetchServiceDetails` first to learn the version and whether it is already published.
+
+**What comes back.** `{status, result: {severity, shortText, longText}}`.
+
+**Pitfalls.** Refused with `policyDenied` on destinations with `allowedPackages`. `version` is the binding version string (`binding.version` in `fetchServiceDetails`), not the OData protocol version.
+
+See also: [`fetchServiceDetails`](#fetchservicedetails), [`unPublishServiceBinding`](#unpublishservicebinding), [`rapGenPublishService`](#rapgenpublishservice).
+
+#### unPublishServiceBinding
+
+⚠️ Un Publish Service Binding · toolset `services` · destructive
+
+Unpublishes a service binding.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `name` | string | yes | The name of the service binding. |  |
+| `version` | string | yes | The version of the service binding. |  |
+
+**When to use.** Take a published service offline (destructive for its consumers); same `name`/`version` pair as `publishServiceBinding`.
+
+**What comes back.** `{status, result: {severity, shortText, longText}}`.
+
+**Pitfalls.** Same `allowedPackages` refusal; confirm with the user first, as README.md, Keeping it safe, asks for destructive calls.
+
+See also: [`publishServiceBinding`](#publishservicebinding), [`fetchServiceDetails`](#fetchservicedetails).
+
+#### fetchServiceDetails
+
+📖 Fetch Service Details · toolset `services` · read-only, idempotent
+
+Fetch the OData services of a service binding BY NAME: service URLs, entity sets, navigations and preview URLs. Resolves the binding internally, so no prior objectStructure call is needed (name-based equivalent of bindingDetails).
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `name` | string | yes | Name of the service binding, e.g. ZUI_TRAVEL_O4 |  |
+| `index` | number | no | Index of the service to inspect when the binding has several (default 0) |  |
+
+**When to use.** The name-based way to inspect a service binding: service URLs, entity sets, navigations and ready-to-open preview URLs, resolved through `searchObject` (type `SRVB`). Use it unless you already hold a parsed binding object for `bindingDetails`.
+
+**What comes back.** `{status, binding: {name, published, type, version, services}, details: {link, services: [{repositoryId, serviceId, serviceVersion, serviceUrl, annotationUrl, published, created, serviceInformation: {name, version, url, collection: [{name, navigation: [{name, target}]}]}, previewUrls: [{collection, url}]}]}}`; `index` picks one service when the binding has several. InvalidParams when the `SRVB` search returns nothing; when it returns hits but none matches `name` exactly, the first hit is taken, so check `binding.name` in the answer.
+
+**Pitfalls.** For some OData V4 bindings abap-adt-api cannot derive the service queries: the call then succeeds with `details: null` and a `note` (recorded in [docs/TESTPLAN.md](TESTPLAN.md)), so fall back to `binding.services`.
+
+See also: [`bindingDetails`](#bindingdetails), [`publishServiceBinding`](#publishservicebinding), [`searchObject`](#searchobject), [`objectStructure`](#objectstructure).
+
+#### bindingDetails
+
+📖 Binding Details · toolset `services` · read-only, idempotent
+
+Retrieves details of a service binding from an already-parsed ServiceBinding object. If you only have the binding name, use fetchServiceDetails instead.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `binding` | object | yes | The service binding. |  |
+| `index` | number | no | The index of the service binding. |  |
+
+**When to use.** Same information as `fetchServiceDetails` when you already have a parsed `ServiceBinding` object; a plain binding name is accepted too and resolved the same way.
+
+**What comes back.** `{status, binding (only when a name was passed), details: BindingServiceResult | null, note?}`.
+
+**Pitfalls.** `details` degrades to `null` with a `note` on bindings the library cannot handle (OData V4 seen live); unlike `fetchServiceDetails` it does not add `previewUrls`.
+
+See also: [`fetchServiceDetails`](#fetchservicedetails), [`publishServiceBinding`](#publishservicebinding).
+
+### abapGit · toolset `git`
+
+#### gitRepos
+
+📖 Git Repos · toolset `git` · read-only, idempotent
+
+Retrieves a list of Git repositories.
+
+No parameters besides `destination`.
+
+**When to use.** List the abapGit repositories linked on the system with key, package, URL, branch and links; the repo objects it returns are what `stageRepo`, `pushRepo`, `checkRepo`, `remoteRepoInfo` and `switchRepoBranch` expect.
+
+**What comes back.** `{status, repos: [{key, sapPackage, url, branch_name, created_by, created_at, created_email?, deserialized_by?, deserialized_email?, deserialized_at?, status?, status_text?, links: [{href, rel, type}]}]}`.
+
+**Pitfalls.** The `git` toolset is gated on `/sap/bc/adt/abapgit/repos` (the abapGit ADT plugin must be installed) and is not in the `focused` preset; `deniedTools: ["git*"]` keeps the tools listed but refuses them on that destination.
+
+See also: [`gitPullRepo`](#gitpullrepo), [`stageRepo`](#stagerepo), [`checkRepo`](#checkrepo), [`systemProfile`](#systemprofile).
+
+#### gitExternalRepoInfo
+
+📖 Git External Repo Info · toolset `git` · read-only, idempotent
+
+Retrieves information about an external Git repository.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `repourl` | string | yes | The URL of the repository. |  |
+| `user` | string | no | The username. |  |
+| `password` | string | no | The password. |  |
+
+**When to use.** Before linking: have the backend inspect a remote URL (access mode, branches). `user`/`password` fall back to the destination's `gitUser`/`gitPassword` from `systems.json`, so remote tokens never enter the conversation.
+
+**What comes back.** `{status, repoInfo: {access_mode: "PUBLIC" | "PRIVATE", branches: [{sha1, name, type, is_head, display_name}]}}`.
+
+**Pitfalls.** The SAP system makes the outbound call, so its proxy and certificate setup decide the outcome, not the machine running this server.
+
+See also: [`gitCreateRepo`](#gitcreaterepo), [`remoteRepoInfo`](#remoterepoinfo), [`gitRepos`](#gitrepos).
+
+#### gitCreateRepo
+
+✏️ Git Create Repo · toolset `git` · writes
+
+Creates a new Git repository.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `packageName` | string | yes | The name of the package. | `$TMP`, `ZFIN` |
+| `repourl` | string | yes | The URL of the repository. |  |
+| `branch` | string | no | The branch name. |  |
+| `transport` | string | no | The transport. | `DEVK900123` |
+| `user` | string | no | The username. |  |
+| `password` | string | no | The password. |  |
+
+**When to use.** Link a package to a remote repository (online repository object): `packageName`, `repourl`, optional `branch` (`refs/heads/main`) and `transport` for transportable packages. It creates the link only; import with `gitPullRepo` afterwards.
+
+**What comes back.** `{status, result}` where `result` is an array with one entry per object abapGit reported; abap-adt-api's parser drops the object fields, so the entries serialize as `null` and only the count is meaningful. Failures carry the ADT message.
+
+**Pitfalls.** `packageName` is checked against `allowedPackages` and `transport` against `allowedTransports`; the library's default branch is `refs/heads/master`, so pass `branch` explicitly.
+
+See also: [`gitExternalRepoInfo`](#gitexternalrepoinfo), [`gitPullRepo`](#gitpullrepo), [`gitRepos`](#gitrepos), [`resolveTransport`](#resolvetransport).
+
+#### gitPullRepo
+
+✏️ Git Pull Repo · toolset `git` · writes
+
+Pulls changes from a Git repository. For repos with many changed objects, use startIndex/maxItems to page through the list of imported/changed objects returned in the response instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `repoId` | string | yes | The ID of the repository. |  |
+| `branch` | string | no | The branch name. |  |
+| `transport` | string | no | The transport. | `DEVK900123` |
+| `user` | string | no | The username. |  |
+| `password` | string | no | The password. |  |
+| `startIndex` | number | no | 0-based index of the imported/changed object to start from (default 0). Use with maxItems to page through a large pull result. Note: the pull itself already happened by the time this pages the result - this only limits what is reported back. |  |
+| `maxItems` | number | no | Maximum number of imported/changed objects to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Import the remote state of a linked repository into its package (`repoId` is `key` from `gitRepos`), optionally on a `branch` and `transport`; page the reported object list with `startIndex`/`maxItems`. Follow with `activatePackage` or `activateObjects`.
+
+**What comes back.** `{status, result: [one entry per imported or changed object]}`, and when paged `totalObjects, startIndex, returnedObjects, hasMore, autoPaged?, capped?, note?`. abap-adt-api's parser drops the per-object fields (type, name, package, status, message), so the entries serialize as `null`: use the count, then `inactiveObjects` or `packageTree` to see what arrived.
+
+**Pitfalls.** The pull has already happened when the list is paged: paging limits the report, never the import. Refused on any destination with `allowedPackages` (the target packages cannot be derived); `transport` is checked against `allowedTransports`; the server clears its package memo afterwards. The library defaults `branch` to `refs/heads/master`, so pass it when the repository uses another branch. See [docs/WORKFLOWS.md](WORKFLOWS.md), abapGit and local exports.
+
+See also: [`gitRepos`](#gitrepos), [`activatePackage`](#activatepackage), [`inactiveObjects`](#inactiveobjects), [`gitCreateRepo`](#gitcreaterepo).
+
+#### gitUnlinkRepo
+
+⚠️ Git Unlink Repo · toolset `git` · destructive
+
+Unlinks a Git repository.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `repoId` | string | yes | The ID of the repository. |  |
+
+**When to use.** Remove the abapGit link of a repository (`repoId` = `key` from `gitRepos`) while keeping the ABAP objects; destructive for the link, so confirm with the user.
+
+**What comes back.** `{status, result: undefined}`; an unknown key surfaces as the ADT error.
+
+**Pitfalls.** `repository` and `repo` are accepted as aliases of `repoId`; nothing is deleted from the package or the remote.
+
+See also: [`gitRepos`](#gitrepos), [`gitCreateRepo`](#gitcreaterepo).
+
+#### stageRepo
+
+✏️ Stage Repo · toolset `git` · writes
+
+Stages changes in a Git repository. For a large initial package push, use startIndex/maxItems to page through the staged/unstaged/ignored object lists instead of retrieving them all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `repo` | object | yes | The Git repository object. |  |
+| `user` | string | no | The username. |  |
+| `password` | string | no | The password. |  |
+| `startIndex` | number | no | 0-based index into each of the staged/unstaged/ignored lists to start from (default 0). Use with maxItems to page through large staging results. |  |
+| `maxItems` | number | no | Maximum number of items per list (staged/unstaged/ignored) to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Prepare a push: pass the full repo object from `gitRepos` and get what abapGit considers staged, unstaged and ignored; page the three lists with `startIndex`/`maxItems` on a large first push.
+
+**What comes back.** `{status, result: GitStaging {staged, unstaged, ignored: [{wbkey, uri, type, name, abapGitFiles: [{name, path, localState, links}]}], comment, author: {name, email}, committer}}`, plus `startIndex, totals, returned, hasMore, autoPaged?, capped?` when paged.
+
+**Pitfalls.** `repo` must carry `links` (the library follows `stage_link`); a bare key fails. Fill `comment`, `author` and `committer` and move objects between `staged` and `unstaged` before `pushRepo`; when the answer was paged, the staging object you push contains only what you saw.
+
+See also: [`gitRepos`](#gitrepos), [`pushRepo`](#pushrepo), [`checkRepo`](#checkrepo).
+
+#### pushRepo
+
+⚠️ Push Repo · toolset `git` · destructive
+
+Pushes changes to a Git repository.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `repo` | object | yes | The Git repository object. |  |
+| `staging` | object | yes | The staging information object. |  |
+| `user` | string | no | The username. |  |
+| `password` | string | no | The password. |  |
+
+**When to use.** Commit and push the staging object returned (and edited) by `stageRepo` to the remote; destructive on the remote and one of the calls README.md, Keeping it safe, asks hosts to confirm.
+
+**What comes back.** `{status, result: undefined}` on success; remote authentication and conflict problems arrive as the ADT message.
+
+**Pitfalls.** Needs the repo object with `push_link` and a staging object with `comment`, `author` and `committer`; credentials come from `gitUser`/`gitPassword` unless `user`/`password` are passed.
+
+See also: [`stageRepo`](#stagerepo), [`gitRepos`](#gitrepos), [`checkRepo`](#checkrepo).
+
+#### checkRepo
+
+📖 Check Repo · toolset `git` · read-only, idempotent
+
+Checks a Git repository.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `repo` | string | yes | The Git repository. |  |
+| `user` | string | no | The username. |  |
+| `password` | string | no | The password. |  |
+
+**When to use.** Run abapGit's consistency check of a linked repository against its remote before pulling or pushing.
+
+**What comes back.** `{status, result: undefined}` when the check passes; problems arrive as the error message.
+
+**Pitfalls.** The schema types `repo` as a string, but the library needs the repo object from `gitRepos` (it follows `links[type=check_link]`); a key or URL string fails with a TypeError on `links` before any call, and a repo object without that link fails with 'Check link not found'.
+
+See also: [`gitRepos`](#gitrepos), [`gitPullRepo`](#gitpullrepo), [`stageRepo`](#stagerepo).
+
+#### remoteRepoInfo
+
+📖 Remote Repo Info · toolset `git` · read-only, idempotent
+
+Retrieves information about a remote Git repository.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `repo` | string | yes | The Git repository. |  |
+| `user` | string | no | The username. |  |
+| `password` | string | no | The password. |  |
+
+**When to use.** Branches and access mode of the remote behind a repository that is already linked (the library uses `repo.url`); the counterpart of `gitExternalRepoInfo` for linked repos.
+
+**What comes back.** `{status, repoInfo: {access_mode, branches: [{sha1, name, type, is_head, display_name}]}}`.
+
+**Pitfalls.** Expects the repo object (at least `url`) although the schema says string; abap-adt-api marks the call deprecated in favour of `gitExternalRepoInfo(repourl)`, which takes the URL directly.
+
+See also: [`gitExternalRepoInfo`](#gitexternalrepoinfo), [`switchRepoBranch`](#switchrepobranch), [`gitRepos`](#gitrepos).
+
+#### switchRepoBranch
+
+✏️ Switch Repo Branch · toolset `git` · writes
+
+Switches the branch of a Git repository.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `repo` | string | yes | The Git repository. |  |
+| `branch` | string | yes | The branch name. |  |
+| `create` | boolean | no | Whether to create the branch if it doesn't exist. |  |
+| `user` | string | no | The username. |  |
+| `password` | string | no | The password. |  |
+
+**When to use.** Switch a linked repository to another branch, or create it with `create=true`, before pulling or pushing on it.
+
+**What comes back.** `{status, result: undefined}`.
+
+**Pitfalls.** Needs the repo object (`repo.key` builds the URL); `branch` is the full ref such as `refs/heads/feature`. Switching does not import anything: run `gitPullRepo` afterwards to bring the branch content in.
+
+See also: [`remoteRepoInfo`](#remoterepoinfo), [`gitPullRepo`](#gitpullrepo), [`gitRepos`](#gitrepos).
+
+### Debugger · toolset `debugger`
+
+#### debuggerListeners
+
+📖 Debugger Listeners · toolset `debugger` · read-only, idempotent
+
+Retrieves a list of debugger listeners.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `debuggingMode` | string | yes | The debugging mode. |  |
+| `terminalId` | string | yes | The terminal ID. |  |
+| `ideId` | string | yes | The IDE ID. |  |
+| `user` | string | yes | The user. |  |
+| `checkConflict` | boolean | no | Whether to check for conflicts. |  |
+
+**When to use.** Check whether a listener for this user and terminal already exists (`checkConflict=true` reports one held by another IDE) before `debuggerListen`. `debuggingMode` is `user` or `terminal`, as in Eclipse.
+
+**What comes back.** `{status, result: DebugListenerError {namespace, type, message, localizedMessage, conflictText, ideUser} | undefined}` (undefined means no conflict).
+
+**Pitfalls.** `terminalId` and `ideId` are arbitrary identifiers but must stay identical across the whole debug session; `checkConflict` defaults to true in the library. The toolset is refused before calling SAP where the backend lacks `/sap/bc/adt/debugger` (see [docs/CONFIGURATION.md](CONFIGURATION.md), The platform gate) and is not in the `focused` preset.
+
+See also: [`debuggerListen`](#debuggerlisten), [`debuggerDeleteListener`](#debuggerdeletelistener), [`systemProfile`](#systemprofile).
+
+#### debuggerListen
+
+✏️ Debugger Listen · toolset `debugger` · writes
+
+Listens for debugging events.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `debuggingMode` | string | yes | The debugging mode. |  |
+| `terminalId` | string | yes | The terminal ID. |  |
+| `ideId` | string | yes | The IDE ID. |  |
+| `user` | string | yes | The user. |  |
+| `checkConflict` | boolean | no | Whether to check for conflicts. |  |
+| `isNotifiedOnConflict` | boolean | no | Whether to be notified on conflict. |  |
+
+**When to use.** Wait for a session of `user` to reach an external breakpoint set with `debuggerSetBreakpoints`; the answer is the debuggee to attach to. Trigger the code (`runClass`, a request, a job) after the listener has started.
+
+**What comes back.** `{status, result: Debuggee {DEBUGGEE_ID, CLIENT, SYSID, APPLSERVER, HOST, URI, TYPE, NAME, DESCRIPTION, DUMPID, ...} | DebugListenerError | undefined}`.
+
+**Pitfalls.** The call blocks this destination's SAP session (and its call queue) until a debuggee arrives or the backend times out, so hosts with short tool timeouts may cut it; `checkConflict` and `isNotifiedOnConflict` decide what happens when another IDE already listens for the same user. [docs/FIELD-NOTES.md](FIELD-NOTES.md) records a session where the plan stalled because the job could not be started from the agent.
+
+See also: [`debuggerSetBreakpoints`](#debuggersetbreakpoints), [`debuggerAttach`](#debuggerattach), [`debuggerDeleteListener`](#debuggerdeletelistener), [`runClass`](#runclass).
+
+#### debuggerDeleteListener
+
+✏️ Debugger Delete Listener · toolset `debugger` · writes
+
+Stops a debug listener.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `debuggingMode` | string | yes | The debugging mode. |  |
+| `terminalId` | string | yes | The terminal ID. |  |
+| `ideId` | string | yes | The IDE ID. |  |
+| `user` | string | yes | The user. |  |
+
+**When to use.** Stop the listener registered by `debuggerListen` for that `debuggingMode`, `terminalId`, `ideId` and `user`; do it at the end of every debug session so other IDEs of the same user are not blocked.
+
+**What comes back.** `{status, result: undefined}`.
+
+**Pitfalls.** Use the same identifiers as the listen call; a listener left behind shows up in `debuggerListeners` with `checkConflict=true`.
+
+See also: [`debuggerListen`](#debuggerlisten), [`debuggerListeners`](#debuggerlisteners).
+
+#### debuggerSetBreakpoints
+
+✏️ Debugger Set Breakpoints · toolset `debugger` · writes
+
+Sets breakpoints.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `debuggingMode` | string | yes | The debugging mode. |  |
+| `terminalId` | string | yes | The terminal ID. |  |
+| `ideId` | string | yes | The IDE ID. |  |
+| `clientId` | string | yes | The client ID. |  |
+| `breakpoints` | array | yes | An array of breakpoints. |  |
+| `user` | string | yes | The user. |  |
+| `scope` | string | no | The debugger scope. |  |
+| `systemDebugging` | boolean | no | Whether to enable system debugging. |  |
+| `deactivated` | boolean | no | Whether to deactivate the breakpoints. |  |
+| `syncScupeUrl` | string | no | The URL for scope synchronization. |  |
+
+**When to use.** Register external breakpoints (an array of source URLs with `#start=<line>`, or `DebugBreakpoint` objects) for `user` under a `clientId`; `scope=external` is what a listener needs, `debugger` targets a live debug session.
+
+**What comes back.** `{status, result: [DebugBreakpoint {kind, clientId, id, uri, type, name, condition?} | DebugBreakpointError {kind, clientId, errorMessage}]}`; keep the objects for `debuggerDeleteBreakpoints`.
+
+**Pitfalls.** `systemDebugging=true` also stops inside SAP code, `deactivated=true` registers them switched off; the scope-sync parameter is spelled `syncScupeUrl` in the schema (mapped to the library's `syncScopeUri`). Line numbers refer to the source `getObjectSource` returns.
+
+See also: [`debuggerListen`](#debuggerlisten), [`debuggerDeleteBreakpoints`](#debuggerdeletebreakpoints), [`getObjectSource`](#getobjectsource).
+
+#### debuggerDeleteBreakpoints
+
+✏️ Debugger Delete Breakpoints · toolset `debugger` · writes
+
+Deletes breakpoints.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `breakpoint` | object | yes | The breakpoint to delete. |  |
+| `debuggingMode` | string | yes | The debugging mode. |  |
+| `terminalId` | string | yes | The terminal ID. |  |
+| `ideId` | string | yes | The IDE ID. |  |
+| `requestUser` | string | yes | The requesting user. |  |
+| `scope` | string | no | The debugger scope. |  |
+
+**When to use.** Remove one breakpoint (pass the `DebugBreakpoint` object returned by `debuggerSetBreakpoints`) for the given mode, terminal, IDE and `requestUser`.
+
+**What comes back.** `{status, result: undefined}`.
+
+**Pitfalls.** One breakpoint per call, and the user parameter is `requestUser` here while the other debugger tools call it `user` (the alias mapping does not bridge that).
+
+See also: [`debuggerSetBreakpoints`](#debuggersetbreakpoints), [`debuggerDeleteListener`](#debuggerdeletelistener).
+
+#### debuggerAttach
+
+✏️ Debugger Attach · toolset `debugger` · writes
+
+Attaches the debugger.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `debuggingMode` | string | yes | The debugging mode. |  |
+| `debuggeeId` | string | yes | The ID of the debuggee. |  |
+| `user` | string | yes | The user. |  |
+| `dynproDebugging` | boolean | no | Whether to enable Dynpro debugging. |  |
+
+**When to use.** Attach to the debuggee returned by `debuggerListen` (`debuggeeId` is its `DEBUGGEE_ID`); `dynproDebugging=true` also stops in screen flow logic.
+
+**What comes back.** `{status, result: DebugAttach {isRfc, isSameSystem, serverName, debugSessionId, processId, isPostMortem, isUserAuthorizedForChanges, isSteppingPossible?, isTerminationPossible, actions: [{name, title, link, disabled, ...}], reachedBreakpoints: [{id, kind}]}}`.
+
+**Pitfalls.** `dynproDebugging` defaults to true in the library when omitted; pass `false` to skip screen flow logic. The attached session lives in this server's stateful ADT session: `dropSession`, `logout` or an HTTP session expiry ends it. Finish with `debuggerStep(terminateDebuggee)` or `detachDebugger` so the user's work process is released.
+
+See also: [`debuggerListen`](#debuggerlisten), [`debuggerStackTrace`](#debuggerstacktrace), [`debuggerVariables`](#debuggervariables), [`debuggerStep`](#debuggerstep).
+
+#### debuggerSaveSettings
+
+✏️ Debugger Save Settings · toolset `debugger` · writes
+
+Saves debugger settings.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `settings` | string | yes | The debugger settings. |  |
+
+**When to use.** Change the debugger settings of the session (`systemDebugging`, `createExceptionObject`, `backgroundRFC`, `sharedObjectDebugging`, `showDataAging`, `updateDebugging`) before or while attached.
+
+**What comes back.** `{status, result: DebugSettings}` with all six flags as stored.
+
+**Pitfalls.** `settings` is a partial object; flags you omit keep their current value.
+
+See also: [`debuggerAttach`](#debuggerattach), [`debuggerSetBreakpoints`](#debuggersetbreakpoints).
+
+#### debuggerStackTrace
+
+📖 Debugger Stack Trace · toolset `debugger` · read-only, idempotent
+
+Retrieves the debugger stack trace.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `semanticURIs` | boolean | no | Whether to use semantic URIs. |  |
+
+**When to use.** Read the call stack of the attached debuggee; `semanticURIs=true` returns object URIs usable with `getObjectSource` and `debuggerGoToStack`.
+
+**What comes back.** `{status, result: DebugStackInfo {isRfc, isSameSystem, serverName, debugCursorStackIndex?, stack: [{stackPosition, stackType, stackUri, programName, includeName, line, eventType, eventName, sourceType, systemProgram, uri}]}}`.
+
+**Pitfalls.** Only meaningful after `debuggerAttach`; without an attached session the backend answers with an error.
+
+See also: [`debuggerAttach`](#debuggerattach), [`debuggerGoToStack`](#debuggergotostack), [`getObjectSource`](#getobjectsource).
+
+#### debuggerVariables
+
+📖 Debugger Variables · toolset `debugger` · read-only, idempotent
+
+Retrieves debugger variables. If an inspected parent is a large internal table, use startIndex/maxItems to page through the returned variable list instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `parents` | array | yes | An array of parent variable names. |  |
+| `startIndex` | number | no | 0-based index of the variable list to start from (default 0). Use with maxItems to page through a large result. |  |
+| `maxItems` | number | no | Maximum number of variables to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Read variables of the current stack frame by name (`parents=["SY", "LT_DATA"]`); page big tables with `startIndex`/`maxItems`. For the components of one structure or the rows of one table use `debuggerChildVariables`.
+
+**What comes back.** `{status, result: [DebugVariable {ID, NAME, DECLARED_TYPE_NAME, ACTUAL_TYPE_NAME, KIND, META_TYPE, VALUE, HEX_VALUE, TABLE_LINES, LENGTH, IS_VALUE_INCOMPLETE, IS_EXCEPTION, ...}]}`, plus `totalItems, startIndex, returnedItems, hasMore, autoPaged?, capped?` when paged.
+
+**Pitfalls.** Values are strings as ADT renders them; `IS_VALUE_INCOMPLETE` flags truncated ones. Answers over `MCP_MAX_RESPONSE_CHARS` are paged automatically.
+
+See also: [`debuggerChildVariables`](#debuggerchildvariables), [`debuggerStackTrace`](#debuggerstacktrace), [`debuggerSetVariableValue`](#debuggersetvariablevalue).
+
+#### debuggerChildVariables
+
+📖 Debugger Child Variables · toolset `debugger` · read-only, idempotent
+
+Retrieves child variables of a debugger variable. If the parent is a large structure/table, use startIndex/maxItems to page through the returned child rows instead of retrieving them all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `parent` | array | no | The parent variable name. |  |
+| `startIndex` | number | no | 0-based index of the child variable list to start from (default 0). Use with maxItems to page through a large result. |  |
+| `maxItems` | number | no | Maximum number of child variables to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Expand one complex variable (structure, table, object reference) into its components or rows; `parent` is an array of variable IDs or names (omit it to list the root level, the library default `["@DATAAGING", "@ROOT"]`), paged with `startIndex`/`maxItems`.
+
+**What comes back.** `{status, result: {variables: [DebugVariable], hierarchies: [{PARENT_ID, CHILD_ID, CHILD_NAME}]}}` plus the paging fields; `variables` and `hierarchies` are sliced in lockstep.
+
+**Pitfalls.** Only variables whose `META_TYPE` is structure, table, dataref, objectref, class, object or boxref have children (abap-adt-api's `debugMetaIsComplex`); expanding a simple one returns nothing useful.
+
+See also: [`debuggerVariables`](#debuggervariables), [`debuggerStackTrace`](#debuggerstacktrace).
+
+#### debuggerStep
+
+✏️ Debugger Step · toolset `debugger` · writes
+
+Performs a debugger step.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `steptype` | `stepInto` / `stepOver` / `stepReturn` / `stepContinue` / `stepRunToLine` / `stepJumpToLine` / `terminateDebuggee` / `detachDebugger` | yes | The type of step to perform. stepRunToLine/stepJumpToLine also need "url" (source URL with #start=line). |  |
+| `url` | string | no | The URL for step types "stepRunToLine" or "stepJumpToLine". |  |
+
+**When to use.** Drive the attached debuggee: `stepInto`, `stepOver`, `stepReturn`, `stepContinue`, `stepRunToLine` and `stepJumpToLine` (both with `url=<source URL>#start=<line>`), `terminateDebuggee` or `detachDebugger` to finish.
+
+**What comes back.** `{status, result: DebugStep {isDebuggeeChanged, settings, reachedBreakpoints?, isSteppingPossible?, isTerminationPossible, actions, debugSessionId, ...}}`.
+
+**Pitfalls.** After `stepContinue` the debuggee runs to the next breakpoint or to its end; once it ended, further steps fail and a new `debuggerListen` is needed. Always end with `terminateDebuggee` or `detachDebugger`, otherwise the user's session stays frozen.
+
+See also: [`debuggerAttach`](#debuggerattach), [`debuggerStackTrace`](#debuggerstacktrace), [`debuggerVariables`](#debuggervariables), [`debuggerSetBreakpoints`](#debuggersetbreakpoints).
+
+#### debuggerGoToStack
+
+✏️ Debugger Go To Stack · toolset `debugger` · writes
+
+Navigates to a specific stack entry in the debugger.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `urlOrPosition` | string | yes | The URL or position of the stack entry. |  |
+
+**When to use.** Move the debugger cursor to another stack entry (`stackUri` from `debuggerStackTrace`, or a numeric position on older backends) so that `debuggerVariables` reads that frame.
+
+**What comes back.** `{status, result: undefined}`.
+
+**Pitfalls.** Changes the inspected frame, not the execution point; a string argument uses the URI-based API, a number the legacy position-based one. The string must look like `/sap/bc/adt/debugger/stack/type/<type>/position/<n>` (the `stackUri` of a stack entry), otherwise the library refuses it with 'Invalid stack URL' before calling SAP.
+
+See also: [`debuggerStackTrace`](#debuggerstacktrace), [`debuggerVariables`](#debuggervariables).
+
+#### debuggerSetVariableValue
+
+⚠️ Debugger Set Variable Value · toolset `debugger` · destructive
+
+Sets the value of a debugger variable.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `variableName` | string | yes | The name of the variable. |  |
+| `value` | string | yes | The new value of the variable. |  |
+
+**When to use.** Overwrite a variable in the attached debuggee (`value` as a string in ADT's display format) to test a branch without changing code; destructive for the running session.
+
+**What comes back.** `{status, result: the value as SAP echoes it back (string)}`.
+
+**Pitfalls.** Needs `isUserAuthorizedForChanges` in the attach result (debug change authorization); a `readOnly` policy or `MCP_READ_ONLY=1` refuses the tool outright.
+
+See also: [`debuggerVariables`](#debuggervariables), [`debuggerStep`](#debuggerstep), [`debuggerAttach`](#debuggerattach).
+
+### Traces · toolset `traces`
+
+#### tracesList
+
+📖 Traces List · toolset `traces` · read-only, idempotent
+
+Retrieves a list of traces.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `user` | string | no | The user. |  |
+
+**When to use.** List the ABAP runtime traces recorded for a user, with the runtime split (ABAP, system, database), size and expiration; each run's `id` feeds `tracesHitList`, `tracesDbAccess` and `tracesStatements`.
+
+**What comes back.** `{status, traces: {author, contributor, title, updated, runs: [{id, title, author, published, updated, type, extendedData: {host, size, runtime, runtimeABAP, runtimeSystem, runtimeDatabase, expiration, system, client, isAggregated, objectName, state: {value, text}}, links}]}}`.
+
+**Pitfalls.** `user` is optional: when omitted the library sends the ADT client's user name, which is the configured `user` on basic-auth destinations but a placeholder (`sso`, or the OAuth client id) on SSO and OAuth destinations, so pass the SAP user explicitly there; the library upper-cases it. The `traces` toolset is gated on `/sap/bc/adt/runtime/traces` and not in `focused`; where absent, the gate message points at ATC and `dumps`.
+
+See also: [`tracesHitList`](#traceshitlist), [`tracesDbAccess`](#tracesdbaccess), [`tracesStatements`](#tracesstatements), [`tracesListRequests`](#traceslistrequests).
+
+#### tracesListRequests
+
+📖 Traces List Requests · toolset `traces` · read-only, idempotent
+
+Retrieves a list of trace requests.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `user` | string | no | The user. |  |
+
+**When to use.** List the trace requests of a user (which process type, object and client are traced and how many executions remain); their ids feed `tracesDeleteConfiguration`.
+
+**What comes back.** `{status, requests: {title, contributorName, contributorRole, requests: [{id, title, published, updated, extendedData: {description, executions: {maximal, completed}, isAggregated, host, expires, processType, objectType, requestIndex, clients}, links}]}}`.
+
+**Pitfalls.** Same `user` requirement as `tracesList`.
+
+See also: [`tracesCreateConfiguration`](#tracescreateconfiguration), [`tracesDeleteConfiguration`](#tracesdeleteconfiguration), [`tracesList`](#traceslist).
+
+#### tracesHitList
+
+📖 Traces Hit List · toolset `traces` · read-only, idempotent
+
+Retrieves the hit list for a trace. For a large hit list, use startIndex/maxItems to page through the entries instead of retrieving them all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `id` | string | yes | The ID of the trace. |  |
+| `withSystemEvents` | boolean | no | Whether to include system events. |  |
+| `startIndex` | number | no | 0-based index of the hit list entry to start from (default 0). Use with maxItems to page through a large hit list. |  |
+| `maxItems` | number | no | Maximum number of hit list entries to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Top-down profile of one trace (which units consumed time, hit counts, gross and net times with percentages); page with `startIndex`/`maxItems`, `withSystemEvents=true` keeps kernel events.
+
+**What comes back.** `{status, hitList: {parentLink, entries: [{topDownIndex, index, hitCount, recursionDepth, description, callingProgram: {context, uri?, name?, packageName?}, calledProgram, grossTime: {time, percentage}, traceEventNetTime, proceduralNetTime}]}}`, plus `totalItems, startIndex, returnedItems, hasMore, autoPaged?, capped?` when paged.
+
+**Pitfalls.** `id` is the run id from `tracesList` (the full trace URL is accepted as well). Only `entries` is paged.
+
+See also: [`tracesList`](#traceslist), [`tracesStatements`](#tracesstatements), [`tracesDbAccess`](#tracesdbaccess).
+
+#### tracesDbAccess
+
+📖 Traces Db Access · toolset `traces` · read-only, idempotent
+
+Retrieves database access information for a trace. For many DB accesses, use startIndex/maxItems to page through the access list instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `id` | string | yes | The ID of the trace. |  |
+| `withSystemEvents` | boolean | no | Whether to include system events. |  |
+| `startIndex` | number | no | 0-based index of the DB access entry to start from (default 0). Use with maxItems to page through a large access list. |  |
+| `maxItems` | number | no | Maximum number of DB access entries to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Database view of one trace: every SQL access with table, statement, counts, buffered hits and time split, plus the distinct tables with buffer mode and package; the first stop for questions about slow SELECTs.
+
+**What comes back.** `{status, dbAccess: {parentLink, dbaccesses: [{index, tableName, statement, type: "" | "EXEC SQL" | "OpenSQL", totalCount, bufferedCount, accessTime: {total, applicationServer, database, ratioOfTraceTotal}, callingProgram}], tables: [{name, type, description, bufferMode, storageType, package}]}}`, plus the paging fields when paged.
+
+**Pitfalls.** Only `dbaccesses` is paged; `tables` always comes whole.
+
+See also: [`tracesHitList`](#traceshitlist), [`tracesStatements`](#tracesstatements), [`runQuery`](#runquery).
+
+#### tracesStatements
+
+📖 Traces Statements · toolset `traces` · read-only, idempotent
+
+Retrieves statements for a trace. For many statements, use startIndex/maxItems to page through the statement list instead of retrieving it all at once.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `id` | string | yes | The ID of the trace. |  |
+| `options` | string | no | Options for retrieving statements. |  |
+| `startIndex` | number | no | 0-based index of the statement to start from (default 0). Use with maxItems to page through a large statement list. |  |
+| `maxItems` | number | no | Maximum number of statements to return from startIndex. Omit to return the rest. |  |
+
+**When to use.** Aggregated call tree of one trace (statements with call level, subnode counts and times); `options` carries `id`, `withDetails`, `autoDrillDownThreshold` and `withSystemEvents`.
+
+**What comes back.** `{status, statements: {withDetails, withSysEvents, count, parentLink, statements: [{index, id, description, hitCount, callLevel, callerId, subnodeCount, directSubnodeCount, isProceduralUnit?, callingProgram, grossTime, traceEventNetTime, proceduralNetTime}]}}`, plus the paging fields when paged.
+
+**Pitfalls.** `options` is forwarded to the library unparsed as query parameters: pass it as an object where the host allows it, a JSON string is not decoded by this handler.
+
+See also: [`tracesHitList`](#traceshitlist), [`tracesDbAccess`](#tracesdbaccess), [`tracesList`](#traceslist).
+
+#### tracesSetParameters
+
+✏️ Traces Set Parameters · toolset `traces` · writes
+
+Sets trace parameters.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `parameters` | string | yes | The trace parameters. |  |
+
+**When to use.** Define what a new trace records (`allProceduralUnits`, `allMiscAbapStatements`, `allInternalTableEvents`, `allDynproEvents`, `allDbEvents`, `sqlTrace`, `withRfcTracing`, `allSystemKernelEvents`, `aggregate`, `explicitOnOff`, `description`, `maxSizeForTraceFile`, `maxTimeForTracing`) before `tracesCreateConfiguration`.
+
+**What comes back.** `{status, result: the parameters URI SAP returns in its Location header}`; that value is the `parametersId` of `tracesCreateConfiguration`. 'trace configuration not set' means SAP answered without a Location.
+
+**Pitfalls.** The handler forwards `parameters` unparsed and the library serializes it field by field into XML, so a JSON string yields a document full of `undefined`: pass an object with all thirteen fields.
+
+See also: [`tracesCreateConfiguration`](#tracescreateconfiguration), [`tracesListRequests`](#traceslistrequests).
+
+#### tracesCreateConfiguration
+
+✏️ Traces Create Configuration · toolset `traces` · writes
+
+Creates a trace configuration.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `config` | string | yes | The trace configuration. |  |
+
+**When to use.** Create a trace request after `tracesSetParameters`: one `config` object with `description`, `traceUser`, `traceClient`, `processType` (`HTTP`, `DIALOG`, `RFC`, `BATCH`, `SHARED_OBJECTS_AREA`, `ANY`), `objectType` (`FUNCTION_MODULE`, `URL`, `TRANSACTION`, `REPORT`, `SHARED_OBJECTS_AREA`, `ANY`), `expires`, `maximalExecutions`, `parametersId` and optional `server` (`*` for all, the default).
+
+**What comes back.** `{status, result: TraceRequestList {title, contributorName, contributorRole, requests: [...]}}` including the new request.
+
+**Pitfalls.** Same object-not-string caveat as `tracesSetParameters` (a JSON string fails with a TypeError on `processType` before any call); an `objectType` that is not valid for the `processType` is rejected by the library before any call (`traceProcessObjects`). Delete the request with `tracesDeleteConfiguration` once done, otherwise it keeps tracing executions for that user.
+
+See also: [`tracesSetParameters`](#tracessetparameters), [`tracesListRequests`](#traceslistrequests), [`tracesDeleteConfiguration`](#tracesdeleteconfiguration).
+
+#### tracesDeleteConfiguration
+
+⚠️ Traces Delete Configuration · toolset `traces` · destructive
+
+Deletes a trace configuration.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `id` | string | yes | The ID of the trace configuration. |  |
+
+**When to use.** Delete a trace request (`id` from `tracesListRequests`) so it stops capturing; destructive.
+
+**What comes back.** `{status, result: undefined}`.
+
+**Pitfalls.** `id` may be the bare request id or its full `/sap/bc/adt/runtime/traces/abaptraces/requests/...` URL; the recorded runs stay until `tracesDelete`.
+
+See also: [`tracesListRequests`](#traceslistrequests), [`tracesCreateConfiguration`](#tracescreateconfiguration), [`tracesDelete`](#tracesdelete).
+
+#### tracesDelete
+
+⚠️ Traces Delete · toolset `traces` · destructive
+
+Deletes a trace.
+
+| Parameter | Type | Required | Description | Example |
+|---|---|---|---|---|
+| `id` | string | yes | The ID of the trace. |  |
+
+**When to use.** Delete a recorded trace run (`id` from `tracesList`) once analysed; destructive.
+
+**What comes back.** `{status, result: undefined}`.
+
+**Pitfalls.** Pass the `id` exactly as `tracesList` returned it or the full `/sap/bc/adt/runtime/traces/abaptraces/...` URL: the library only prefixes ids that do not start with that path and does so with a double slash, so a bare id may fail. Hit list, DB accesses and statements of that run are gone afterwards, so read them first.
+
+See also: [`tracesList`](#traceslist), [`tracesHitList`](#traceshitlist), [`tracesDeleteConfiguration`](#tracesdeleteconfiguration).
 

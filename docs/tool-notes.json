@@ -1,0 +1,1799 @@
+{
+  "abapDocumentation": {
+    "when": "Read the ABAP keyword documentation (F1 help) as plain text: pass keyword for a statement or addition, or objectUri with line and column for the element under a cursor. Use it before guessing the syntax of a newer statement.",
+    "returns": "{status, title, keyword, text, totalLines, startLine, returnedLines, hasMore, capped}; raw=true returns the HTML instead.",
+    "pitfalls": "Long chapters are paged with startLine and maxLines. In cursor mode the body is read from objectUri (cached source first) when omitted; line and column are 1-based.",
+    "seeAlso": [
+      "codeCompletionElement",
+      "syntaxCheckCode",
+      "apiReleaseState"
+    ]
+  },
+  "activateByName": {
+    "when": "Activate one object after a write that did not use activate=true (or after createObject plus setObjectSource). RAP stacks whose objects depend on each other belong to activatePackage.",
+    "returns": "`{success, messages: [{objDescr, type, line, href, forceSupported, shortText}], inactive: [...]}`; read `messages` even when `success` is true, warnings show up there.",
+    "pitfalls": "`objectName` is the object name (ZCL_EXAMPLE) and `objectUrl` the object URL (no /source/main). Activation of a class activates all its includes. Run unitTestRun afterwards.",
+    "seeAlso": [
+      "activatePackage",
+      "activateObjects",
+      "setObjectSource",
+      "unitTestRun"
+    ]
+  },
+  "activateObjects": {
+    "when": "Activate several objects in one request, typically the records returned by inactiveObjects. activateByName is simpler for one object and activatePackage for a whole package tree.",
+    "returns": "The raw activation result `{success, messages: [{objDescr, type, line, href, forceSupported, shortText}], inactive: [{object?, transport?}]}`.",
+    "pitfalls": "`objects` must be a JSON string of `[{\"adtcore:uri\", \"adtcore:type\", \"adtcore:name\", \"adtcore:parentUri\"}]`; a missing field is an InvalidParams error. The `allowedPackages` policy checks the entries (the first 50) before the call.",
+    "seeAlso": [
+      "inactiveObjects",
+      "activatePackage",
+      "activateByName",
+      "unitTestRun"
+    ]
+  },
+  "activatePackage": {
+    "when": "Activate everything inactive in a package tree in one request, the way CDS views, behavior definitions, service definitions and classes of a RAP stack must be activated together, or to finish a batch of writes.",
+    "returns": "`{status, packages: [...], user, warning?, otherUsers?, requested: [{name, type, uri}], success, messages: [...], stillInactive: [{name, type, uri}]}`; `isError` when the backend reports failure, `capped: true` when lists were cut to 50 entries. With nothing inactive: `{status, packages, user, warning?, activated: 0, message, otherUsers?}`.",
+    "pitfalls": "By default only the connected user's inactive objects are activated and other users' are listed under `otherUsers`; with SSO/OAuth the user name is unknown, so every user's objects are activated and a `warning` says so (pass `user` or allUsers=true). The package walk stops at 5000 objects; `preauditRequested` defaults to true.",
+    "seeAlso": [
+      "inactiveObjects",
+      "activateObjects",
+      "activateByName",
+      "packageTree"
+    ]
+  },
+  "adtCompatibilityGraph": {
+    "when": "Read the ADT compatibility graph (nodes and edges describing which client versions and services fit together); rarely useful from an agent, kept for completeness and troubleshooting.",
+    "returns": "{status, graph {nodes[], edges[]}}; hard-truncated to the safe output size, no paging.",
+    "pitfalls": "The legacy misspelling adtCompatibiliyGraph still routes to this tool but is not listed.",
+    "seeAlso": [
+      "adtDiscovery",
+      "adtCoreDiscovery",
+      "systemProfile"
+    ]
+  },
+  "adtCoreDiscovery": {
+    "when": "The smaller core discovery document (basic ADT services) when the full adtDiscovery is more than you need.",
+    "returns": "{status, discovery[]} of entries with title and a single collection {href, title, category} each (unlike adtDiscovery, whose entries carry a collection array); paged like adtDiscovery.",
+    "seeAlso": [
+      "adtDiscovery",
+      "systemProfile",
+      "featureDetails"
+    ]
+  },
+  "adtDiscovery": {
+    "when": "Dump the full ADT discovery document (workspaces and collections with hrefs) to see what a backend offers; it is the input systemProfile reads. Mostly for diagnosing a missing endpoint on a cloud tenant.",
+    "returns": "{status, discovery[]} of workspaces with collection[]; paged with totalItems, startIndex, returnedItems, hasMore when large (several hundred collections on a current system).",
+    "seeAlso": [
+      "systemProfile",
+      "adtCoreDiscovery",
+      "findCollectionByUrl"
+    ]
+  },
+  "annotationDefinitions": {
+    "when": "Browse the CDS annotation catalog of the system (names, scopes, allowed values) when writing annotations you are not sure exist on this release. Unnecessary for the common UI and OData annotations you already know.",
+    "returns": "{status, result} with the parsed catalog; when large, the first array inside it is paged with totalItems, startIndex, returnedItems, hasMore.",
+    "pitfalls": "The catalog is big; pass maxItems. The result shape depends on the backend's XML and can be an object wrapping the list, with a hard truncation as last resort.",
+    "seeAlso": [
+      "cdsViewInfo",
+      "ddicElement",
+      "syntaxCheckCdsUrl"
+    ]
+  },
+  "apiReleaseState": {
+    "when": "Before using an SAP object in ABAP Cloud code, check its release state against SAP's cloudification repository: names (CL_X, TABL:MARA, FUGR:...), an objectUrl, or a whole source or sourceUrl to scan every referenced object. edition selects cloud, btp, pce2023 or pce2022.",
+    "returns": "{status, edition, repository {loadedAt, releasedEntries, classificationEntries}, summary {checked, cloudReady, notCloudReady, unknown, customerObjects}, blockers[] (up to 50), results[] with state and successors, unknown[] plus unknownNote (only when something is unknown), scannedIdentifiers (source scans), backendApiRelease (whenever objectUrl is given: available=true with attributes, or available=false with httpStatus or error when the backend has no /sap/bc/adt/apireleases), capped}.",
+    "pitfalls": "Needs internet access to raw.githubusercontent.com (24h cache, refresh=true to re-download). unknown means not in the repository, not a blocker; verify in the system. Source scanning is heuristic on identifiers.",
+    "seeAlso": [
+      "systemProfile",
+      "atcSummary",
+      "abapDocumentation",
+      "getObjectSource"
+    ]
+  },
+  "atcApplyQuickfix": {
+    "when": "Apply one proposal (proposalIndex) at a finding location and write the result back: the fastest way to clear deterministic findings. Activate with activateByName and re-run atcSummary afterwards.",
+    "returns": "{status, applied {name, description}, editsApplied, editsSkipped[] (edits that target other objects), message}.",
+    "pitfalls": "Locks and unlocks by itself unless lockHandle is given; needs transport for transportable packages. InvalidParams when the index does not exist, an error when every edit targets another object. Nothing is activated.",
+    "seeAlso": [
+      "atcQuickfixProposals",
+      "activateByName",
+      "atcSummary",
+      "lock"
+    ]
+  },
+  "atcChangeContact": {
+    "when": "Assign a finding to a user (userId) so it shows up in their ATC worklist; itemUri comes from atcContactUri.",
+    "returns": "{status: 'success'} only; the ADT call returns no body.",
+    "pitfalls": "Write tool; the user must be one listed by atcUsers.",
+    "seeAlso": [
+      "atcContactUri",
+      "atcUsers",
+      "atcWorklists"
+    ]
+  },
+  "atcCheckVariant": {
+    "when": "Resolve a check variant name (from atcCustomizing) to the worklist id that createAtcRun expects. createAtcRun and atcSummary do this automatically, so call it directly only to inspect the variant.",
+    "returns": "{status, result} where result is the worklist id (32-character hex).",
+    "seeAlso": [
+      "createAtcRun",
+      "atcCustomizing",
+      "atcSummary"
+    ]
+  },
+  "atcContactUri": {
+    "when": "Find the contact (responsible person) endpoint of a finding from its finding URI in atcWorklists, before changing it with atcChangeContact.",
+    "returns": "{status, result} with the contact URI.",
+    "seeAlso": [
+      "atcChangeContact",
+      "atcWorklists",
+      "atcUsers"
+    ]
+  },
+  "atcCustomizing": {
+    "when": "Read the ATC settings of the system, mainly the name of the system check variant to pass to createAtcRun or atcSummary. Skip it when you already use ABAP_CLOUD_DEVELOPMENT_DEFAULT on a cloud tenant.",
+    "returns": "{status, result} with properties[] (name and value pairs, among them the system check variant) and excemptions[] (id, title, justificationMandatory) describing the exemption reasons the system accepts.",
+    "seeAlso": [
+      "atcCheckVariant",
+      "createAtcRun",
+      "atcSummary"
+    ]
+  },
+  "atcDocumentation": {
+    "when": "Read what a check tests, why it matters and how to fix it, from the documentation URI of a finding (atcWorklists findings[].link), before deciding between a fix and an exemption.",
+    "returns": "{status, docUri, documentation (HTML converted to plain text), capped}.",
+    "pitfalls": "Text longer than the safe output size is cut with capped=true; there is no paging.",
+    "seeAlso": [
+      "atcWorklists",
+      "atcSummary",
+      "atcQuickfixProposals"
+    ]
+  },
+  "atcExemptProposal": {
+    "when": "Fetch the exemption proposal template for a finding's markerId (from atcWorklists) as the first step of requesting an exemption; fill in reason, justification and approver and pass it to atcRequestExemption.",
+    "returns": "{status, result} with the proposal object (finding reference, reason codes, approver, validity).",
+    "pitfalls": "Classified as a write tool, so refused on readOnly destinations. Not every finding is exemptible; the backend answers with a message instead of a proposal, which isProposalMessage detects.",
+    "seeAlso": [
+      "atcRequestExemption",
+      "isProposalMessage",
+      "atcUsers",
+      "atcWorklists"
+    ]
+  },
+  "atcQuickfixProposals": {
+    "when": "List the quick fixes available at a finding location (objectSourceUrl, line, column from atcWorklists or atcSummary) before applying one with atcApplyQuickfix.",
+    "returns": "{status, proposals[]} with index, name, description and type; empty when the finding has no automatic fix.",
+    "pitfalls": "Reads the current source from SAP itself; line is 1-based, column 0-based as reported by ATC. A finding marked quickfix in atcSummary may still have no proposal at that exact column.",
+    "seeAlso": [
+      "atcApplyQuickfix",
+      "atcWorklists",
+      "atcSummary",
+      "fixProposals"
+    ]
+  },
+  "atcRequestExemption": {
+    "when": "Submit an exemption request built from atcExemptProposal; only for findings that are genuine false positives or accepted risks, since an approver has to act on it.",
+    "returns": "{status, result} with the backend's message object {type, message} confirming or refusing the request.",
+    "pitfalls": "The proposal must be the object returned by atcExemptProposal with the required fields filled; check it with isProposalMessage when in doubt. Write tool.",
+    "seeAlso": [
+      "atcExemptProposal",
+      "isProposalMessage",
+      "atcUsers",
+      "atcWorklists"
+    ]
+  },
+  "atcSummary": {
+    "when": "The one-call ATC check: pass mainUrl (object, package or transport URL) with an optional variant and get totals by priority, check and object plus the top findings; or pass runResultId to summarize an existing run. Prefer it over createAtcRun plus atcWorklists unless you need every finding.",
+    "returns": "{status, runResultId, runInfos?, worklistId, usedObjectSet, objectSetIsComplete, totals {objectsChecked, objectsWithFindings, findings, exempted, quickfixable}, byPriority, byCheck[], byObject[] (top 50), topFindings[] (default 30, with uri, line, quickfix, exemption), clean, hint}.",
+    "pitfalls": "The default variant ABAP_CLOUD_DEVELOPMENT_DEFAULT is wrong for classic on-prem code; take the name from atcCustomizing. Running ATC is a write on the server side, so readOnly destinations refuse it. Package runs on big packages take a while.",
+    "seeAlso": [
+      "createAtcRun",
+      "atcWorklists",
+      "atcQuickfixProposals",
+      "atcDocumentation"
+    ]
+  },
+  "atcUsers": {
+    "when": "List the users known to ATC (approvers and contacts) when preparing an exemption request or changing a finding's contact. For general user lookup use systemUsers.",
+    "returns": "{status, result[]} of users with id and title (the user's name).",
+    "seeAlso": [
+      "atcRequestExemption",
+      "atcChangeContact",
+      "systemUsers"
+    ]
+  },
+  "atcWorklists": {
+    "when": "Read all findings of a run (runResultId from createAtcRun) grouped by object, including exemption state and quickfix info, when the top list of atcSummary is not enough.",
+    "returns": "{status, result {id, usedObjectSet, objectSetIsComplete, objects[] with findings[] (uri, location, priority, checkId, checkTitle, messageTitle, quickfixInfo, exemptionKind, link)}}; paged per object with totalObjects, startIndex, returnedObjects, hasMore.",
+    "pitfalls": "includeExempted defaults to false. Column values in findings are 0-based; pass them unchanged to atcQuickfixProposals.",
+    "seeAlso": [
+      "createAtcRun",
+      "atcSummary",
+      "atcQuickfixProposals",
+      "atcDocumentation"
+    ]
+  },
+  "bindingDetails": {
+    "when": "Same information as `fetchServiceDetails` when you already have a parsed `ServiceBinding` object; a plain binding name is accepted too and resolved the same way.",
+    "returns": "`{status, binding (only when a name was passed), details: BindingServiceResult | null, note?}`.",
+    "pitfalls": "`details` degrades to `null` with a `note` on bindings the library cannot handle (OData V4 seen live); unlike `fetchServiceDetails` it does not add `previewUrls`.",
+    "seeAlso": [
+      "fetchServiceDetails",
+      "publishServiceBinding"
+    ]
+  },
+  "cdsViewInfo": {
+    "when": "Understand a CDS entity by name in one call: fields with types, key flags and descriptions plus the DDL source. Use ddicElement for the raw element document and runQuery to look at its data.",
+    "returns": "`{status, name, type, description, sqlViewName, fields (count), elements: [{name, type, dataType, length, description, isKey}], source?, sourceError?}`; hard truncated when the DDL is huge.",
+    "pitfalls": "Pass the entity name (ZI_EXAMPLE), not a URL; the source is read from /sap/bc/adt/ddic/ddl/sources/<name>/source/main, so a failing read shows up in `sourceError` while the element info still comes back. Set getTargetForAssociation or getExtensionViews to resolve associations and extensions.",
+    "seeAlso": [
+      "ddicElement",
+      "getObjectSource",
+      "runQuery",
+      "syntaxCheckCdsUrl"
+    ]
+  },
+  "changePackageExecute": {
+    "when": "Execute the move previewed by `changePackagePreview` (pass the `refactoring` unchanged, JSON string or object); destructive.",
+    "returns": "`{status, result: ChangePackageRefactoring as executed}`.",
+    "pitfalls": "Runs in a stateful session; afterwards the server drops its package memo so `allowedPackages` evaluates the new package on later writes. Under `allowedPackages`, `changePackagePreview` checks the current package and this call checks `newPackage`, so both must match the policy.",
+    "seeAlso": [
+      "changePackagePreview",
+      "activateObjects",
+      "transportDetails"
+    ]
+  },
+  "changePackagePreview": {
+    "when": "Move an object to another package: object URL, `oldPackage`, `newPackage` and a `transport` when the target package is transportable; returns the refactoring with the affected objects. Prefer it to delete-and-recreate, which loses history and transport records.",
+    "returns": "`{status, refactoring: ChangePackageRefactoring {oldPackage, newPackage, transport, adtObjectUri, ignoreSyntaxErrorsAllowed, ignoreSyntaxErrors, affectedObjects, userContent}, next: \"changePackageExecute\"}`.",
+    "pitfalls": "`transport` is optional in the schema, but the backend rejects the move to a transportable target without one (`transportRequired` hint). The server builds the proposal with `ignoreSyntaxErrors=false`, so a syntactically broken object cannot be moved until fixed. Under a policy, this is the step where the object's current package (resolved from `objectUrl`) is checked against `allowedPackages` and `transport` against `allowedTransports`.",
+    "seeAlso": [
+      "changePackageExecute",
+      "resolveTransport",
+      "transportInfo",
+      "packageTree"
+    ]
+  },
+  "checkRepo": {
+    "when": "Run abapGit's consistency check of a linked repository against its remote before pulling or pushing.",
+    "returns": "`{status, result: undefined}` when the check passes; problems arrive as the error message.",
+    "pitfalls": "The schema types `repo` as a string, but the library needs the repo object from `gitRepos` (it follows `links[type=check_link]`); a key or URL string fails with a TypeError on `links` before any call, and a repo object without that link fails with 'Check link not found'.",
+    "seeAlso": [
+      "gitRepos",
+      "gitPullRepo",
+      "stageRepo"
+    ]
+  },
+  "classComponents": {
+    "when": "List the methods, attributes, types and events of a class with visibility and details when you need more than names; objectStructureElements is the cheaper flat outline, getMethodSource reads the implementation.",
+    "returns": "`{status, result}` with the class node and its `components` (links stripped); large classes are paged with `totalComponents, startIndex, returnedComponents, hasMore, autoPaged?, capped?`.",
+    "pitfalls": "Takes the class URL in `url` (/sap/bc/adt/oo/classes/zcl_example). Components are the declared ones, so nothing here says whether a method is implemented in a local class.",
+    "seeAlso": [
+      "objectStructureElements",
+      "getMethodSource",
+      "objectStructure",
+      "typeHierarchy"
+    ]
+  },
+  "classIncludes": {
+    "when": "Get the URLs of a class's includes (main, definitions, implementations, testclasses, macros) to read or edit local classes and unit tests; getMethodSource and setMethodSource take the include name directly, so this is mainly for getObjectSource and editObjectSource.",
+    "returns": "`{status, result: {main, definitions, implementations, testclasses, macros}}` mapping include names to URLs; an InvalidParams error when the name does not resolve to a class.",
+    "pitfalls": "The parameter is `clas` (class name; className and classUrl are accepted aliases). Use the returned URLs as they are, without /source/main. A test include that does not exist yet is created with createTestInclude.",
+    "seeAlso": [
+      "getObjectSource",
+      "getMethodSource",
+      "createTestInclude",
+      "objectStructure"
+    ]
+  },
+  "codeCompletion": {
+    "when": "Ask ADT for completion proposals at a cursor position in a source you supply (sourceUrl gives the context). Useful to discover method names, parameters and types of an unfamiliar class while writing code; unnecessary when you already know the API.",
+    "returns": "{status, result[]} of proposals as sent by the backend: IDENTIFIER (the text to complete), KIND, ROLE, VISIBILITY, PREFIXLENGTH, IS_INHERITED and further numeric flags; there is no description text.",
+    "pitfalls": "line is 1-based and the source must be the full text. Pair a proposal's IDENTIFIER with codeCompletionFull to get the insertion text.",
+    "seeAlso": [
+      "codeCompletionFull",
+      "codeCompletionElement",
+      "findDefinition",
+      "classComponents"
+    ]
+  },
+  "codeCompletionElement": {
+    "when": "Element information (type, signature, documentation link) for the identifier under the cursor in a supplied source, the hover help of ADT. For the keyword documentation itself use abapDocumentation.",
+    "returns": "{status, result} with the element's name, type, href, doc and components[] (each with adtcore:type, adtcore:name and entries[] of key/value pairs); the backend may answer with a plain string instead of an object.",
+    "pitfalls": "Needs the full source text and a 1-based line; an empty result usually means the cursor is not on an identifier.",
+    "seeAlso": [
+      "codeCompletion",
+      "findDefinition",
+      "abapDocumentation"
+    ]
+  },
+  "codeCompletionFull": {
+    "when": "Get the full insertion text (method call pattern with parameters) for a proposal returned by codeCompletion at the same position, identified by its IDENTIFIER as patternKey.",
+    "returns": "{status, result} with the completed text or pattern for that proposal.",
+    "pitfalls": "patternKey must be an IDENTIFIER from a codeCompletion call at the same sourceUrl, line and column; arbitrary values raise a backend exception.",
+    "seeAlso": [
+      "codeCompletion",
+      "codeCompletionElement"
+    ]
+  },
+  "collectionFeatureDetails": {
+    "when": "Details of a discovery collection by its URL (from adtDiscovery), such as supported content types and template links; low-level, for troubleshooting a backend that refuses a request.",
+    "returns": "{status, details} with the discovery entry that owns the collection (title and collection[] with href, title and templateLinks); details is absent when the URL matches nothing.",
+    "seeAlso": [
+      "findCollectionByUrl",
+      "adtDiscovery",
+      "featureDetails"
+    ]
+  },
+  "creatableTypeDetails": {
+    "when": "Know, without a SAP round trip, which object types createObject can create and which fields validateNewObject needs for each (DEVC/K wants swcomp, transportLayer, packagetype; FUGR/FF wants fugrname). loadTypes tells what the connected system actually offers.",
+    "returns": "`{status, types: [{typeId, label, maxNameLength, requiredValidationFields, createWith}]}`; filter with `typeId`.",
+    "pitfalls": "It reflects the abap-adt-api creatable type table, not the backend, so a type listed here can still be missing on the system.",
+    "seeAlso": [
+      "loadTypes",
+      "validateNewObject",
+      "createObject",
+      "objectTypes"
+    ]
+  },
+  "createAtcRun": {
+    "when": "Start an ATC run explicitly when you need the raw worklist afterwards (atcWorklists) or a custom maxResults; a check variant name is resolved to a worklist id for you. For a digest use atcSummary.",
+    "returns": "{status, result} with the run id (pass it as runResultId), timestamp and infos[].",
+    "pitfalls": "variant accepts a name or the 32-character worklist id; mainUrl can be an object, a package (/sap/bc/adt/packages/zpkg) or a transport URL. Refused on readOnly destinations.",
+    "seeAlso": [
+      "atcWorklists",
+      "atcSummary",
+      "atcCheckVariant",
+      "atcCustomizing"
+    ]
+  },
+  "createObject": {
+    "when": "Create an empty object skeleton (class, interface, program, CDS, package) after loadTypes and validateNewObject; then fill it with setObjectSource activate=true and run unitTestRun. DEVC/K packages are created with a hand-built ADT body that supports cloud tenants.",
+    "returns": "`{status, result}`; `result` is usually empty because ADT answers the creation with no body (absent for DEVC/K). The new object is inactive with template content until you write and activate it.",
+    "pitfalls": "`parentPath` is the ADT path of the parent (/sap/bc/adt/packages/ztest), `parentName` the package; non-local packages need `transport` (resolveTransport with createIfMissing). DEVC/K requires `swcomp` and cloud tenants require change recording (recordChanges defaults to true when a transportLayer is given). Some S/4HANA Cloud tenants refuse $TMP; the `allowedPackages` policy checks `parentName` (or the package in `parentPath`).",
+    "seeAlso": [
+      "validateNewObject",
+      "resolveTransport",
+      "setObjectSource",
+      "deleteObject"
+    ]
+  },
+  "createTestInclude": {
+    "when": "Create the empty testclasses include of a class before writing tests into it with setObjectSource on the include URL from classIncludes. Skip it when classIncludes already lists testclasses.",
+    "returns": "{status, message} (the ADT call returns no body, so no result field is present).",
+    "pitfalls": "Locks and unlocks the class by itself; pass lockHandle only when you hold a lock from lock. Needs transport for transportable packages (resolveTransport). The allowedPackages policy resolves the class package.",
+    "seeAlso": [
+      "classIncludes",
+      "setObjectSource",
+      "unitTestRun",
+      "resolveTransport"
+    ]
+  },
+  "createTransport": {
+    "when": "Create a workbench request explicitly when resolveTransport reports needsTransport=true with no candidates and you want control over the description or the transport layer. For the usual flow prefer resolveTransport with createIfMissing=true.",
+    "returns": "{status, transportNumber, message}; transportNumber is the new request (DEVK900123 style).",
+    "pitfalls": "Parameter names are BAPI style (REQUEST_TEXT, DEVCLASS); description and packageName are accepted as aliases. Denied on destinations whose policy lists allowedTransports; readOnly destinations refuse it as well.",
+    "seeAlso": [
+      "resolveTransport",
+      "transportInfo",
+      "transportRelease",
+      "transportDelete"
+    ]
+  },
+  "createTransportsConfig": {
+    "when": "Create the default transport-organizer configuration for the current user when transportConfigurations returns nothing and you need transportsByConfig. Not required for resolveTransport or userTransports.",
+    "returns": "{status, result} with the created configuration's filter settings (DateFilter, User, WorkbenchRequests, CustomizingRequests, TransportOfCopies, Modifiable, Released); list it afterwards with transportConfigurations to get its link and etag.",
+    "pitfalls": "Write tool, refused on readOnly destinations. Takes no parameters; the backend decides the defaults.",
+    "seeAlso": [
+      "transportConfigurations",
+      "hasTransportConfig",
+      "transportsByConfig"
+    ]
+  },
+  "ddicElement": {
+    "when": "Describe a DDIC entity or CDS view through the ADT element info service: fields with types, associations (getTargetForAssociation), extension views and secondary objects. Use it to learn a table's columns before writing runQuery SQL; for a single data element or domain use the dedicated get*Properties tools.",
+    "returns": "{status, result} with name, type, properties and children[] (fields, associations); children is paged with totalItems, startIndex, returnedItems, hasMore.",
+    "pitfalls": "path is the element path ADT expects (a table or CDS entity name, optionally with a field), not an ADT object URL. A single oversized child falls back to a hard truncation.",
+    "seeAlso": [
+      "ddicRepositoryAccess",
+      "cdsViewInfo",
+      "getDataElementProperties",
+      "runQuery"
+    ]
+  },
+  "ddicRepositoryAccess": {
+    "when": "Value-help style lookup of DDIC repository objects by path or name pattern (tables, views, data elements) when searchObject is too generic or you want the DDIC-specific list.",
+    "returns": "{status, result[]} of object references with uri, type, name and path; paged with totalItems, startIndex, returnedItems, hasMore.",
+    "seeAlso": [
+      "ddicElement",
+      "searchObject",
+      "packageSearchHelp"
+    ]
+  },
+  "debuggerAttach": {
+    "when": "Attach to the debuggee returned by `debuggerListen` (`debuggeeId` is its `DEBUGGEE_ID`); `dynproDebugging=true` also stops in screen flow logic.",
+    "returns": "`{status, result: DebugAttach {isRfc, isSameSystem, serverName, debugSessionId, processId, isPostMortem, isUserAuthorizedForChanges, isSteppingPossible?, isTerminationPossible, actions: [{name, title, link, disabled, ...}], reachedBreakpoints: [{id, kind}]}}`.",
+    "pitfalls": "`dynproDebugging` defaults to true in the library when omitted; pass `false` to skip screen flow logic. The attached session lives in this server's stateful ADT session: `dropSession`, `logout` or an HTTP session expiry ends it. Finish with `debuggerStep(terminateDebuggee)` or `detachDebugger` so the user's work process is released.",
+    "seeAlso": [
+      "debuggerListen",
+      "debuggerStackTrace",
+      "debuggerVariables",
+      "debuggerStep"
+    ]
+  },
+  "debuggerChildVariables": {
+    "when": "Expand one complex variable (structure, table, object reference) into its components or rows; `parent` is an array of variable IDs or names (omit it to list the root level, the library default `[\"@DATAAGING\", \"@ROOT\"]`), paged with `startIndex`/`maxItems`.",
+    "returns": "`{status, result: {variables: [DebugVariable], hierarchies: [{PARENT_ID, CHILD_ID, CHILD_NAME}]}}` plus the paging fields; `variables` and `hierarchies` are sliced in lockstep.",
+    "pitfalls": "Only variables whose `META_TYPE` is structure, table, dataref, objectref, class, object or boxref have children (abap-adt-api's `debugMetaIsComplex`); expanding a simple one returns nothing useful.",
+    "seeAlso": [
+      "debuggerVariables",
+      "debuggerStackTrace"
+    ]
+  },
+  "debuggerDeleteBreakpoints": {
+    "when": "Remove one breakpoint (pass the `DebugBreakpoint` object returned by `debuggerSetBreakpoints`) for the given mode, terminal, IDE and `requestUser`.",
+    "returns": "`{status, result: undefined}`.",
+    "pitfalls": "One breakpoint per call, and the user parameter is `requestUser` here while the other debugger tools call it `user` (the alias mapping does not bridge that).",
+    "seeAlso": [
+      "debuggerSetBreakpoints",
+      "debuggerDeleteListener"
+    ]
+  },
+  "debuggerDeleteListener": {
+    "when": "Stop the listener registered by `debuggerListen` for that `debuggingMode`, `terminalId`, `ideId` and `user`; do it at the end of every debug session so other IDEs of the same user are not blocked.",
+    "returns": "`{status, result: undefined}`.",
+    "pitfalls": "Use the same identifiers as the listen call; a listener left behind shows up in `debuggerListeners` with `checkConflict=true`.",
+    "seeAlso": [
+      "debuggerListen",
+      "debuggerListeners"
+    ]
+  },
+  "debuggerGoToStack": {
+    "when": "Move the debugger cursor to another stack entry (`stackUri` from `debuggerStackTrace`, or a numeric position on older backends) so that `debuggerVariables` reads that frame.",
+    "returns": "`{status, result: undefined}`.",
+    "pitfalls": "Changes the inspected frame, not the execution point; a string argument uses the URI-based API, a number the legacy position-based one. The string must look like `/sap/bc/adt/debugger/stack/type/<type>/position/<n>` (the `stackUri` of a stack entry), otherwise the library refuses it with 'Invalid stack URL' before calling SAP.",
+    "seeAlso": [
+      "debuggerStackTrace",
+      "debuggerVariables"
+    ]
+  },
+  "debuggerListen": {
+    "when": "Wait for a session of `user` to reach an external breakpoint set with `debuggerSetBreakpoints`; the answer is the debuggee to attach to. Trigger the code (`runClass`, a request, a job) after the listener has started.",
+    "returns": "`{status, result: Debuggee {DEBUGGEE_ID, CLIENT, SYSID, APPLSERVER, HOST, URI, TYPE, NAME, DESCRIPTION, DUMPID, ...} | DebugListenerError | undefined}`.",
+    "pitfalls": "The call blocks this destination's SAP session (and its call queue) until a debuggee arrives or the backend times out, so hosts with short tool timeouts may cut it; `checkConflict` and `isNotifiedOnConflict` decide what happens when another IDE already listens for the same user. [docs/FIELD-NOTES.md](FIELD-NOTES.md) records a session where the plan stalled because the job could not be started from the agent.",
+    "seeAlso": [
+      "debuggerSetBreakpoints",
+      "debuggerAttach",
+      "debuggerDeleteListener",
+      "runClass"
+    ]
+  },
+  "debuggerListeners": {
+    "when": "Check whether a listener for this user and terminal already exists (`checkConflict=true` reports one held by another IDE) before `debuggerListen`. `debuggingMode` is `user` or `terminal`, as in Eclipse.",
+    "returns": "`{status, result: DebugListenerError {namespace, type, message, localizedMessage, conflictText, ideUser} | undefined}` (undefined means no conflict).",
+    "pitfalls": "`terminalId` and `ideId` are arbitrary identifiers but must stay identical across the whole debug session; `checkConflict` defaults to true in the library. The toolset is refused before calling SAP where the backend lacks `/sap/bc/adt/debugger` (see [docs/CONFIGURATION.md](CONFIGURATION.md), The platform gate) and is not in the `focused` preset.",
+    "seeAlso": [
+      "debuggerListen",
+      "debuggerDeleteListener",
+      "systemProfile"
+    ]
+  },
+  "debuggerSaveSettings": {
+    "when": "Change the debugger settings of the session (`systemDebugging`, `createExceptionObject`, `backgroundRFC`, `sharedObjectDebugging`, `showDataAging`, `updateDebugging`) before or while attached.",
+    "returns": "`{status, result: DebugSettings}` with all six flags as stored.",
+    "pitfalls": "`settings` is a partial object; flags you omit keep their current value.",
+    "seeAlso": [
+      "debuggerAttach",
+      "debuggerSetBreakpoints"
+    ]
+  },
+  "debuggerSetBreakpoints": {
+    "when": "Register external breakpoints (an array of source URLs with `#start=<line>`, or `DebugBreakpoint` objects) for `user` under a `clientId`; `scope=external` is what a listener needs, `debugger` targets a live debug session.",
+    "returns": "`{status, result: [DebugBreakpoint {kind, clientId, id, uri, type, name, condition?} | DebugBreakpointError {kind, clientId, errorMessage}]}`; keep the objects for `debuggerDeleteBreakpoints`.",
+    "pitfalls": "`systemDebugging=true` also stops inside SAP code, `deactivated=true` registers them switched off; the scope-sync parameter is spelled `syncScupeUrl` in the schema (mapped to the library's `syncScopeUri`). Line numbers refer to the source `getObjectSource` returns.",
+    "seeAlso": [
+      "debuggerListen",
+      "debuggerDeleteBreakpoints",
+      "getObjectSource"
+    ]
+  },
+  "debuggerSetVariableValue": {
+    "when": "Overwrite a variable in the attached debuggee (`value` as a string in ADT's display format) to test a branch without changing code; destructive for the running session.",
+    "returns": "`{status, result: the value as SAP echoes it back (string)}`.",
+    "pitfalls": "Needs `isUserAuthorizedForChanges` in the attach result (debug change authorization); a `readOnly` policy or `MCP_READ_ONLY=1` refuses the tool outright.",
+    "seeAlso": [
+      "debuggerVariables",
+      "debuggerStep",
+      "debuggerAttach"
+    ]
+  },
+  "debuggerStackTrace": {
+    "when": "Read the call stack of the attached debuggee; `semanticURIs=true` returns object URIs usable with `getObjectSource` and `debuggerGoToStack`.",
+    "returns": "`{status, result: DebugStackInfo {isRfc, isSameSystem, serverName, debugCursorStackIndex?, stack: [{stackPosition, stackType, stackUri, programName, includeName, line, eventType, eventName, sourceType, systemProgram, uri}]}}`.",
+    "pitfalls": "Only meaningful after `debuggerAttach`; without an attached session the backend answers with an error.",
+    "seeAlso": [
+      "debuggerAttach",
+      "debuggerGoToStack",
+      "getObjectSource"
+    ]
+  },
+  "debuggerStep": {
+    "when": "Drive the attached debuggee: `stepInto`, `stepOver`, `stepReturn`, `stepContinue`, `stepRunToLine` and `stepJumpToLine` (both with `url=<source URL>#start=<line>`), `terminateDebuggee` or `detachDebugger` to finish.",
+    "returns": "`{status, result: DebugStep {isDebuggeeChanged, settings, reachedBreakpoints?, isSteppingPossible?, isTerminationPossible, actions, debugSessionId, ...}}`.",
+    "pitfalls": "After `stepContinue` the debuggee runs to the next breakpoint or to its end; once it ended, further steps fail and a new `debuggerListen` is needed. Always end with `terminateDebuggee` or `detachDebugger`, otherwise the user's session stays frozen.",
+    "seeAlso": [
+      "debuggerAttach",
+      "debuggerStackTrace",
+      "debuggerVariables",
+      "debuggerSetBreakpoints"
+    ]
+  },
+  "debuggerVariables": {
+    "when": "Read variables of the current stack frame by name (`parents=[\"SY\", \"LT_DATA\"]`); page big tables with `startIndex`/`maxItems`. For the components of one structure or the rows of one table use `debuggerChildVariables`.",
+    "returns": "`{status, result: [DebugVariable {ID, NAME, DECLARED_TYPE_NAME, ACTUAL_TYPE_NAME, KIND, META_TYPE, VALUE, HEX_VALUE, TABLE_LINES, LENGTH, IS_VALUE_INCOMPLETE, IS_EXCEPTION, ...}]}`, plus `totalItems, startIndex, returnedItems, hasMore, autoPaged?, capped?` when paged.",
+    "pitfalls": "Values are strings as ADT renders them; `IS_VALUE_INCOMPLETE` flags truncated ones. Answers over `MCP_MAX_RESPONSE_CHARS` are paged automatically.",
+    "seeAlso": [
+      "debuggerChildVariables",
+      "debuggerStackTrace",
+      "debuggerSetVariableValue"
+    ]
+  },
+  "deleteObject": {
+    "when": "Remove an object you created (cleanup of throwaway classes, snippets, test packages). It locks the object itself when no lockHandle is given and keeps nothing behind, since the object is gone on success.",
+    "returns": "`{status, result, message: \"Object deleted successfully\"}`.",
+    "pitfalls": "Annotated destructive and irreversible; transportable packages need `transport` (resolveTransport), and the `allowedPackages` policy resolves the package from the URL. Delete the contents of a package before the package itself; the objectUrl to package memo is cleared afterwards. Verify with searchObject.",
+    "seeAlso": [
+      "lock",
+      "resolveTransport",
+      "searchObject",
+      "transportDetails"
+    ]
+  },
+  "dropSession": {
+    "when": "Reset the local SAP session when handles are dead (CSRF rejected, `staleLockHandle` after a timeout) or the stateful session behaves oddly, for example `runClass` printing stale output. Prefer forceUnlock with dropSession=true when the reason is a lock left behind.",
+    "returns": "`{status: \"Session cleared\", locksReleased: [...], lockReleaseFailures: [...]}`; the recorded locks are released first, the source cache is cleared, then the session is dropped.",
+    "pitfalls": "Annotated destructive: any lockHandle obtained before is invalid afterwards, and write tools re-lock on their own. It cannot break a lock held by another session (Eclipse of the same user included); the `locked` hint explains that only SM12 or that session can (docs/FIELD-NOTES.md, session B).",
+    "seeAlso": [
+      "forceUnlock",
+      "logout",
+      "login",
+      "listLocks"
+    ]
+  },
+  "dumpDetails": {
+    "when": "Full text of one dump (header, what happened, error analysis, where terminated, source extract, variables, call stack) once `dumps` gave you a `dumpId` or the summary is not enough. For triage across many dumps stay with `dumps`.",
+    "returns": "`{status, dumpId, text, totalLines, startLine, returnedLines, hasMore, capped?}`; `text` is the plain-text rendering ADT serves for `/sap/bc/adt/runtime/dump/<id>`.",
+    "pitfalls": "The id keeps ADT's percent-encoding (it contains spaces); pass it exactly as `dumps` returned it or as the full self link, both are normalized (`id` is accepted as an alias). Long dumps are shrunk to `MCP_MAX_RESPONSE_CHARS`; page with `startLine`/`maxLines`.",
+    "seeAlso": [
+      "dumps",
+      "getObjectSource",
+      "runSnippet"
+    ]
+  },
+  "dumps": {
+    "when": "First stop for a runtime error: recent short dumps as compact summaries, filtered by `from`/`to`, `user` or a `contains` substring, with `terminatedAt` and `stack` ready for `getObjectSource`. It is the root-cause path whenever the destination lacks the `debugger` toolset; for one dump whose id you already hold, call `dumpDetails`.",
+    "returns": "`{status, feed: {href, title, updated}, totalInFeed, totalItems, startIndex, returnedItems, hasMore, dumps: [{dumpId, timestamp, user, runtimeError, exception, shortText, program, applicationComponent, dateTime, client, host, terminatedAt: {objectSourceUrl, line}, whatHappened, errorAnalysis, whereTerminated, stack: [{no, event, program, include, line, sourceUrl}]}], filters?, autoPaged?, capped?, note?}`; `includeHtml=true` adds `html` per dump. A `from`/`to` value in an unknown format fails with InvalidParams.",
+    "pitfalls": "Filters apply only to the recent window the feed returns (`totalInFeed`), not to the whole ST22 history; timestamps without a zone are taken literally as system time; `user` is matched exactly after upper-casing. Full walk-through in [docs/WORKFLOWS.md](WORKFLOWS.md), Runtime and diagnosis.",
+    "seeAlso": [
+      "dumpDetails",
+      "getObjectSource",
+      "whereUsed",
+      "systemProfile"
+    ]
+  },
+  "editObjectSource": {
+    "when": "The default tool for changing existing code: `replacements` with unique oldText anchors survives line drift between calls, the line-range mode with `expectedText` is for edits driven by line numbers you just read. Use setMethodSource when the change is exactly one method, setObjectSource for full rewrites.",
+    "returns": "Replacements mode: `{status, updated, lockMode, mode: \"replacements\", replacementsApplied, applied: [{index, line, linesRemoved, linesAdded}], totalLinesBefore, totalLinesAfter, activation?}`. Line-range mode: `{..., totalLinesBefore, totalLinesAfter, linesReplaced, linesInserted}`. An anchor with several matches fails with InvalidRequest naming the lines, one with 0 matches asks for a fresh getObjectSource; nothing is written either way.",
+    "pitfalls": "The current source is always re-fetched from SAP (ADT default: inactive if present), never from the cache; copy anchors from a fresh getObjectSource including indentation. In replacements mode CRLF is normalised on both sides; the line-range mode splits on LF only. `replacements` is declared as a JSON string in the schema; an actual array is accepted too.",
+    "seeAlso": [
+      "setObjectSource",
+      "setMethodSource",
+      "getObjectSource",
+      "objectDiff"
+    ]
+  },
+  "exportPackageSources": {
+    "when": "Bring a package tree to the local file system in abapGit layout so local grep, editors, review or documentation tooling can work on it; read-only on SAP. For a quick in-session search use grepPackage instead.",
+    "returns": "`{status, targetDir, packages, objects, objectsTruncated, filesWritten, bytes, exportableTypes, skipped: [{object, type, reason}] (first 50), failed: [{object, error}] (first 20), files: [relative paths] (first 200)}`; an EXPORT.json manifest is written next to the files, one sub-folder per package.",
+    "pitfalls": "`targetDir` must be absolute and inside MCP_EXPORT_ROOT (default ~/.abap-adt-mcp/exports), otherwise InvalidParams; existing files are skipped unless overwrite=true. Only classes (with includes), interfaces, programs and includes, CDS, access controls, metadata extensions, behavior and service definitions and function modules are exported; other types are listed as skipped. Allowed on readOnly destinations; progress notifications report the count.",
+    "seeAlso": [
+      "packageTree",
+      "grepPackage",
+      "getObjectSource",
+      "classIncludes"
+    ]
+  },
+  "extractMethodEvaluate": {
+    "when": "Turn a statement range of a method into a new method: pass the source URL and `range` as a JSON string (`{\"start\":{\"line\",\"column\"},\"end\":{\"line\",\"column\"}}`) and receive the proposal with the detected parameters and exceptions. For a simple cut-and-paste `editObjectSource` is cheaper.",
+    "returns": "`{status, result: ExtractMethodProposal {name, isStatic, isForTesting, visibility, classBasedExceptions, genericRefactoring: {title, adtObjectUri, transport, affectedObjects, ...}, content, className, isEventAllowed, isEvent, userContent, parameters: [{id, name, direction, byValue, typeType, type}], exceptions}}`; set `name` and `visibility` before `extractMethodPreview`.",
+    "pitfalls": "When the stateful session answers 'No selection supplied' the server retries once in stateless mode (a live finding, see CHANGELOG.md); `range` must parse as JSON or the call fails with InvalidParams.",
+    "seeAlso": [
+      "extractMethodPreview",
+      "extractMethodExecute",
+      "getMethodSource",
+      "editObjectSource"
+    ]
+  },
+  "extractMethodExecute": {
+    "when": "Apply the extract-method refactoring returned by `extractMethodPreview`; destructive. Then activate and rerun the unit tests (the live test plan in [docs/TESTPLAN.md](TESTPLAN.md) executed the full evaluate, preview, execute cycle this way).",
+    "returns": "`{status, result: GenericRefactoring as executed}`; `policyDenied` under `allowedPackages` (package of `adtObjectUri`). `allowedTransports` is not evaluated here: the transport sits inside the refactoring, so pick it at the preview step.",
+    "pitfalls": "No activation is triggered; call `activateObjects` afterwards. Until then the include is inactive, which is what `getObjectSource` shows by default.",
+    "seeAlso": [
+      "extractMethodPreview",
+      "activateObjects",
+      "unitTestRun",
+      "objectDiff"
+    ]
+  },
+  "extractMethodPreview": {
+    "when": "Second step: send the edited proposal (JSON string or object) and get the generic refactoring with affected objects and deltas that `extractMethodExecute` applies. Nothing is written.",
+    "returns": "`{status, result: GenericRefactoring {title, adtObjectUri, transport, ignoreSyntaxErrorsAllowed, ignoreSyntaxErrors, userContent, affectedObjects}}`.",
+    "pitfalls": "There is no `transport` argument: the transport travels inside the proposal's `genericRefactoring.transport`, so set it there for transportable packages.",
+    "seeAlso": [
+      "extractMethodEvaluate",
+      "extractMethodExecute",
+      "resolveTransport"
+    ]
+  },
+  "featureDetails": {
+    "when": "Details of one ADT feature by its title as listed in the discovery document (accepted content types, template links). For per-toolset availability use systemProfile, which already interprets discovery.",
+    "returns": "{status, details} with the feature's discovery entry (title and collection[] with href, title and templateLinks); details is absent when no feature carries that title.",
+    "seeAlso": [
+      "collectionFeatureDetails",
+      "adtDiscovery",
+      "systemProfile"
+    ]
+  },
+  "feeds": {
+    "when": "Discover which ADT feeds the backend publishes (the short-dump feed among them) and the attributes, operators and query variants each accepts, before composing a `dumps(query)` string. It is a metadata call only: for the dumps themselves go straight to `dumps`.",
+    "returns": "`{status, feeds: [{author, href, published, summary, title, updated, accept, refresh: {value, unit}, paging?, operators, dataTypes, attributes, queryVariants, queryIsObligatory?, queryDepth?}]}` as abap-adt-api parses `/sap/bc/adt/feeds`, unpaged.",
+    "pitfalls": "The `runtime` toolset is gated on `/sap/bc/adt/feeds` (see [docs/CONFIGURATION.md](CONFIGURATION.md), The platform gate); nothing in the answer is filtered or shrunk, so a system with many feeds returns a long list.",
+    "seeAlso": [
+      "dumps",
+      "dumpDetails",
+      "systemProfile"
+    ]
+  },
+  "fetchServiceDetails": {
+    "when": "The name-based way to inspect a service binding: service URLs, entity sets, navigations and ready-to-open preview URLs, resolved through `searchObject` (type `SRVB`). Use it unless you already hold a parsed binding object for `bindingDetails`.",
+    "returns": "`{status, binding: {name, published, type, version, services}, details: {link, services: [{repositoryId, serviceId, serviceVersion, serviceUrl, annotationUrl, published, created, serviceInformation: {name, version, url, collection: [{name, navigation: [{name, target}]}]}, previewUrls: [{collection, url}]}]}}`; `index` picks one service when the binding has several. InvalidParams when the `SRVB` search returns nothing; when it returns hits but none matches `name` exactly, the first hit is taken, so check `binding.name` in the answer.",
+    "pitfalls": "For some OData V4 bindings abap-adt-api cannot derive the service queries: the call then succeeds with `details: null` and a `note` (recorded in [docs/TESTPLAN.md](TESTPLAN.md)), so fall back to `binding.services`.",
+    "seeAlso": [
+      "bindingDetails",
+      "publishServiceBinding",
+      "searchObject",
+      "objectStructure"
+    ]
+  },
+  "findCollectionByUrl": {
+    "when": "Look up the discovery collection that serves a given ADT URL, to confirm the backend exposes an endpoint before calling a tool that depends on it (for example /sap/bc/adt/datapreview).",
+    "returns": "{status, collection} where collection is {discoveryResult, collection {href, title, templateLinks[]}}; when nothing matches the call still succeeds and the collection field is simply missing (no error is raised).",
+    "seeAlso": [
+      "adtDiscovery",
+      "collectionFeatureDetails",
+      "systemProfile"
+    ]
+  },
+  "findDefinition": {
+    "when": "Jump from a usage to its definition: given a source, line and the column range of the identifier, ADT returns the object and position that defines it (implementation=true goes to the implementation instead of the declaration). Use searchObject when you only have a name.",
+    "returns": "{status, result} with url, line and column of the definition.",
+    "pitfalls": "startCol and endCol must delimit the identifier exactly; for includes pass mainProgram. ADT parses the source you pass, so send the current one.",
+    "seeAlso": [
+      "usageReferences",
+      "searchObject",
+      "findObjectPath",
+      "codeCompletionElement"
+    ]
+  },
+  "findObjectPath": {
+    "when": "Find where an object URL sits in the package hierarchy (superpackages down to the object), for example to pick the package for resolveTransport or to check an `allowedPackages` policy.",
+    "returns": "`{status, path: [{\"adtcore:name\", \"adtcore:type\", \"adtcore:uri\"}...], message}` the package steps and the object as ADT reports them (each step also carries `projectexplorer:category`).",
+    "pitfalls": "Takes the object URL, not a name: resolve names with searchObject first.",
+    "seeAlso": [
+      "searchObject",
+      "packageTree",
+      "transportInfo",
+      "objectRegistrationInfo"
+    ]
+  },
+  "fixEdits": {
+    "when": "Compute the text edits for one proposal from fixProposals when you want to inspect or apply them yourself. For the common case of an ATC finding use atcApplyQuickfix, which applies and writes in one call.",
+    "returns": "{status, result[]} of deltas, each with uri, range {start, end} (1-based lines, 0-based columns), name, type and content.",
+    "pitfalls": "Nothing is written to SAP; you still need setObjectSource or editObjectSource. Deltas can target objects other than the one you checked. The tool is nevertheless classified as a write (not in the read-only set), so readOnly destinations refuse it.",
+    "seeAlso": [
+      "fixProposals",
+      "atcApplyQuickfix",
+      "editObjectSource",
+      "setObjectSource"
+    ]
+  },
+  "fixProposals": {
+    "when": "List the ADT quick fixes (quick assists) available at a position of a supplied source: create missing method, declare unknown variable, and the ATC quick fixes. For ATC findings the wrapper atcQuickfixProposals fetches the source for you.",
+    "returns": "{status, result[]} of proposals with adtcore:name, adtcore:description and adtcore:type.",
+    "pitfalls": "Pass the full current source; column is 0-based as reported by ADT. Apply a proposal with fixEdits (raw deltas) or atcApplyQuickfix (applied and written).",
+    "seeAlso": [
+      "fixEdits",
+      "atcQuickfixProposals",
+      "atcApplyQuickfix",
+      "syntaxCheckCode"
+    ]
+  },
+  "forceUnlock": {
+    "when": "A write reported `unlockError`, a failed call left an object locked, or a session change made the handles invalid. Pass `objectUrl` to release one object; add dropSession=true when SAP no longer accepts the recorded handles.",
+    "returns": "`{status: \"success\", released: [objectUrl...], failed: [{objectUrl, error}], sessionDropped, remaining}` where `remaining` is the number of ledger entries still held afterwards (0 after dropSession).",
+    "pitfalls": "Annotated destructive. With dropSession=true the ledger is cleared without asking SAP, so entries in `failed` are simply forgotten. Locks of other sessions are untouched; that needs SM12 or the owning session.",
+    "seeAlso": [
+      "listLocks",
+      "unLock",
+      "dropSession",
+      "lock"
+    ]
+  },
+  "fragmentMappings": {
+    "when": "Map a named fragment of an object (type and name of a method, include or part) to its position in the source URL, to locate a method body when you only have its name. getMethodSource and classIncludes cover the class case more directly.",
+    "returns": "{status, result} with the fragment's uri, line and column (a single position, not a range).",
+    "pitfalls": "Thin wrapper over the ADT fragment endpoint; the type codes follow ADT conventions.",
+    "seeAlso": [
+      "getMethodSource",
+      "classIncludes",
+      "objectStructure",
+      "findDefinition"
+    ]
+  },
+  "getDataElementProperties": {
+    "when": "Read a data element (domain or built-in type, length, field labels, search help): the tool that answers how a key is stored (leading zeros, conversion exit through its domain) so runQuery filters match.",
+    "returns": "{status, properties, metaData} spread at top level: properties carries typeName, dataType, dataTypeLength, dataTypeDecimals, fieldLabels, searchHelp, searchHelpParameter, setGetParameter and the flags (changeDocument, deactivateInputHistory and so on); metaData carries name, description, language, responsible and packageName. version selects active, inactive or workingArea.",
+    "seeAlso": [
+      "setDataElementProperties",
+      "getDomainProperties",
+      "runQuery",
+      "ddicElement"
+    ]
+  },
+  "getDomainProperties": {
+    "when": "Read a domain (type, length, decimals, conversion exit, fixed values, value table), for example to learn the internal format of a key before querying it or to prepare a setDomainProperties change.",
+    "returns": "{status, properties, metaData} spread at top level: properties carries typeInformation {datatype, length, decimals}, outputInformation {length, style, conversionExit, signExists, lowercase, ampmFormat} and valueInformation {valueTableRef, appendExists, fixValues[] with low, high, text}; metaData carries name, description, language, masterLanguage, masterSystem, responsible and packageName. version selects active, inactive or workingArea.",
+    "seeAlso": [
+      "setDomainProperties",
+      "getDataElementProperties",
+      "runQuery"
+    ]
+  },
+  "getMethodSource": {
+    "when": "Read one METHOD ... ENDMETHOD block by class name and method name instead of the whole class; interface methods as IF_X~M, local and test classes through include=implementations or testclasses.",
+    "returns": "`{status, classUrl, sourceUrl, include, method, className, startLine, endLine, lines, amdp, source}`. A missing method answers `isError` with `found: false`, `methodsInInclude` (class=>method labels) and a hint; an ambiguous name answers `ambiguous: true` with `candidates: [{className, startLine, endLine}]`.",
+    "pitfalls": "Line numbers refer to the include read (`sourceUrl`), the URL to pass to editObjectSource in line-range mode; setMethodSource finds the method by name again. Definitions (method signatures) live in include=definitions for local classes and in main for the global class; this tool returns implementations.",
+    "seeAlso": [
+      "setMethodSource",
+      "getObjectSource",
+      "classIncludes",
+      "classComponents"
+    ]
+  },
+  "getObjectSource": {
+    "when": "Read a whole source (class main include, program, interface, CDS DDL, function module, behavior definition). For one method use getMethodSource, for an outline objectStructureElements, and to locate code across objects sourceTextSearch or grepPackage before reading anything.",
+    "returns": "`{status, source, totalLines, startLine, returnedLines, hasMore}`; large sources add `autoPaged: true` and, when the requested range was shrunk, `capped: true` with a `note`. When the URL was rewritten (class include suffix removed, bare object URL retried with /source/main) the answer carries `objectSourceUrl` and `note`.",
+    "pitfalls": "Without `version` you get what ADT serves by default: the inactive version when one exists, else the active one; pass version=active to be sure. Class include URLs from classIncludes are used without /source/main (404 otherwise, fixed in 0.3.3), message classes return ADT XML. The source is cached for about five minutes (MCP_SOURCE_CACHE_TTL_SECONDS) so syntaxCheckCode and typeHierarchy can reuse it.",
+    "seeAlso": [
+      "getMethodSource",
+      "editObjectSource",
+      "classIncludes",
+      "objectDiff"
+    ]
+  },
+  "getTextElements": {
+    "when": "Read text symbols (TEXT-001), selection texts or list headings of a program, class or function group, typically before setTextElements or when translating literals.",
+    "returns": "`{status, category, textElements: [{id, text, maxLength?, ddicReference?}], programName}`.",
+    "pitfalls": "Pass the object URL (for example /sap/bc/adt/programs/programs/zreport), not a source URL. `category` defaults to symbols.",
+    "seeAlso": [
+      "setTextElements",
+      "lock",
+      "getObjectSource"
+    ]
+  },
+  "getTransportConfiguration": {
+    "when": "Read one transport-organizer configuration by the URL taken from transportConfigurations, typically to see its filter settings before changing them with setTransportsConfig (the etag for that call comes from the transportConfigurations entry, not from this answer).",
+    "returns": "{status, configuration} with the filter settings as parsed by abap-adt-api: DateFilter (plus FromDate and ToDate for a date range), User, WorkbenchRequests, CustomizingRequests, TransportOfCopies, Modifiable and Released.",
+    "pitfalls": "The server removes a ?sap-client=NNN segment that some backends inject mid-path; without that the GET would land on the list endpoint.",
+    "seeAlso": [
+      "transportConfigurations",
+      "setTransportsConfig",
+      "transportsByConfig"
+    ]
+  },
+  "gitCreateRepo": {
+    "when": "Link a package to a remote repository (online repository object): `packageName`, `repourl`, optional `branch` (`refs/heads/main`) and `transport` for transportable packages. It creates the link only; import with `gitPullRepo` afterwards.",
+    "returns": "`{status, result}` where `result` is an array with one entry per object abapGit reported; abap-adt-api's parser drops the object fields, so the entries serialize as `null` and only the count is meaningful. Failures carry the ADT message.",
+    "pitfalls": "`packageName` is checked against `allowedPackages` and `transport` against `allowedTransports`; the library's default branch is `refs/heads/master`, so pass `branch` explicitly.",
+    "seeAlso": [
+      "gitExternalRepoInfo",
+      "gitPullRepo",
+      "gitRepos",
+      "resolveTransport"
+    ]
+  },
+  "gitExternalRepoInfo": {
+    "when": "Before linking: have the backend inspect a remote URL (access mode, branches). `user`/`password` fall back to the destination's `gitUser`/`gitPassword` from `systems.json`, so remote tokens never enter the conversation.",
+    "returns": "`{status, repoInfo: {access_mode: \"PUBLIC\" | \"PRIVATE\", branches: [{sha1, name, type, is_head, display_name}]}}`.",
+    "pitfalls": "The SAP system makes the outbound call, so its proxy and certificate setup decide the outcome, not the machine running this server.",
+    "seeAlso": [
+      "gitCreateRepo",
+      "remoteRepoInfo",
+      "gitRepos"
+    ]
+  },
+  "gitPullRepo": {
+    "when": "Import the remote state of a linked repository into its package (`repoId` is `key` from `gitRepos`), optionally on a `branch` and `transport`; page the reported object list with `startIndex`/`maxItems`. Follow with `activatePackage` or `activateObjects`.",
+    "returns": "`{status, result: [one entry per imported or changed object]}`, and when paged `totalObjects, startIndex, returnedObjects, hasMore, autoPaged?, capped?, note?`. abap-adt-api's parser drops the per-object fields (type, name, package, status, message), so the entries serialize as `null`: use the count, then `inactiveObjects` or `packageTree` to see what arrived.",
+    "pitfalls": "The pull has already happened when the list is paged: paging limits the report, never the import. Refused on any destination with `allowedPackages` (the target packages cannot be derived); `transport` is checked against `allowedTransports`; the server clears its package memo afterwards. The library defaults `branch` to `refs/heads/master`, so pass it when the repository uses another branch. See [docs/WORKFLOWS.md](WORKFLOWS.md), abapGit and local exports.",
+    "seeAlso": [
+      "gitRepos",
+      "activatePackage",
+      "inactiveObjects",
+      "gitCreateRepo"
+    ]
+  },
+  "gitRepos": {
+    "when": "List the abapGit repositories linked on the system with key, package, URL, branch and links; the repo objects it returns are what `stageRepo`, `pushRepo`, `checkRepo`, `remoteRepoInfo` and `switchRepoBranch` expect.",
+    "returns": "`{status, repos: [{key, sapPackage, url, branch_name, created_by, created_at, created_email?, deserialized_by?, deserialized_email?, deserialized_at?, status?, status_text?, links: [{href, rel, type}]}]}`.",
+    "pitfalls": "The `git` toolset is gated on `/sap/bc/adt/abapgit/repos` (the abapGit ADT plugin must be installed) and is not in the `focused` preset; `deniedTools: [\"git*\"]` keeps the tools listed but refuses them on that destination.",
+    "seeAlso": [
+      "gitPullRepo",
+      "stageRepo",
+      "checkRepo",
+      "systemProfile"
+    ]
+  },
+  "gitUnlinkRepo": {
+    "when": "Remove the abapGit link of a repository (`repoId` = `key` from `gitRepos`) while keeping the ABAP objects; destructive for the link, so confirm with the user.",
+    "returns": "`{status, result: undefined}`; an unknown key surfaces as the ADT error.",
+    "pitfalls": "`repository` and `repo` are accepted as aliases of `repoId`; nothing is deleted from the package or the remote.",
+    "seeAlso": [
+      "gitRepos",
+      "gitCreateRepo"
+    ]
+  },
+  "grepPackage": {
+    "when": "Substring or regex search with context lines over the sources of a package tree, on any backend including S/4HANA Cloud; the tool for literals, message numbers, SQL fragments or patterns the text index cannot express. For a system-wide identifier lookup try sourceTextSearch first.",
+    "returns": "`{status, packageName, pattern, packagesScanned, objectsScanned, objectsTruncated, totalMatches, matchesTruncated, returnedMatches, matches: [{objectUrl, name, type, line, text, context?}], failures: [{objectUrl, error}] (first 20), capped}`.",
+    "pitfalls": "Every source is downloaded once (cached about five minutes) and scanned sequentially on the single stateful session, so a big package is slow: `maxObjects` defaults to 200 and `maxMatches` to 200, and progress notifications show the scan count. Only greppable types are read (classes, interfaces, programs, includes, CDS, access controls, metadata extensions, behavior and service definitions, function modules and includes); DDIC tables and message classes are not. Matching is case-insensitive unless caseSensitive=true; `contextLines` defaults to 1; function groups are expanded only when `objectTypes` is empty or names FUGR/FF or FUGR/I.",
+    "seeAlso": [
+      "sourceTextSearch",
+      "packageTree",
+      "getObjectSource",
+      "exportPackageSources"
+    ]
+  },
+  "hasTransportConfig": {
+    "when": "Check whether the backend exposes the transport-organizer configuration feature before calling transportConfigurations or transportsByConfig. Not needed for the everyday object workflow, where resolveTransport is enough.",
+    "returns": "{status, hasConfig} with a boolean.",
+    "seeAlso": [
+      "transportConfigurations",
+      "createTransportsConfig",
+      "transportsByConfig"
+    ]
+  },
+  "healthcheck": {
+    "when": "Confirm the server process is up, which version it runs and which toolsets are active, typically right after installing or changing MCP_TOOLSETS. It does not contact SAP; use login or systemProfile to prove connectivity.",
+    "returns": "`{status: \"healthy\", version, destinations: [name...], default, activeToolsets: [...], tools: <count of tools in tools/list>}`.",
+    "pitfalls": "`tools` counts what the current toolset selection publishes, so a missing tool means its toolset is disabled (MCP_TOOLSETS / MCP_DISABLED_TOOLSETS, docs/TOOLS.md), not that the server lacks it.",
+    "seeAlso": [
+      "listSystems",
+      "systemProfile",
+      "login"
+    ]
+  },
+  "inactiveObjects": {
+    "when": "See what is inactive on the system across all users, for example to find leftovers before a transport release or to feed activateObjects.",
+    "returns": "When it fits, the raw array `[{object: {\"adtcore:uri\", \"adtcore:type\", \"adtcore:name\", \"adtcore:parentUri\", user, deleted}, transport?: {...}}]`; when paged, `{status, result: [...], totalObjects, startIndex, returnedObjects, hasMore, autoPaged?, capped?}`.",
+    "pitfalls": "The unpaged answer has no `status` wrapper. The list is system-wide; activatePackage filters it by package tree and user for you.",
+    "seeAlso": [
+      "activateObjects",
+      "activatePackage",
+      "activateByName"
+    ]
+  },
+  "isProposalMessage": {
+    "when": "Check whether the object returned by atcExemptProposal is a real proposal or only a message (for example that no exemption is possible) before calling atcRequestExemption.",
+    "returns": "{status, result} with a boolean: true means the object is a message, not a proposal.",
+    "seeAlso": [
+      "atcExemptProposal",
+      "atcRequestExemption"
+    ]
+  },
+  "listLocks": {
+    "when": "A write failed with a lock or lockHandle error, or you are about to call forceUnlock and want to know what this server actually holds on the destination.",
+    "returns": "`{status: \"success\", count, locks: [{objectUrl, lockHandle, accessMode?, acquiredAt, auto?}]}`; `auto: true` marks locks a write tool acquired for itself and normally releases on its own.",
+    "pitfalls": "It reads the server ledger only, not SM12: locks of Eclipse sessions or other users never show up here, which is exactly how the `locked` hint tells the two cases apart.",
+    "seeAlso": [
+      "lock",
+      "unLock",
+      "forceUnlock",
+      "dropSession"
+    ]
+  },
+  "listSystems": {
+    "when": "First call of a session: it shows the configured destinations so you can pass `destination` to every other tool, and the policy each one enforces. It never talks to SAP.",
+    "returns": "`{systems: [{destination, url, client, authType, policy?, tls?, platform?, unavailableToolsets?}], default, activeToolsets}`. `platform` and `unavailableToolsets` appear only for destinations whose profile has already been built (by systemProfile or by the first call of a gated toolset).",
+    "pitfalls": "`policy` echoes the per-destination guard rails from systems.json (readOnly, deniedTools, allowedPackages, allowedTransports, deniedTables, allowFreeSql; README section Keeping it safe and docs/AUTH.md). A `policyDenied` error points back here: the same call may be allowed on another destination.",
+    "seeAlso": [
+      "healthcheck",
+      "systemProfile",
+      "login"
+    ]
+  },
+  "loadTypes": {
+    "when": "List the creatable object types with their objtype codes (CLAS/OC, INTF/OI, PROG/P, DEVC/K, DDLS/DF and so on) before validateNewObject and createObject. Use objectTypes for the raw ADT type catalog and creatableTypeDetails for the fields one type needs.",
+    "returns": "{status, types[]} with OBJECT_TYPE (the objtype code such as CLAS/OC), OBJECT_TYPE_LABEL, CATEGORY, CATEGORY_LABEL, CAPABILITIES[], OBJNAME_MAXLENGTH, PARENT_OBJECT_TYPE and URI_TEMPLATE per creatable type; no paging.",
+    "pitfalls": "Version-aware: cloud tenants list only the types allowed in ABAP for Cloud Development.",
+    "seeAlso": [
+      "validateNewObject",
+      "createObject",
+      "creatableTypeDetails",
+      "objectTypes"
+    ]
+  },
+  "lock": {
+    "when": "Hold an ADT lock across several calls: setTextElements requires an explicit lockHandle, and a sequence of edits on one object saves a lock/unlock round trip per write. A single setObjectSource, editObjectSource, setMethodSource, deleteObject, createTestInclude or atcApplyQuickfix locks and unlocks by itself, so do not lock first for those.",
+    "returns": "`{status: \"success\", lockHandle, recorded: true, message}`. The handle is recorded in the per-destination ledger, so later write tools on the same object may omit `lockHandle` until you unLock.",
+    "pitfalls": "A `locked` error whose object is not in listLocks belongs to another session (Eclipse/ADT of the same or another user) and cannot be released from here. The `allowedPackages` policy resolves the object package from `objectUrl` and refuses the lock outside the allowed packages. Always unLock; logout, dropSession and server shutdown release what is left.",
+    "seeAlso": [
+      "unLock",
+      "listLocks",
+      "forceUnlock",
+      "setObjectSource"
+    ]
+  },
+  "login": {
+    "when": "Call it on an SSO destination to open the browser login before a long session, or on a basic/oauth destination to prove the credentials work before doing anything else. Every other tool logs in on its own (SSO through the dispatcher, basic/oauth on the first request), so mid-flow calls are rarely needed.",
+    "returns": "For SSO destinations `{status: \"logged in to <destination> via browser SSO\"}`; otherwise `{status: \"success\", result}` where `result` is what the ADT client returned (often `null`). A failure is an error text starting with `Login failed:` plus `kind`, `hint` and `nextTools` from the error classifier (see docs/AUTH.md for the modes).",
+    "pitfalls": "An expired session is re-authenticated and the failing call retried once by the dispatcher (src/index.ts), so a `sessionExpired` error you still see means the retry also failed. On S/4HANA Cloud tenants named business users cannot use basic auth (the tenant forces SSO on the ADT endpoints); use an SSO or OAuth destination, or a Communication User for basic auth (docs/AUTH.md).",
+    "seeAlso": [
+      "listSystems",
+      "logout",
+      "dropSession",
+      "systemProfile"
+    ]
+  },
+  "logout": {
+    "when": "End a working session cleanly: it releases every lock recorded in the lock ledger, clears the source cache and terminates the SAP session. Use dropSession instead when you only need a fresh session, and forceUnlock when the goal is releasing locks without logging out.",
+    "returns": "`{status: \"Logged out successfully\", locksReleased: [objectUrl...], lockReleaseFailures: [{objectUrl, error}]}`.",
+    "pitfalls": "The next tool call on that destination logs in again (a browser window for SSO). `logout` is the one tool the dispatcher never retries after a session error, so a stale session reports the error as is.",
+    "seeAlso": [
+      "dropSession",
+      "forceUnlock",
+      "listLocks",
+      "login"
+    ]
+  },
+  "mainPrograms": {
+    "when": "An include (PROG/I, function group include) needs its main program context: syntaxCheckCode and findDefinition take a `mainProgram` for includes.",
+    "returns": "`{status, mainPrograms: [...]}` with the program references (name, type and URI) the include belongs to.",
+    "pitfalls": "Pass the include URL, not the source URL. An include used by several programs returns several entries; pick the one you are analysing.",
+    "seeAlso": [
+      "syntaxCheckCode",
+      "findDefinition",
+      "getObjectSource",
+      "objectEnhancements"
+    ]
+  },
+  "nodeContents": {
+    "when": "Browse the repository tree one node at a time: parent_type DEVC/K with parent_name a package lists its objects and sub-packages, FUGR/F lists the function modules and includes of a function group. packageTree does the recursive walk for you and is usually the better first call.",
+    "returns": "`{status, nodeContents: {nodes: [{OBJECT_TYPE, OBJECT_NAME, OBJECT_URI, DESCRIPTION, ...}], categories, objectTypes}}`; when paged, `{status, result, totalItems, startIndex, returnedItems, hasMore, autoPaged?, capped?}`.",
+    "pitfalls": "Parameter names are snake_case (parent_type, parent_name) as in the ADT request. Function modules are not listed under the package node, only under their group.",
+    "seeAlso": [
+      "packageTree",
+      "searchObject",
+      "grepPackage",
+      "findObjectPath"
+    ]
+  },
+  "objectDiff": {
+    "when": "Review what a transport, a colleague or your own last write changed in one object: default is the newest revision against the previous one. For every object of a transport use transportUnifiedDiff instead.",
+    "returns": "`{status, object, from: {uri, version, title, date, author}, to: {...}, revisions, linesAdded, linesRemoved, identical, diff}` (unified diff text, `truncated: true` when cut to the response budget). Revisions are selected by index (0 = newest after sorting by date), version string, URI or a substring of the version title; an object with a single revision fails with InvalidRequest.",
+    "pitfalls": "Two sources are downloaded sequentially on the stateful session, so it is not free on big classes; `contextLines` defaults to 3. Revisions come from SAP version management, so an edit you have not activated yet is not in the list.",
+    "seeAlso": [
+      "revisions",
+      "transportUnifiedDiff",
+      "getObjectSource",
+      "editObjectSource"
+    ]
+  },
+  "objectEnhancements": {
+    "when": "Before editing code near SAP standard: see which enhancement implementations (implicit or explicit enhancement points, source plug-ins) already hook into a source object, with their code when includeSource=true.",
+    "returns": "`{status, count, implementations: [...]}` plus the other fields of the ADT enhancement document; very long lists are cut with `returnedItems` and `capped`.",
+    "pitfalls": "Pass the source URL (/source/main); includes need `contextUri` (their main program, see mainPrograms). Classic enhancement points are an on-premise concept; expect empty answers on S/4HANA Cloud, where extensions go through released APIs and BAdIs instead.",
+    "seeAlso": [
+      "getObjectSource",
+      "mainPrograms",
+      "whereUsed",
+      "revisions"
+    ]
+  },
+  "objectRegistrationInfo": {
+    "when": "Read the registration data (namespace, object key information) of an existing object, mostly when working with registered namespaces or before creating objects in one.",
+    "returns": "`{status, info}` with the backend registration document.",
+    "pitfalls": "Rarely needed for customer Z objects; for a new object validateNewObject already reports naming problems.",
+    "seeAlso": [
+      "validateNewObject",
+      "createObject",
+      "findObjectPath"
+    ]
+  },
+  "objectStructure": {
+    "when": "Get the ADT metadata of an object (type, package, links, includes and their URLs) when you have its URL; for a member outline use objectStructureElements, for class components with visibility classComponents.",
+    "returns": "`{status, structure, message}` with the raw structure when it fits; otherwise the verbose `links`/`xml:base` fields are stripped and the top-level array (class `includes`) is paged with `pagedField, totalItems, startIndex, returnedItems, hasMore, autoPaged?, capped?`.",
+    "pitfalls": "The shape differs by object type (simple structure versus class structure with includes), and objects without an array are hard truncated when too large. `version` defaults to what ADT serves.",
+    "seeAlso": [
+      "objectStructureElements",
+      "classComponents",
+      "classIncludes",
+      "findObjectPath"
+    ]
+  },
+  "objectStructureElements": {
+    "when": "The cheapest outline of an object: members with name, type, visibility and flags, enough to decide which method to read with getMethodSource. Use classComponents for full component details and objectStructure for includes and links.",
+    "returns": "`{status, elements: [...], totalItems, startIndex, returnedItems, hasMore, capped?}`.",
+    "pitfalls": "`version` defaults to active here (getObjectSource defaults to the inactive one when present), so pass version=inactive to outline unactivated work. Not every object type exposes structure elements.",
+    "seeAlso": [
+      "classComponents",
+      "objectStructure",
+      "getMethodSource",
+      "cdsViewInfo"
+    ]
+  },
+  "objectTypes": {
+    "when": "Raw ADT object type catalog of the system, useful to map an unfamiliar type id (for example DDLX/EX) to its name. To choose an `objtype` for createObject use loadTypes (system-reported creatable types) or creatableTypeDetails (what this server can create).",
+    "returns": "`{status, types: [...], message}` with the full catalog as reported by ADT.",
+    "pitfalls": "Large and unpaged; nothing here says whether a type can be created through createObject.",
+    "seeAlso": [
+      "loadTypes",
+      "creatableTypeDetails",
+      "validateNewObject",
+      "createObject"
+    ]
+  },
+  "packageSearchHelp": {
+    "when": "Value help for package attributes when creating or validating a package: type selects the help (applicationcomponents, softwarecomponents, transportlayers or translationrelevances) and name filters it.",
+    "returns": "{status, result[]} with name, description and data per entry; paged client-side with totalItems, startIndex, returnedItems, hasMore (the parameter is maxResults, not maxItems).",
+    "pitfalls": "The underlying ADT call has no limit, so the whole list is fetched and cut locally; slow on large systems. type must be one of the four PackageValueHelpType values above; there is no help for package names themselves (use searchObject with DEVC).",
+    "seeAlso": [
+      "validateNewObject",
+      "createObject",
+      "ddicRepositoryAccess"
+    ]
+  },
+  "packageTree": {
+    "when": "Get the picture of a package before working in it: sub-packages to `maxDepth` and, per package, the objects with name, type, URL and description. One call replaces a series of nodeContents calls; filter with objectTypes (CLAS/OC,DDLS/DF) to keep it small.",
+    "returns": "`{status, packages, objects, objectsTruncated, byType: {type: count}, tree: {package, packageUrl, description, subPackages: [...], objects: [{name, type, objectUrl, description, package}]}}`; a tree too large for one response falls back to `{packages: [...], list: [...], returned, note, capped}`.",
+    "pitfalls": "`maxDepth` defaults to 2 and `maxObjects` to 500 (`objectsTruncated: true` when hit). Function groups appear as FUGR/F without their modules; grepPackage and exportPackageSources expand them, nodeContents FUGR/F lists them.",
+    "seeAlso": [
+      "nodeContents",
+      "grepPackage",
+      "exportPackageSources",
+      "activatePackage"
+    ]
+  },
+  "prettyPrinter": {
+    "when": "Format ABAP text you are about to write (or just read) with the backend pretty printer; it does not touch the object, so write the result back with setObjectSource or editObjectSource yourself.",
+    "returns": "`{status, source, totalLines, startLine, returnedLines, hasMore}` with `autoPaged`/`capped` like getObjectSource when the formatted text exceeds the response budget.",
+    "pitfalls": "Formatting follows the current prettyPrinterSetting. Paging returns line ranges of the formatted result, so reassemble all pages before writing it back.",
+    "seeAlso": [
+      "prettyPrinterSetting",
+      "setObjectSource",
+      "getObjectSource"
+    ]
+  },
+  "prettyPrinterSetting": {
+    "when": "Check how prettyPrinter will format (indentation on or off, keyword case style) before formatting code you intend to write back, or to reproduce the user's Eclipse settings.",
+    "returns": "`{status, settings: {\"abapformatter:indentation\": boolean, \"abapformatter:style\": toLower|toUpper|keywordUpper|keywordLower|keywordAuto|none}}`.",
+    "pitfalls": "These are the SAP user's settings, shared with Eclipse ADT for the same user.",
+    "seeAlso": [
+      "setPrettyPrinterSetting",
+      "prettyPrinter"
+    ]
+  },
+  "publishServiceBinding": {
+    "when": "Publish a service binding by `name` and `version` (for example `0001`) so the OData service becomes callable; read `fetchServiceDetails` first to learn the version and whether it is already published.",
+    "returns": "`{status, result: {severity, shortText, longText}}`.",
+    "pitfalls": "Refused with `policyDenied` on destinations with `allowedPackages`. `version` is the binding version string (`binding.version` in `fetchServiceDetails`), not the OData protocol version.",
+    "seeAlso": [
+      "fetchServiceDetails",
+      "unPublishServiceBinding",
+      "rapGenPublishService"
+    ]
+  },
+  "pushRepo": {
+    "when": "Commit and push the staging object returned (and edited) by `stageRepo` to the remote; destructive on the remote and one of the calls README.md, Keeping it safe, asks hosts to confirm.",
+    "returns": "`{status, result: undefined}` on success; remote authentication and conflict problems arrive as the ADT message.",
+    "pitfalls": "Needs the repo object with `push_link` and a staging object with `comment`, `author` and `committer`; credentials come from `gitUser`/`gitPassword` unless `user`/`password` are passed.",
+    "seeAlso": [
+      "stageRepo",
+      "gitRepos",
+      "checkRepo"
+    ]
+  },
+  "rapGenGenerate": {
+    "when": "Create the CDS views, behavior definition, service definition and binding on the system; needs a `transport` (from `resolveTransport` or `createTransport`) and a validated, previewed `content`. This is not a dry run.",
+    "returns": "`{status, result: [{uri, type, name, description}]}` of the generated objects, still inactive.",
+    "pitfalls": "Refused with `policyDenied` on any destination that sets `allowedPackages` (the package cannot be derived from the arguments) and under `allowedTransports` when the transport does not match; activate afterwards with `activatePackage` or `activateObjects`, then `rapGenPublishService`. See [docs/WORKFLOWS.md](WORKFLOWS.md), RAP generator and service bindings.",
+    "seeAlso": [
+      "rapGenPreview",
+      "resolveTransport",
+      "activatePackage",
+      "rapGenPublishService"
+    ]
+  },
+  "rapGenGetContent": {
+    "when": "Get SAP's proposed names (CDS entities, behavior class, draft table, service definition and binding) for a table or CDS entity in a package; adjust them and feed the result to `rapGenValidateContent`. Run `rapGenValidateInitial` first.",
+    "returns": "`{status, result: RapGeneratorContent {metadata?: {package, masterLanguage?}, general: {referenceObjectName?, description}, businessObject: {dataModelEntity: {cdsName, entityName?}, behavior: {implementationType, implementationClass, draftTable}}, serviceProjection: {name}, businessService: {serviceDefinition: {name}, serviceBinding: {name, bindingType}}}}`.",
+    "pitfalls": "`refObjectUri` is an ADT URI such as `/sap/bc/adt/ddic/tables/ztravel`, not a bare table name; `searchObject` gives it.",
+    "seeAlso": [
+      "rapGenValidateInitial",
+      "rapGenValidateContent",
+      "rapGenPreview",
+      "rapGenGenerate"
+    ]
+  },
+  "rapGenGetSchema": {
+    "when": "You need the exact JSON schema of the generator content for a reference object and package (field names, allowed `bindingType` values) before editing the proposal. If you only rename what `rapGenGetContent` proposed, the schema is optional.",
+    "returns": "`{status, result: the schema as a JSON string from SAP}`.",
+    "pitfalls": "The schema differs per `genId` and release; the `content` argument of the later tools remains a JSON string (an object is accepted too).",
+    "seeAlso": [
+      "rapGenGetContent",
+      "rapGenValidateContent",
+      "rapGenPreview"
+    ]
+  },
+  "rapGenIsAvailable": {
+    "when": "First call before any other `rapGen*` tool: says whether the RAP repository-object generators exist on this system, optionally for one `genId` (`uiservice` or `webapiservice`). The tested S/4HANA Cloud tenant answered `false`, so do not assume availability (README.md, S/4HANA Cloud versus on-prem).",
+    "returns": "`{status, result: true | false}`.",
+    "pitfalls": "The whole `rap` toolset is gated on `/sap/bc/adt/businessservices/generators` and left out of the `focused` preset; when the gate refuses the call, `systemProfile` explains why.",
+    "seeAlso": [
+      "systemProfile",
+      "rapGenValidateInitial",
+      "rapGenGetContent"
+    ]
+  },
+  "rapGenPreview": {
+    "when": "List the repository objects a generation would create without creating anything; show it to the user before `rapGenGenerate` (the live test plan stops here on shared tenants).",
+    "returns": "`{status, result: [{uri, type, name, description}]}`.",
+    "pitfalls": "Read-only but still behind the `rap` platform gate; name clashes appear in `rapGenValidateContent`, not here.",
+    "seeAlso": [
+      "rapGenValidateContent",
+      "rapGenGenerate",
+      "searchObject"
+    ]
+  },
+  "rapGenPublishService": {
+    "when": "Publish the service binding created by `rapGenGenerate` (by `srvbName`) so its OData service answers; the alternative `publishServiceBinding` needs name and version.",
+    "returns": "`{status, result: {severity, shortText, longText?}}`.",
+    "pitfalls": "Refused under `allowedPackages`; verify the outcome with `fetchServiceDetails` (`binding.published` and the preview URLs).",
+    "seeAlso": [
+      "rapGenGenerate",
+      "publishServiceBinding",
+      "fetchServiceDetails"
+    ]
+  },
+  "rapGenValidateContent": {
+    "when": "Validate the full edited content (names, package, conflicts) before `rapGenPreview` and `rapGenGenerate`; cheap and side-effect free.",
+    "returns": "`{status, result: {severity, shortText, longText?}}`; InvalidParams when `content` is not valid JSON.",
+    "pitfalls": "`content` is a JSON string following `rapGenGetSchema` (an object works as well); the same string is what `rapGenPreview` and `rapGenGenerate` take.",
+    "seeAlso": [
+      "rapGenGetContent",
+      "rapGenPreview",
+      "rapGenGenerate"
+    ]
+  },
+  "rapGenValidateInitial": {
+    "when": "Check that generation can start from the reference object and target package (authorizations, package type, object state) before spending calls on content.",
+    "returns": "`{status, result: {severity: \"ok\" | \"error\" | \"warning\" | \"info\", shortText, longText?}}`.",
+    "pitfalls": "A `severity: error` is the backend's verdict inside a successful call; read `result.severity` instead of waiting for an exception.",
+    "seeAlso": [
+      "rapGenIsAvailable",
+      "rapGenGetContent",
+      "validateNewObject"
+    ]
+  },
+  "reentranceTicket": {
+    "when": "Only when you deliberately need a SAP logon ticket for another client and the server owner started it with SAP_ALLOW_REENTRANCE_TICKET=1. Nothing else in this server requires it.",
+    "returns": "`{status, ticket, message}`; without the environment variable an InvalidRequest error explaining the opt-in (no SAP call is made).",
+    "pitfalls": "The ticket is a live credential and lands in the conversation and host logs (README section Keeping it safe). On S/4HANA Cloud a ticket obtained through the SSO session is not accepted by ADT as a stand-alone credential, so it cannot replace an SSO or OAuth destination (docs/AUTH.md).",
+    "seeAlso": [
+      "login",
+      "listSystems",
+      "systemProfile"
+    ]
+  },
+  "remoteRepoInfo": {
+    "when": "Branches and access mode of the remote behind a repository that is already linked (the library uses `repo.url`); the counterpart of `gitExternalRepoInfo` for linked repos.",
+    "returns": "`{status, repoInfo: {access_mode, branches: [{sha1, name, type, is_head, display_name}]}}`.",
+    "pitfalls": "Expects the repo object (at least `url`) although the schema says string; abap-adt-api marks the call deprecated in favour of `gitExternalRepoInfo(repourl)`, which takes the URL directly.",
+    "seeAlso": [
+      "gitExternalRepoInfo",
+      "switchRepoBranch",
+      "gitRepos"
+    ]
+  },
+  "renameEvaluate": {
+    "when": "Start of a rename: point at the identifier (source URL, `line`, `startColumn`, `endColumn` as ADT counts them) and get the proposal listing `oldName` and the affected objects; set `newName` and pass it to `renamePreview`. Nothing is written. For a plain text substitution in one include `editObjectSource` is cheaper; renaming a whole object (class, table) is not what this refactoring does.",
+    "returns": "`{status, result: RenameRefactoringProposal {oldName, newName, transport?, title?, ignoreSyntaxErrorsAllowed, ignoreSyntaxErrors, adtObjectUri, affectedObjects: [...], userContent}}`.",
+    "pitfalls": "`uri` is a `/source/main` URL or an include URL from `classIncludes`; columns follow the ADT selection model. The `refactoring` toolset is not in the `focused` preset and is gated on `/sap/bc/adt/refactorings`.",
+    "seeAlso": [
+      "renamePreview",
+      "renameExecute",
+      "getObjectSource",
+      "classIncludes"
+    ]
+  },
+  "renameExecute": {
+    "when": "Apply the rename previewed by `renamePreview`; destructive, it rewrites every affected object. Follow with activation, `unitTestRun` and `objectDiff` on the touched objects.",
+    "returns": "`{status, result: the RenameRefactoring as executed}`. Refused with `kind: policyDenied` when the destination's `allowedPackages` policy excludes the package of `adtObjectUri` (see README.md, Keeping it safe); `allowedTransports` is not evaluated for this tool because the transport travels inside the refactoring object, so choose it with `resolveTransport` at the `renamePreview` step.",
+    "pitfalls": "The rewritten objects are not activated by this call: run `activateObjects` or `activateByName` afterwards. The server clears its objectUrl-to-package memo after the call so later policy checks see the new state.",
+    "seeAlso": [
+      "renamePreview",
+      "activateObjects",
+      "unitTestRun",
+      "objectDiff"
+    ]
+  },
+  "renamePreview": {
+    "when": "Second step: send the edited proposal (`newName` filled in) plus the `transport` for transportable packages and get the executable refactoring with every affected object and text delta. Still read-only.",
+    "returns": "`{status, result: RenameRefactoring}`, the proposal plus the `transport` field; pass `result` unchanged to `renameExecute`. Backend refusals come back as the ADT message with `kind`/`hint` (`transportRequired` when the package needs one).",
+    "pitfalls": "`renameRefactoring` is accepted as an object or a JSON string (a string that is not valid JSON fails with InvalidParams). The `transport` given here is what the execute step records on; `resolveTransport` picks it.",
+    "seeAlso": [
+      "renameEvaluate",
+      "renameExecute",
+      "resolveTransport"
+    ]
+  },
+  "resolveTransport": {
+    "when": "Call it right before any write to a non-local package (setObjectSource, editObjectSource, createObject, deleteObject) to obtain the transport number to pass along. It is the default choice; fall back to transportInfo only when you need the raw candidate list.",
+    "returns": "{status, transport, needsTransport, reason, devClass, recording, candidates[], messages[]} plus tasks[] when a transport lock exists and created=true when createIfMissing made a new request; transport is null for local packages (needsTransport=false) or when nothing modifiable exists (needsTransport=true with a reason telling you to create one).",
+    "pitfalls": "createIfMissing is refused when the destination policy sets allowedTransports. A transport lock always wins over preferTransport. Error messages from the transport check are raised as an InvalidRequest error instead of being returned in the payload.",
+    "seeAlso": [
+      "createTransport",
+      "transportInfo",
+      "setObjectSource",
+      "createObject"
+    ]
+  },
+  "revisions": {
+    "when": "See the version history of an object (who changed it, when, under which request) before touching it; to see the actual changes use objectDiff.",
+    "returns": "`{status, revisions: [{uri, date, author, version, versionTitle}]}` in backend order; the `uri` of a revision can be passed to getObjectSource to read that version.",
+    "pitfalls": "For classes pass `clsInclude` (main, definitions, implementations, testclasses) to get the history of that include; `include` is accepted as an alias for `clsInclude` (src/lib/argAliases.ts).",
+    "seeAlso": [
+      "objectDiff",
+      "transportDetails",
+      "getObjectSource"
+    ]
+  },
+  "runClass": {
+    "when": "Run an existing class that implements IF_OO_ADT_CLASSRUN and capture its console output, typically after a write plus activation. For throwaway code use runSnippet, which creates and deletes the class for you.",
+    "returns": "{status, result, runMode} where result is the console text and runMode is clone or stateless; locksInvalidated[] and a note appear when explicit locks had to be released.",
+    "pitfalls": "Runs on a fresh program load so the output reflects the latest activation; on SSO (cookie) destinations that resets the stateful session and drops locks held via lock, so re-lock before writing again. Classified destructive because the class may change data.",
+    "seeAlso": [
+      "runSnippet",
+      "activateByName",
+      "lock",
+      "listLocks"
+    ]
+  },
+  "runQuery": {
+    "when": "Run an ABAP SQL SELECT through the ADT data preview over tables and CDS views (released views included): the standard way to look at business data. Switch to tableContents when the preview refuses the table.",
+    "returns": "{status, result {columns[] with name and type, values[]}, note?}; paged with totalRows, startRow, returnedRows, hasMore; note says when the statement was re-wrapped.",
+    "pitfalls": "The preview reads 255-character lines; the server re-flows long statements, but a single literal over 255 characters is an error. Keys keep their internal format (leading zeros). Errors carry hints for restricted tables and missing authorization. Refused when the policy sets allowFreeSql=false or lists the table in deniedTables.",
+    "seeAlso": [
+      "tableContents",
+      "ddicElement",
+      "getDataElementProperties",
+      "runSnippet"
+    ]
+  },
+  "runSnippet": {
+    "when": "Execute a few ABAP statements once (out->write( ... )) on a development system and read the console output: data diagnosis, API probing, checking a computation. Prefer runQuery or tableContents for pure reads, and always on test or production systems.",
+    "returns": "{status, className, packageName, wrapped, kept, output, runMode, steps[], cleanupError, locksInvalidated?}; activation failures come back as {status: 'error', phase: 'activation', messages, hint} with isError set.",
+    "pitfalls": "Needs S_DEVELOP. On S/4HANA Cloud $TMP is refused (S_ABPLNGVS): pass packageName, transport and responsible. Line numbers in activation errors refer to the generated class (the body starts at line 8). Subject to deniedTables and allowedPackages policy; locks held via lock may be invalidated on SSO destinations.",
+    "seeAlso": [
+      "runClass",
+      "runQuery",
+      "tableContents",
+      "resolveTransport"
+    ]
+  },
+  "searchObject": {
+    "when": "Turn a name or pattern (ZCL_EXAMPLE*, CL_ABAP_CHAR_UTILITIES) into ADT URLs and types; the first step of almost every edit flow. To search inside code use sourceTextSearch or grepPackage, for usages whereUsed.",
+    "returns": "`{status, results: [{\"adtcore:name\", \"adtcore:type\", \"adtcore:uri\", \"adtcore:packageName\"?, \"adtcore:description\"?}], message}`.",
+    "pitfalls": "The query is a quick-search pattern, so a bare name may return similar objects too; filter with `objType` (CLAS/OC, DDLS/DF, TABL/DT; only the part before the slash is sent to ADT) and check the exact name. `max` caps the result count (default 100); the URI is what the source tools need plus /source/main.",
+    "seeAlso": [
+      "findObjectPath",
+      "whereUsed",
+      "sourceTextSearch",
+      "packageTree"
+    ]
+  },
+  "setDataElementProperties": {
+    "when": "Change field labels, type or search help of a data element by passing back the objects from getDataElementProperties, modified. Read, lock, write, then activateByName.",
+    "returns": "{status, updated: true, next: 'activateByName'}.",
+    "pitfalls": "lockHandle required (call lock first) and transport for transportable packages. properties and metaData as JSON objects or strings. Refused on readOnly destinations.",
+    "seeAlso": [
+      "getDataElementProperties",
+      "lock",
+      "activateByName",
+      "resolveTransport"
+    ]
+  },
+  "setDomainProperties": {
+    "when": "Change a domain (add fixed values, change length) by passing back the properties and metaData from getDomainProperties, modified. Read first, lock, write, then activateByName.",
+    "returns": "{status, updated: true, next: 'activateByName'}.",
+    "pitfalls": "lockHandle from lock is required (no auto-lock here) and transport for transportable packages. properties and metaData must be JSON objects or JSON strings, otherwise InvalidParams. Changing a domain used by many tables triggers a mass activation.",
+    "seeAlso": [
+      "getDomainProperties",
+      "lock",
+      "activateByName",
+      "resolveTransport"
+    ]
+  },
+  "setMethodSource": {
+    "when": "Replace exactly one existing method (bug fix, new implementation) in a large class; pass the full METHOD block or only the body to keep the existing header. It cannot add a method: create the definition and implementation with editObjectSource.",
+    "returns": "`{status, updated: true, classUrl, sourceUrl, method, replaced: {startLine, endLine}, now: {startLine, endLine}, bodyWrapped, lockMode, unlockError?, activation?}`. A missing method fails with InvalidRequest listing the methods present; an ambiguous one lists the candidates and writes nothing.",
+    "pitfalls": "The include is re-read from SAP, so the method is swapped on the current remote text; `activation` activates the class as a whole. Pass `className` for local or test classes that repeat a method name; AMDP method headers are recognised.",
+    "seeAlso": [
+      "getMethodSource",
+      "editObjectSource",
+      "setObjectSource",
+      "unitTestRun"
+    ]
+  },
+  "setObjectSource": {
+    "when": "Write a complete source: the first content of an object after createObject, a rewrite of a short program, or a class whose structure changes everywhere. For a targeted change in a large object prefer editObjectSource (unique text anchors) or setMethodSource, which do not resend the whole source.",
+    "returns": "`{status, updated: true, lockMode: explicit|reused|auto, unlockError?, hint?, activation?}`; `activation` (with activate=true) is `{success, messages: [{objDescr, type, line, shortText, ...}], inactive: [...]}` and never throws, so check `activation.success`.",
+    "pitfalls": "A transportable package needs `transport` (error kind `transportRequired`, next tool resolveTransport). Message classes written through this tool land every message in the transport and reset masterLanguage to the logon language (docs/FIELD-NOTES.md, session A). The `deniedTables` policy inspects the code and `allowedPackages` resolves the package from the URL; run syntaxCheckCode first, the source just written stays cached for it.",
+    "seeAlso": [
+      "editObjectSource",
+      "setMethodSource",
+      "syntaxCheckCode",
+      "resolveTransport"
+    ]
+  },
+  "setPrettyPrinterSetting": {
+    "when": "Change the pretty printer settings for the SAP user, for example to enforce keywordUpper before formatting a package. Not needed for one-off formatting; prettyPrinter uses whatever is set.",
+    "returns": "`{status, result}` where `result` is the backend acknowledgement text.",
+    "pitfalls": "Both parameters are required: `indent` boolean and `style` one of toLower, toUpper, keywordUpper, keywordLower, keywordAuto, none. The change also affects the same user's Eclipse pretty printer.",
+    "seeAlso": [
+      "prettyPrinterSetting",
+      "prettyPrinter"
+    ]
+  },
+  "setTextElements": {
+    "when": "Write the complete list of one text element category. Unlike the source write tools it does not lock by itself: call lock first and pass its lockHandle, then unLock and activate.",
+    "returns": "`{status, updated: true, category, count}`.",
+    "pitfalls": "The list you pass replaces the category: elements missing from it are deleted. `elements` is a JSON string of `[{id, text, maxLength?}]`; transportable packages need `transport`; very old releases do not expose the endpoint. Annotated destructive.",
+    "seeAlso": [
+      "getTextElements",
+      "lock",
+      "unLock",
+      "resolveTransport"
+    ]
+  },
+  "setTransportsConfig": {
+    "when": "Update an existing transport-organizer configuration (filters) using its uri and current etag. Rarely needed from an agent; use it only when transportsByConfig must show a different slice of requests.",
+    "returns": "{status, result} with the stored configuration (same DateFilter, User, WorkbenchRequests, CustomizingRequests, TransportOfCopies, Modifiable, Released fields); an etag mismatch comes back as an ADT error.",
+    "pitfalls": "config is forwarded verbatim as a string; take uri and etag from the matching transportConfigurations entry (link and etag) and the current filter values from getTransportConfiguration. Write tool: refused on readOnly destinations.",
+    "seeAlso": [
+      "getTransportConfiguration",
+      "transportConfigurations",
+      "createTransportsConfig"
+    ]
+  },
+  "sourceTextSearch": {
+    "when": "Find where an identifier (table, message, method, literal) is used across the whole system through the ADT text search index, fast and server-side, before reading any source. Restrict with packages, objectTypes or objectName; when the backend has no index it falls back to grepPackage for the packages you named.",
+    "returns": "`{status, searchString, filters, totalItems, returnedItems, results: [{objectUrl, name, type, packageName?, description?, line?, snippet?}], capped, hint?}`; in fallback mode `{status, packages, matches, totalMatches, objectsScanned, returnedMatches, fallback, truncated?}` with grepPackage match rows. `maxResults` defaults to 100. Without packages on a system without text search: InvalidRequest telling you to use grepPackage.",
+    "pitfalls": "The index is word and prefix based: no regex, no substrings inside identifiers, so `hint` suggests a shorter term or grepPackage on zero hits. S/4HANA Cloud tenants often expose the resource but answer \"Source Search is not supported\" (docs/TESTPLAN.md); systemProfile `features.textSearch` only says whether the collection exists.",
+    "seeAlso": [
+      "grepPackage",
+      "whereUsed",
+      "searchObject",
+      "systemProfile"
+    ]
+  },
+  "stageRepo": {
+    "when": "Prepare a push: pass the full repo object from `gitRepos` and get what abapGit considers staged, unstaged and ignored; page the three lists with `startIndex`/`maxItems` on a large first push.",
+    "returns": "`{status, result: GitStaging {staged, unstaged, ignored: [{wbkey, uri, type, name, abapGitFiles: [{name, path, localState, links}]}], comment, author: {name, email}, committer}}`, plus `startIndex, totals, returned, hasMore, autoPaged?, capped?` when paged.",
+    "pitfalls": "`repo` must carry `links` (the library follows `stage_link`); a bare key fails. Fill `comment`, `author` and `committer` and move objects between `staged` and `unstaged` before `pushRepo`; when the answer was paged, the staging object you push contains only what you saw.",
+    "seeAlso": [
+      "gitRepos",
+      "pushRepo",
+      "checkRepo"
+    ]
+  },
+  "switchRepoBranch": {
+    "when": "Switch a linked repository to another branch, or create it with `create=true`, before pulling or pushing on it.",
+    "returns": "`{status, result: undefined}`.",
+    "pitfalls": "Needs the repo object (`repo.key` builds the URL); `branch` is the full ref such as `refs/heads/feature`. Switching does not import anything: run `gitPullRepo` afterwards to bring the branch content in.",
+    "seeAlso": [
+      "remoteRepoInfo",
+      "gitPullRepo",
+      "gitRepos"
+    ]
+  },
+  "syntaxCheckCdsUrl": {
+    "when": "Syntax check of a CDS object (DDLS, DCLS, DDLX, BDEF) by URL without sending the source: the backend checks the version it holds. Use syntaxCheckCode when you want to test a modified source before writing it.",
+    "returns": "{status, result[]} with the same finding entries as syntaxCheckCode (uri, line, offset, severity, text).",
+    "pitfalls": "Checks what is on the server (inactive version included), not what you have locally: write first, then check, or use activateByName, which also reports errors.",
+    "seeAlso": [
+      "syntaxCheckCode",
+      "cdsViewInfo",
+      "activateByName"
+    ]
+  },
+  "syntaxCheckCode": {
+    "when": "Check a candidate source before writing it: pass url (the object's …/source/main) and the code; url is required because types and includes are resolved in that object's context. For CDS objects use syntaxCheckCdsUrl; to try free-standing ABAP use runSnippet.",
+    "returns": "{status, usedCachedSource, result[]} with one entry per finding: uri, line, offset, severity (E, W, I) and text; an empty result means clean.",
+    "pitfalls": "Omit code to re-check the source last read or written for that url in this session; otherwise the call fails with InvalidParams. mainUrl matters for includes of programs and function groups. A clean check activates nothing. source, objectSourceUrl and objectUrl are accepted as aliases.",
+    "seeAlso": [
+      "setObjectSource",
+      "editObjectSource",
+      "runSnippet",
+      "syntaxCheckCdsUrl"
+    ]
+  },
+  "syntaxCheckTypes": {
+    "when": "List the check types the backend's syntax check service supports (ABAP, CDS and others). Informational; there is nothing to pass on to the other syntax tools.",
+    "returns": "{status, result}; the library returns the catalog as a JavaScript Map, which JSON.stringify renders as an empty object, so result is {} in practice.",
+    "seeAlso": [
+      "syntaxCheckCode",
+      "syntaxCheckCdsUrl",
+      "adtDiscovery"
+    ],
+    "pitfalls": "Informational at best: because the Map is serialized as {}, the tool currently confirms only that the /sap/bc/adt/checkruns/reporters endpoint answers. Read the type list from the raw endpoint via adtDiscovery if you need it."
+  },
+  "systemProfile": {
+    "when": "Call it once per unfamiliar destination before using debugger, traces, git, rap, atc, tests, data, runtime, services or refactoring tools, and whenever a call is refused with `Tool X is not available on destination`. Skip it for source/objects/transports work, which every backend supports.",
+    "returns": "`{destination, url, client, authType, platform: cloud|onprem|unknown, platformReason, systemInformation?, collections, features: {debugger, traces, abapGit, atc, rapGenerator, serviceBindings, textSearch, apiReleases, dataPreview, unitTests, refactorings, ...}, unavailableToolsets: [...], unavailableTools: [...], builtAt}` (src/lib/systemProfile.ts).",
+    "pitfalls": "Cached per destination until refresh=true. The gate that refuses unavailable tools is controlled by MCP_PROFILE_GATE (enforce, warn, off) and builds the profile on its own, so the outcome does not depend on calling this tool first. `platform` comes from the host name, the system information or the ADT collection set (src/lib/systemProfile.ts) and can be `unknown` on unusual hosts.",
+    "seeAlso": [
+      "listSystems",
+      "healthcheck",
+      "adtDiscovery",
+      "dumps"
+    ]
+  },
+  "systemUsers": {
+    "when": "Look up SAP user ids and names (for transportSetOwner, transportAddUser, atcChangeContact or the responsible field of createObject) when you only know part of the name.",
+    "returns": "{status, users[]} with id and title (the user's name) per user; large lists are paged with totalItems, startIndex, returnedItems, hasMore (autoPaged when the server shrank the list).",
+    "pitfalls": "Long on production-sized systems; pass maxItems. Some cloud tenants restrict the endpoint by authorization.",
+    "seeAlso": [
+      "transportSetOwner",
+      "transportAddUser",
+      "atcUsers",
+      "userTransports"
+    ]
+  },
+  "tableContents": {
+    "when": "Read rows of a table or CDS entity by name without SQL, and the fallback when runQuery is refused for a table with restricted dataMaintenance. Use runQuery for joins, projections and filters.",
+    "returns": "{status, result {columns[], values[]}}; paged with totalRows, startRow, returnedRows, hasMore and autoPaged or capped flags when large.",
+    "pitfalls": "rowNumber (default 100) caps the rows requested from SAP; startRow and maxRows only page what was fetched. sqlQuery on this tool counts as free SQL under allowFreeSql=false, and deniedTables applies. Display authorization S_TABU_DIS or S_TABU_NAM is still required.",
+    "seeAlso": [
+      "runQuery",
+      "ddicElement",
+      "getDataElementProperties",
+      "runSnippet"
+    ]
+  },
+  "tracesCreateConfiguration": {
+    "when": "Create a trace request after `tracesSetParameters`: one `config` object with `description`, `traceUser`, `traceClient`, `processType` (`HTTP`, `DIALOG`, `RFC`, `BATCH`, `SHARED_OBJECTS_AREA`, `ANY`), `objectType` (`FUNCTION_MODULE`, `URL`, `TRANSACTION`, `REPORT`, `SHARED_OBJECTS_AREA`, `ANY`), `expires`, `maximalExecutions`, `parametersId` and optional `server` (`*` for all, the default).",
+    "returns": "`{status, result: TraceRequestList {title, contributorName, contributorRole, requests: [...]}}` including the new request.",
+    "pitfalls": "Same object-not-string caveat as `tracesSetParameters` (a JSON string fails with a TypeError on `processType` before any call); an `objectType` that is not valid for the `processType` is rejected by the library before any call (`traceProcessObjects`). Delete the request with `tracesDeleteConfiguration` once done, otherwise it keeps tracing executions for that user.",
+    "seeAlso": [
+      "tracesSetParameters",
+      "tracesListRequests",
+      "tracesDeleteConfiguration"
+    ]
+  },
+  "tracesDbAccess": {
+    "when": "Database view of one trace: every SQL access with table, statement, counts, buffered hits and time split, plus the distinct tables with buffer mode and package; the first stop for questions about slow SELECTs.",
+    "returns": "`{status, dbAccess: {parentLink, dbaccesses: [{index, tableName, statement, type: \"\" | \"EXEC SQL\" | \"OpenSQL\", totalCount, bufferedCount, accessTime: {total, applicationServer, database, ratioOfTraceTotal}, callingProgram}], tables: [{name, type, description, bufferMode, storageType, package}]}}`, plus the paging fields when paged.",
+    "pitfalls": "Only `dbaccesses` is paged; `tables` always comes whole.",
+    "seeAlso": [
+      "tracesHitList",
+      "tracesStatements",
+      "runQuery"
+    ]
+  },
+  "tracesDelete": {
+    "when": "Delete a recorded trace run (`id` from `tracesList`) once analysed; destructive.",
+    "returns": "`{status, result: undefined}`.",
+    "pitfalls": "Pass the `id` exactly as `tracesList` returned it or the full `/sap/bc/adt/runtime/traces/abaptraces/...` URL: the library only prefixes ids that do not start with that path and does so with a double slash, so a bare id may fail. Hit list, DB accesses and statements of that run are gone afterwards, so read them first.",
+    "seeAlso": [
+      "tracesList",
+      "tracesHitList",
+      "tracesDeleteConfiguration"
+    ]
+  },
+  "tracesDeleteConfiguration": {
+    "when": "Delete a trace request (`id` from `tracesListRequests`) so it stops capturing; destructive.",
+    "returns": "`{status, result: undefined}`.",
+    "pitfalls": "`id` may be the bare request id or its full `/sap/bc/adt/runtime/traces/abaptraces/requests/...` URL; the recorded runs stay until `tracesDelete`.",
+    "seeAlso": [
+      "tracesListRequests",
+      "tracesCreateConfiguration",
+      "tracesDelete"
+    ]
+  },
+  "tracesHitList": {
+    "when": "Top-down profile of one trace (which units consumed time, hit counts, gross and net times with percentages); page with `startIndex`/`maxItems`, `withSystemEvents=true` keeps kernel events.",
+    "returns": "`{status, hitList: {parentLink, entries: [{topDownIndex, index, hitCount, recursionDepth, description, callingProgram: {context, uri?, name?, packageName?}, calledProgram, grossTime: {time, percentage}, traceEventNetTime, proceduralNetTime}]}}`, plus `totalItems, startIndex, returnedItems, hasMore, autoPaged?, capped?` when paged.",
+    "pitfalls": "`id` is the run id from `tracesList` (the full trace URL is accepted as well). Only `entries` is paged.",
+    "seeAlso": [
+      "tracesList",
+      "tracesStatements",
+      "tracesDbAccess"
+    ]
+  },
+  "tracesList": {
+    "when": "List the ABAP runtime traces recorded for a user, with the runtime split (ABAP, system, database), size and expiration; each run's `id` feeds `tracesHitList`, `tracesDbAccess` and `tracesStatements`.",
+    "returns": "`{status, traces: {author, contributor, title, updated, runs: [{id, title, author, published, updated, type, extendedData: {host, size, runtime, runtimeABAP, runtimeSystem, runtimeDatabase, expiration, system, client, isAggregated, objectName, state: {value, text}}, links}]}}`.",
+    "pitfalls": "`user` is optional: when omitted the library sends the ADT client's user name, which is the configured `user` on basic-auth destinations but a placeholder (`sso`, or the OAuth client id) on SSO and OAuth destinations, so pass the SAP user explicitly there; the library upper-cases it. The `traces` toolset is gated on `/sap/bc/adt/runtime/traces` and not in `focused`; where absent, the gate message points at ATC and `dumps`.",
+    "seeAlso": [
+      "tracesHitList",
+      "tracesDbAccess",
+      "tracesStatements",
+      "tracesListRequests"
+    ]
+  },
+  "tracesListRequests": {
+    "when": "List the trace requests of a user (which process type, object and client are traced and how many executions remain); their ids feed `tracesDeleteConfiguration`.",
+    "returns": "`{status, requests: {title, contributorName, contributorRole, requests: [{id, title, published, updated, extendedData: {description, executions: {maximal, completed}, isAggregated, host, expires, processType, objectType, requestIndex, clients}, links}]}}`.",
+    "pitfalls": "Same `user` requirement as `tracesList`.",
+    "seeAlso": [
+      "tracesCreateConfiguration",
+      "tracesDeleteConfiguration",
+      "tracesList"
+    ]
+  },
+  "tracesSetParameters": {
+    "when": "Define what a new trace records (`allProceduralUnits`, `allMiscAbapStatements`, `allInternalTableEvents`, `allDynproEvents`, `allDbEvents`, `sqlTrace`, `withRfcTracing`, `allSystemKernelEvents`, `aggregate`, `explicitOnOff`, `description`, `maxSizeForTraceFile`, `maxTimeForTracing`) before `tracesCreateConfiguration`.",
+    "returns": "`{status, result: the parameters URI SAP returns in its Location header}`; that value is the `parametersId` of `tracesCreateConfiguration`. 'trace configuration not set' means SAP answered without a Location.",
+    "pitfalls": "The handler forwards `parameters` unparsed and the library serializes it field by field into XML, so a JSON string yields a document full of `undefined`: pass an object with all thirteen fields.",
+    "seeAlso": [
+      "tracesCreateConfiguration",
+      "tracesListRequests"
+    ]
+  },
+  "tracesStatements": {
+    "when": "Aggregated call tree of one trace (statements with call level, subnode counts and times); `options` carries `id`, `withDetails`, `autoDrillDownThreshold` and `withSystemEvents`.",
+    "returns": "`{status, statements: {withDetails, withSysEvents, count, parentLink, statements: [{index, id, description, hitCount, callLevel, callerId, subnodeCount, directSubnodeCount, isProceduralUnit?, callingProgram, grossTime, traceEventNetTime, proceduralNetTime}]}}`, plus the paging fields when paged.",
+    "pitfalls": "`options` is forwarded to the library unparsed as query parameters: pass it as an object where the host allows it, a JSON string is not decoded by this handler.",
+    "seeAlso": [
+      "tracesHitList",
+      "tracesDbAccess",
+      "tracesList"
+    ]
+  },
+  "transportAddUser": {
+    "when": "Add a task for another user to an existing request so that person can record changes under it. Prefer this over creating a second request for the same change.",
+    "returns": "{status, result} with tm:number, tm:targetuser, tm:uri and tm:useraction as returned by ADT.",
+    "pitfalls": "Write tool, subject to readOnly and allowedTransports policy. The request must be modifiable and owned by the current user.",
+    "seeAlso": [
+      "transportSetOwner",
+      "transportDetails",
+      "systemUsers",
+      "userTransports"
+    ]
+  },
+  "transportConfigurations": {
+    "when": "List the saved transport-organizer view configurations (filters over users, targets and status) of the current user; their links feed getTransportConfiguration and transportsByConfig. For a plain per-user list use userTransports.",
+    "returns": "{status, configurations[]}: each entry carries its link (URL), etag and creation data as returned by ADT; no paging.",
+    "pitfalls": "Links can carry an echoed sap-client query in the middle of the path; getTransportConfiguration strips it, so pass the link as returned rather than rebuilding it.",
+    "seeAlso": [
+      "getTransportConfiguration",
+      "transportsByConfig",
+      "hasTransportConfig",
+      "setTransportsConfig"
+    ]
+  },
+  "transportDelete": {
+    "when": "Delete an empty, modifiable request or task, for example one created by mistake with createTransport or resolveTransport(createIfMissing). Requests that record objects cannot be deleted; remove the objects or release instead.",
+    "returns": "{status: 'success'} only (the ADT call returns no body); ADT refusals (not the owner, request not empty, already released) surface as tool errors.",
+    "pitfalls": "Destructive and irreversible; refused on readOnly destinations and when the number is not in allowedTransports. Check transportDetails first to be sure the request is empty.",
+    "seeAlso": [
+      "transportDetails",
+      "createTransport",
+      "transportRelease",
+      "resolveTransport"
+    ]
+  },
+  "transportDetails": {
+    "when": "Inspect a transport request whose number you already know: tasks, owners, status and every recorded object (R3TR and LIMU entries). To find the number first, use transportInfo or resolveTransport for an object, or userTransports for a user's list.",
+    "returns": "{status, details} where details is the request itself (tm:number, tm:owner, tm:desc, tm:status, tm:uri, links[]) with objects[] (tm:pgmid, tm:type, tm:name per entry) and tasks[] carrying the same fields per task; no paging, the whole request is returned.",
+    "pitfalls": "Parameter spelling is tolerant (TransportNumber, transport, trkorr are mapped onto transportNumber). DDIC and customizing entries are listed but carry no source; use transportUnifiedDiff for code and getObjectSource for the rest.",
+    "seeAlso": [
+      "transportUnifiedDiff",
+      "transportInfo",
+      "userTransports",
+      "resolveTransport"
+    ]
+  },
+  "transportInfo": {
+    "when": "Raw ADT transport check for an object URL: its package, whether the package records changes, which transport already locks the object and which modifiable requests the user could pick. Prefer resolveTransport, which interprets this answer and returns a decision.",
+    "returns": "{status, transportInfo} with DEVCLASS, RECORDING, DLVUNIT, LOCKS (HEADER.TRKORR and TASKS when the object is already recorded), TRANSPORTS[] candidates (TRKORR, AS4TEXT, TRSTATUS, AS4USER, TARSYSTEM, AS4DATE) and MESSAGES[] with SEVERITY and TEXT.",
+    "pitfalls": "Pass devClass for objects that do not exist yet. A message with severity E, A or X means the package cannot be changed; resolveTransport raises it as an error, this tool only lists it. objectUrl, objectSourceUrl and uri are accepted as aliases of objSourceUrl.",
+    "seeAlso": [
+      "resolveTransport",
+      "createTransport",
+      "transportDetails",
+      "userTransports"
+    ]
+  },
+  "transportReference": {
+    "when": "Resolve the transport-organizer reference of an object from its TADIR key (pgmid R3TR or LIMU, obj_wbtype such as CLAS, obj_name), optionally narrowed to one request with tr_number. Useful to build the /sap/bc/adt/cts/transportrequests URLs that atcSummary accepts or to check which request records a given object part.",
+    "returns": "{status, reference} where reference is a string: the href of the transport-organizer reference link ADT returns.",
+    "pitfalls": "LIMU object names follow the padded E071 convention; for the plain question of which transport holds an object, resolveTransport or transportInfo is easier.",
+    "seeAlso": [
+      "transportInfo",
+      "transportDetails",
+      "resolveTransport",
+      "atcSummary"
+    ]
+  },
+  "transportRelease": {
+    "when": "Release a request or task once the objects are active, unit tests are green and ATC is clean. It is the only tool that moves changes toward the next system, so treat it as a deliberate final step, not part of the edit loop.",
+    "returns": "{status, result[]} of release reports, one per released task or request: chkrun:status (released or abortrelapifail), chkrun:statusText, chkrun:triggeringUri and messages[] with chkrun:uri, chkrun:type and chkrun:shortText.",
+    "pitfalls": "Check chkrun:status in every report: a release blocked by inactive objects, open tasks or ATC findings can come back as a report with abortrelapifail and messages rather than as an exception. ignoreLocks and IgnoreATC (capital I) bypass checks configured by the administrators; leave them unset unless asked. Refused on readOnly destinations and outside allowedTransports. Release tasks before the request when the backend requires it.",
+    "seeAlso": [
+      "transportDetails",
+      "atcSummary",
+      "unitTestRun",
+      "transportUnifiedDiff"
+    ]
+  },
+  "transportSetOwner": {
+    "when": "Hand a request or task over to another user (targetuser), for instance before that person releases it. Use transportAddUser when the original owner keeps the request and only a task for a colleague is needed.",
+    "returns": "{status, result} with tm:number and tm:targetuser as confirmed by ADT.",
+    "pitfalls": "Write tool, subject to readOnly and allowedTransports policy. Authorization S_TRANSPRT applies; systemUsers helps to spell the target user.",
+    "seeAlso": [
+      "transportAddUser",
+      "systemUsers",
+      "transportDetails"
+    ]
+  },
+  "transportUnifiedDiff": {
+    "when": "Review what a transport changes in code before releasing or handing it over: one call diffs every source object on the request against the revision that predates the transport. Use objectDiff when you want a single object between two chosen revisions.",
+    "returns": "{status, transport, totalObjects, diffs[], skipped[]}: each diff has type, name, uri, optional include, baselineRevision {version, date, title}, exactTransportMatch and the unified diff text; skipped lists entries with a reason (messages, DDIC, customizing, maxObjects reached, object deleted, already covered by another part's diff).",
+    "pitfalls": "Default maxObjects is 20; raise it for big requests. When no revision is tagged with the transport number the baseline falls back to the previous revision and exactTransportMatch is false. Several LIMU parts of one class collapse into a single diff of that include.",
+    "seeAlso": [
+      "transportDetails",
+      "objectDiff",
+      "revisions",
+      "getObjectSource"
+    ]
+  },
+  "transportsByConfig": {
+    "when": "Same listing as userTransports but driven by a saved transport-organizer configuration (configUri from transportConfigurations), useful when the filters go beyond one user.",
+    "returns": "Same shape as userTransports: raw {workbench, customizing} when small, otherwise a flattened, paged list with totalItems, startIndex, returnedItems and hasMore.",
+    "pitfalls": "Needs an existing configuration (transportConfigurations, or createTransportsConfig first); configUri must be the link exactly as listed.",
+    "seeAlso": [
+      "userTransports",
+      "transportConfigurations",
+      "getTransportConfiguration",
+      "transportDetails"
+    ]
+  },
+  "typeHierarchy": {
+    "when": "List the subclasses or implementers of a class or interface at a source position (default), or the inheritance chain upwards with superTypes=true, for example before changing a signature.",
+    "returns": "`{status, direction: subtypes|supertypes, count, hierarchy: [...]}` with the type nodes (name, type, URI) as returned by ADT.",
+    "pitfalls": "`line` is 1-based and `offset` 0-based, pointing at the type name in the source; the source is taken from the cache or re-read from SAP unless you pass `source`. Use the URL with /source/main.",
+    "seeAlso": [
+      "classComponents",
+      "whereUsed",
+      "findDefinition",
+      "getObjectSource"
+    ]
+  },
+  "unLock": {
+    "when": "Release a lock you acquired with lock once the last write is done. `lockHandle` may be omitted when the server recorded the lock; pass it when the lock came from another server instance.",
+    "returns": "`{status: \"success\", message: \"Object unlocked successfully\"}`; an InvalidParams error when neither a `lockHandle` nor a recorded lock exists for the object.",
+    "pitfalls": "After a session expiry or dropSession the old handle is dead and SAP answers with a `staleLockHandle` error: use forceUnlock (dropSession=true) instead of retrying.",
+    "seeAlso": [
+      "lock",
+      "listLocks",
+      "forceUnlock"
+    ]
+  },
+  "unPublishServiceBinding": {
+    "when": "Take a published service offline (destructive for its consumers); same `name`/`version` pair as `publishServiceBinding`.",
+    "returns": "`{status, result: {severity, shortText, longText}}`.",
+    "pitfalls": "Same `allowedPackages` refusal; confirm with the user first, as README.md, Keeping it safe, asks for destructive calls.",
+    "seeAlso": [
+      "publishServiceBinding",
+      "fetchServiceDetails"
+    ]
+  },
+  "unitTestEvaluation": {
+    "when": "Detailed evaluation of one test class: pass the class name (or its URL), the server runs the tests and evaluates the first test class of the result, listing methods with their alerts. Use unitTestRun for the plain pass or fail picture over all test classes.",
+    "returns": "{status, result[]} of test methods (adtcore:name, adtcore:uri, executionTime, unit, alerts[]); paged with totalItems, startIndex, returnedItems, hasMore.",
+    "pitfalls": "Only the first test class returned by the run is evaluated. When the class has no test classes the call fails with an error whose message says 'No test classes found' (surfaced as InternalError, not InvalidParams).",
+    "seeAlso": [
+      "unitTestRun",
+      "createTestInclude",
+      "getObjectSource"
+    ]
+  },
+  "unitTestOccurrenceMarkers": {
+    "when": "Get the positions of test classes and test methods in a supplied source (the markers ADT shows in the gutter), useful to navigate a large test include.",
+    "returns": "{status, markers[]} with kind, keepsResult and location {uri, range {start, end} with line and column} per marker.",
+    "pitfalls": "Pass the source text of the test include (getObjectSource on the testclasses include URL from classIncludes), not the main class.",
+    "seeAlso": [
+      "unitTestRun",
+      "classIncludes",
+      "getObjectSource"
+    ]
+  },
+  "unitTestRun": {
+    "when": "Run the ABAP Unit tests of a class, program or package URL after every change and activation; the default flags run only harmless, short tests. It is the acceptance gate before transportRelease.",
+    "returns": "{status, result[]} of test classes with testmethods[] and alerts[] (kind, severity, title, details, stack trimmed to 15 entries with stackTruncated); paged with totalItems, startIndex, returnedItems, hasMore when large.",
+    "pitfalls": "flags is a JSON string, for example {\"medium\":true,\"dangerous\":true}; medium, long, dangerous and critical tests are skipped unless you set them. An empty result means no test classes were found; the object must be active. Not in the read-only set (tests can change data), so readOnly destinations refuse it.",
+    "seeAlso": [
+      "unitTestEvaluation",
+      "createTestInclude",
+      "activateByName",
+      "unitTestOccurrenceMarkers"
+    ]
+  },
+  "usageReferenceSnippets": {
+    "when": "Turn the references from usageReferences into source excerpts with line numbers, so you can read the actual usage without fetching whole objects.",
+    "returns": "{status, result[]} of {objectIdentifier, snippets[]} where each snippet has uri {uri, start, end with line and column}, matches, content (the source excerpt) and description; paged with totalItems, startIndex, returnedItems, hasMore when large.",
+    "pitfalls": "The input list is not capped; send a slice of the usageReferences result rather than everything. Snippets multiply the payload, so use maxItems.",
+    "seeAlso": [
+      "usageReferences",
+      "whereUsed",
+      "grepPackage",
+      "getObjectSource"
+    ]
+  },
+  "usageReferences": {
+    "when": "System-wide where-used list for an object (url only) or for the symbol at line and column of its source. Prefer whereUsed for the compact, agent-oriented answer; use this one when you need the raw reference list to feed usageReferenceSnippets.",
+    "returns": "{status, result[]} of references with uri, objectIdentifier, parentUri, adtcore:name, adtcore:type, usageInformation and packageRef; large lists are paged with totalItems, startIndex, returnedItems, hasMore and autoPaged or capped flags.",
+    "pitfalls": "Widely used objects return thousands of hits; pass maxItems. Results point at objects, not lines, until you call usageReferenceSnippets.",
+    "seeAlso": [
+      "usageReferenceSnippets",
+      "whereUsed",
+      "findDefinition",
+      "grepPackage"
+    ]
+  },
+  "userTransports": {
+    "when": "List the workbench and customizing requests of a SAP user (modifiable and released, per target system), for example to find open requests or to audit what a colleague owns. For the request that fits one object use resolveTransport instead.",
+    "returns": "{status, transports} in the raw shape {workbench[], customizing[]} of targets with modifiable[] and released[] requests when small; when paged or oversized it becomes a flattened list of {category, targetName, targetDesc, listType, request} with totalItems, startIndex, returnedItems, hasMore and autoPaged or capped flags.",
+    "pitfalls": "user is the SAP user id; targets=true adds target-system information. The response shape changes between the small and the paged case, so check for totalItems before reading.",
+    "seeAlso": [
+      "transportsByConfig",
+      "transportDetails",
+      "resolveTransport",
+      "systemUsers"
+    ]
+  },
+  "validateNewObject": {
+    "when": "Always before createObject: it checks name, package and type on the backend and reports naming or package problems without creating anything.",
+    "returns": "`{status, result: {success, SEVERITY?, SHORT_TEXT?}}`; `success: true` means the object can be created. Missing objtype/objname/description is an InvalidParams error.",
+    "pitfalls": "`packagename` is required for most types, `fugrname` for function group members, and DEVC/K fills swcomp, transportLayer and packagetype (defaults: empty layer, development). The flat fields replaced the old `options` JSON string, which is still accepted.",
+    "seeAlso": [
+      "creatableTypeDetails",
+      "loadTypes",
+      "createObject",
+      "resolveTransport"
+    ]
+  },
+  "whereUsed": {
+    "when": "Where-used list by name (class, interface, CDS entity, table) when you have no source position; the usual first step before changing a signature or deleting something. usageReferences with a line and column is the precise variant for a symbol inside a source.",
+    "returns": "`{status, target: {name, type, uri, packageName}, totalReferences, returned, references: [{object, uri, parentUri, usage, canHaveChildren}], groups: [...], capped, hint}`. An unknown name fails with InvalidRequest listing candidates; a name that exists with several types asks for `objType`.",
+    "pitfalls": "The name is resolved through searchObject (first ten hits, exact match required). When only grouping nodes come back, call usageReferences with the object URL and a position inside the definition; for the exact lines pass the references to usageReferenceSnippets. `maxResults` defaults to 200.",
+    "seeAlso": [
+      "usageReferences",
+      "usageReferenceSnippets",
+      "searchObject",
+      "sourceTextSearch"
+    ]
+  }
+}

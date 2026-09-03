@@ -9,15 +9,15 @@ cheapest first; each layer gates the next. Layers 0–1 run fully offline (no SA
 system) and are automatable in-session. Layers 2–3 run against a real S/4HANA
 Cloud DEV tenant. Layer 4 is the final integration check in Claude Desktop.
 
-## Layer 0 — Static (automated, ~1 min)
+## Layer 0, Static (automated, ~1 min)
 
 | # | Test | Pass criteria |
 |---|---|---|
 | 0.1 | `npx tsc --noEmit` | exit 0, no errors |
 | 0.2 | `npm run build` | exit 0, `dist/` produced |
-| 0.3 | `node -e "require('./dist/index.js')"` guard — server refuses to start with NO config | clear error: "No ABAP systems configured…" |
+| 0.3 | `node -e "require('./dist/index.js')"` guard, server refuses to start with NO config | clear error: "No ABAP systems configured…" |
 
-## Layer 1 — Offline protocol & config (automated, no SAP, ~5 min)
+## Layer 1, Offline protocol & config (automated, no SAP, ~5 min)
 
 Scripted stdio/HTTP MCP client against `dist/index.js` with dummy destinations.
 
@@ -60,7 +60,7 @@ Scripted stdio/HTTP MCP client against `dist/index.js` with dummy destinations.
 | 1.22 | `AtcHandlers.applyDeltas` | single-line replace, multi-line replace, two deltas (bottom-up order preserved), delta at line 1 col 0 |
 | 1.23 | `GitHandlers.cred` backfill | args win over config; config fills when args omitted; both empty → undefined |
 
-## Layer 2 — Real SAP, read-only (manual trigger, DEV tenant, ~15 min)
+## Layer 2, Real SAP, read-only (manual trigger, DEV tenant, ~15 min)
 
 Prerequisites: one S/4HANA Cloud DEV destination configured (browser SSO login
 will open Chrome once). Read-only: no writes to the system. Run via scripted
@@ -71,15 +71,15 @@ stdio client or via Claude Desktop after config update.
 | 2.1 | Login + session | `login` | success; SSO profile created under `~/.abap-adt-mcp/sso/<host>` with 0700 perms (`ls -ld`) |
 | 2.2 | Search & read | `searchObject` (e.g. `ZCL_HELLO*` or `CL_ABAP_CHAR_UTILITIES`), `objectStructure`, `getObjectSource` | real object found, source returned |
 | 2.3 | Type discovery | `loadTypes`, `objectTypes`, `creatableTypeDetails` | non-empty; CLAS/OC present in loadTypes |
-| 2.4 | Validation | `validateNewObject` {objtype CLAS/OC, objname ZCL_MCP_TESTPLAN, packagename $TMP} | SUCCESS-severity result (not schema/parse error) — proves the P0 bug fix against a real system |
+| 2.4 | Validation | `validateNewObject` {objtype CLAS/OC, objname ZCL_MCP_TESTPLAN, packagename $TMP} | SUCCESS-severity result (not schema/parse error), proves the P0 bug fix against a real system |
 | 2.5 | Transports read | `userTransports`, `transportInfo` on a known object | transports listed |
 | 2.6 | Transport details + diff | `transportDetails` + `transportUnifiedDiff` on an existing transport with source objects | object list returned; unified diff produced or per-object reason; non-source objects in `skipped` |
 | 2.7 | Business services | `fetchServiceDetails` on a known service binding (or one found via `searchObject` type SRVB) | entity sets + previewUrls returned |
 | 2.8 | RAP availability | `rapGenIsAvailable` | true/false without error (Cloud tenant expected true) |
-| 2.9 | ATC read | `atcCustomizing`, `createAtcRun` + `atcWorklists` on a known object | worklist with findings (or empty) — no errors |
+| 2.9 | ATC read | `atcCustomizing`, `createAtcRun` + `atcWorklists` on a known object | worklist with findings (or empty), no errors |
 | 2.10 | Error redaction | force auth failure (bad destination password on a scratch basic entry) | error message contains `[REDACTED]`, never the password |
 
-## Layer 3 — Real SAP, writes in $TMP only (manual trigger, DEV tenant, ~15 min)
+## Layer 3, Real SAP, writes in $TMP only (manual trigger, DEV tenant, ~15 min)
 
 Everything scoped to package `$TMP` (local, no transport) and a throwaway object
 `ZCL_MCP_TESTPLAN`. Full cleanup at the end. NO writes outside $TMP; no
@@ -90,11 +90,11 @@ transport release; no deletions of pre-existing objects.
 | 3.1 | Canonical create loop (the SAP-documented agentic loop) | `loadTypes` → `validateNewObject` → `createObject` (CLAS/OC, ZCL_MCP_TESTPLAN, $TMP) → `lock` → `setObjectSource` (class implementing IF_OO_ADT_CLASSRUN) → `unLock` → `activateByName` → `unitTestRun` | every step succeeds in order; class active |
 | 3.2 | Edit loop | `getObjectSource` → `lock` → `syntaxCheckCode` (modified source) → `setObjectSource` → `unLock` → `activateByName` | change visible in re-read source |
 | 3.3 | Test include | `createTestInclude` → `setObjectSource` (one trivial unit test) → activate → `unitTestRun` | test executes, result parsed |
-| 3.4 | ATC quickfix roundtrip (best effort) | introduce a finding-prone statement → `createAtcRun`/`atcWorklists` → `atcQuickfixProposals` at the finding → `atcApplyQuickfix` → activate → re-run ATC | proposal listed and applied, or a clean "no proposals" — no corrupted source (verify via getObjectSource) |
+| 3.4 | ATC quickfix roundtrip (best effort) | introduce a finding-prone statement → `createAtcRun`/`atcWorklists` → `atcQuickfixProposals` at the finding → `atcApplyQuickfix` → activate → re-run ATC | proposal listed and applied, or a clean "no proposals", no corrupted source (verify via getObjectSource) |
 | 3.5 | RAP preview only (no generate) | `rapGenGetContent`/`rapGenValidateInitial` on an existing table, `rapGenPreview` | proposal/preview returned; `rapGenGenerate` NOT called |
 | 3.6 | Cleanup | `lock` → `deleteObject` ZCL_MCP_TESTPLAN → verify `searchObject` finds nothing | tenant back to original state |
 
-## Layer 4 — Claude Desktop integration (manual, ~10 min)
+## Layer 4, Claude Desktop integration (manual, ~10 min)
 
 | # | Test | Pass criteria |
 |---|---|---|
@@ -117,22 +117,22 @@ transport release; no deletions of pre-existing objects.
 
 | Layer | Status |
 |---|---|
-| 0 | **passed** (3/3) — 2026-08-31 |
-| 1 | **passed** (23/23) — 2026-08-31 |
-| 2 | **passed** (9/10, 1 skip) against DEV — 2026-08-31. Skipped: 2.6 (tenant had no open transport on the sampled Z object; re-run with a known transport number). Notes: 2.9 ATC run id not parsed from createAtcRun result (worklist step untested); 2.10 cloud tenants redirect basic auth to IAS instead of 401, so the redaction check reduces to "no credential material in responses" (full redaction is unit-tested in 1.21) |
-| 3 | **passed live** on DEV — 2026-09-01. The 2026-08-31 "blocked by authorization" run had two root causes, both fixed: the destination pointed at the CUSTOMIZING host instead of the DEV host, and the SSO session was not pinned to the configured client (`sap-client` now sent on every request). Executed: package ZADT_TEST created under ZSANDBOX (local, hand-built DEVC/K body with `pak:recordChanges`), class ZCL_ADT_TEST_DEMO created/activated, syntax check clean, 2/2 unit tests green, ATC run 0 findings (worklist flow), `runClass` console output verified, full rename (add→sum) and extract-method (calc_sum) refactorings executed with tests staying green, full cleanup (class + package deleted, searchObject empty, dropSession + logout). 3.5 remains skipped (rapGenIsAvailable=false on tenant). Broad sweep on the same date: 95/142 tools exercised, 87 OK; the 8 remaining failures are platform/environment limits (cloud-absent endpoints, no live debuggee/trace data) or the intentional reentranceTicket guard — zero known code bugs |
-| 4 | **verified by exact simulation** — 2026-08-31. The Desktop config's literal command+args+env were spawned headlessly: abap-adt-mcp 0.3.0, 142 tools, all 20 destinations listed, server instructions announced, no secrets in listSystems output. Final UI step (Cmd+Q + reopen, then a conversation using the tools) must be done by the user — this session runs inside Claude.app and cannot restart it. Note: with 20 destinations and no default flag, `destination` is required on every call; mark one entry with `"default": true` in SAP_SYSTEMS if a default is wanted |
+| 0 | **passed** (3/3), 2026-08-31 |
+| 1 | **passed** (23/23), 2026-08-31 |
+| 2 | **passed** (9/10, 1 skip) against DEV, 2026-08-31. Skipped: 2.6 (tenant had no open transport on the sampled Z object; re-run with a known transport number). Notes: 2.9 ATC run id not parsed from createAtcRun result (worklist step untested); 2.10 cloud tenants redirect basic auth to IAS instead of 401, so the redaction check reduces to "no credential material in responses" (full redaction is unit-tested in 1.21) |
+| 3 | **passed live** on DEV, 2026-09-01. The 2026-08-31 "blocked by authorization" run had two root causes, both fixed: the destination pointed at the CUSTOMIZING host instead of the DEV host, and the SSO session was not pinned to the configured client (`sap-client` now sent on every request). Executed: package ZADT_TEST created under ZSANDBOX (local, hand-built DEVC/K body with `pak:recordChanges`), class ZCL_ADT_TEST_DEMO created/activated, syntax check clean, 2/2 unit tests green, ATC run 0 findings (worklist flow), `runClass` console output verified, full rename (add→sum) and extract-method (calc_sum) refactorings executed with tests staying green, full cleanup (class + package deleted, searchObject empty, dropSession + logout). 3.5 remains skipped (rapGenIsAvailable=false on tenant). Broad sweep on the same date: 95/142 tools exercised, 87 OK; the 8 remaining failures are platform/environment limits (cloud-absent endpoints, no live debuggee/trace data) or the intentional reentranceTicket guard, zero known code bugs |
+| 4 | **verified by exact simulation**, 2026-08-31. The Desktop config's literal command+args+env were spawned headlessly: abap-adt-mcp 0.3.0, 142 tools, all 20 destinations listed, server instructions announced, no secrets in listSystems output. Final UI step (Cmd+Q + reopen, then a conversation using the tools) must be done by the user, this session runs inside Claude.app and cannot restart it. Note: with 20 destinations and no default flag, `destination` is required on every call; mark one entry with `"default": true` in SAP_SYSTEMS if a default is wanted |
 
 Bugs found by this plan and fixed during execution:
 - `AuthHandlers.handleLogin` returned `text: JSON.stringify(loginResult)` where
-  `login()` can resolve without a value — `JSON.stringify(undefined)` is not a
+  `login()` can resolve without a value, `JSON.stringify(undefined)` is not a
   string, producing an invalid MCP tools/call result (-32602). Found by 2.10.
 - `fetchServiceDetails` failed hard on OData V4 bindings where abap-adt-api's
   `bindingDetails` cannot derive service queries ("Cannot destructure property
   'query'"); now degrades to a binding summary with an explanatory note. Found
   by 2.7 against ZAPI_EXAMPLE_O4.
 
-## Layer 3 addendum — 2026-09-02 (0.3.2 tools, DEV, S/4HANA Public Cloud)
+## Layer 3 addendum, 2026-09-02 (0.3.2 tools, DEV, S/4HANA Public Cloud)
 Live over stdio with the real `systems.json`: `login` (silent SSO, ~6 s) · `systemProfile` (platform cloud, 976 collections, only the `rap` toolset unavailable) · `dumps` compact (1 dump, termination point and stack parsed) · `sourceTextSearch` (tenant answers "Source Search is not supported", SRIS_SEARCH 006, now mapped to the grepPackage fallback) · `grepPackage` on ZSANDBOX · `apiReleaseState` (repository verdicts plus the backend `apireleases` answer: `state=RELEASED`, `contract=C4`) · `resolveTransport` (transport lock DEVK900123 detected) · `runSnippet` in ZSANDBOX with that transport (created → written → activated → ran → deleted, output `snippet ok DEVELOPER 20260902`) · `listLocks` empty · `logout` clean. `$TMP` is refused on this tenant with S_ABPLNGVS; runSnippet now hints at a customer package.
 
 Same tenant, 2026-09-03: `getMethodSource` / `setMethodSource(activate=true)` / `runClass` cycle on a throwaway class in ZSANDBOX. Finding: with a stateful session `runClass` kept printing the pre-change output although `getObjectSource` (active and inactive) and `activateByName` were current; running the class in a stateless request fixed it (`v2` on three consecutive runs). `packageTree`, `cdsViewInfo`, `activatePackage`, `objectDiff` (correctly refusing single-revision objects) also exercised.

@@ -7,11 +7,14 @@ authentication modes are supported.
 ## Multiple systems (destinations)
 
 One server instance serves **many** ABAP systems. Each system is a named
-*destination*; every tool takes a `destination` argument to pick one — so a single
-MCP entry exposes one set of tools for all systems, instead of one server per system.
+*destination*; every tool except `listSystems` and `healthcheck` takes an optional
+`destination` argument to pick one, so a single MCP entry exposes one set of tools
+for all systems, instead of one server per system.
 
-Configure destinations in **`systems.json`** at the repo root (gitignored — see
-`systems.example.json`), or inline via `SAP_SYSTEMS` / a path in `SAP_SYSTEMS_FILE`:
+Configure destinations in a **`systems.json`** named by `SAP_SYSTEMS_FILE` (the
+recommended path is `~/.abap-adt-mcp/systems.json`; a `systems.json` next to the
+package is picked up as well for a source checkout, and both are gitignored, see
+`systems.example.json`), or inline via `SAP_SYSTEMS`:
 
 ```json
 {
@@ -21,10 +24,13 @@ Configure destinations in **`systems.json`** at the repo root (gitignored — se
 ```
 
 Secrets can be referenced instead of stored: any string may contain `${env:VAR}` (resolved at startup; a missing variable fails with its name, never its value). Keep the file at mode `0600`: a group/world-readable file is warned about, and refused when it holds inline passwords. Entries default to `authType: "sso"` (override per entry). Resolution order:
-`SAP_SYSTEMS` → `SAP_SYSTEMS_FILE` → `systems.json` → single implicit destination from
-the flat `SAP_URL`/`SAP_CLIENT`/… variables (back-compat). With more than one system,
-`destination` is required on each call; with exactly one (or `SAP_DEFAULT_DESTINATION`
-set) it may be omitted. `listSystems` returns the configured destinations.
+`SAP_SYSTEMS` → `SAP_SYSTEMS_FILE` → `systems.json` next to the package → single
+implicit destination from the flat `SAP_URL`/`SAP_CLIENT`/… variables (back-compat).
+`destination` may be omitted whenever a default exists, resolved in this order:
+`SAP_DEFAULT_DESTINATION` when it names a configured entry, otherwise the first entry
+marked `"default": true`, otherwise the only entry when exactly one is configured.
+With several entries and no default it is required on each call. `listSystems`
+returns the configured destinations.
 
 The MCP client config is then a single server:
 
@@ -74,7 +80,7 @@ production system stays safe even if the host auto-approves everything.
 
 | Key | Effect |
 |---|---|
-| `readOnly` | Only tools annotated read-only (plus `login`, `logout`, `dropSession`, `systemProfile`) may run. `lock` counts as a write. |
+| `readOnly` | Only tools annotated read-only may run, plus the always-allowed set `login`, `logout`, `dropSession`, `listSystems`, `healthcheck`, `systemProfile` and `exportPackageSources` (which writes locally only). `lock`, `unitTestRun`, `createAtcRun` and `atcSummary` count as writes; `runQuery` and `tableContents` are reads and stay allowed. |
 | `deniedTools` | Glob list of tool names refused outright (`git*`, `transportRelease`). |
 | `allowFreeSql` | `false` refuses `runQuery` and `tableContents` with `sqlQuery`. |
 | `deniedTables` | Glob list; applies to `tableContents`, to every table in a `runQuery` `FROM`/`JOIN`, and (best effort, by scanning the ABAP text) to `runSnippet` code and `setObjectSource`/`setMethodSource` sources. Dynamic SQL and views over the table are not detected. |
@@ -85,7 +91,7 @@ production system stays safe even if the host auto-approves everything.
 policy. Refusals come back as errors with `kind: "policyDenied"` and name the gate, so the
 agent does not retry; `listSystems` shows each destination's policy.
 
-## Mode SSO — Browser login (S/4HANA Public Cloud, like Eclipse) — recommended
+## Mode sso: browser login (S/4HANA Public Cloud, like Eclipse), recommended
 
 S/4HANA Public Cloud forces interactive SSO (SAML2/OIDC via IAS) on the ADT
 endpoints, exactly as Eclipse ADT does. This mode reproduces the Eclipse experience:
@@ -117,20 +123,22 @@ Requirements & behaviour:
   the Chrome DevTools Protocol; the harvested cookie jar is held **in memory only**.
   Note that the dedicated browser profile (kept so "stay signed in" works across
   restarts) persists the IdP session on disk under `~/.abap-adt-mcp/sso/<host>/`
-  with `0700` permissions — delete that directory to fully log out.
+  with `0700` permissions: delete that directory to fully log out.
 
 > **Client note:** the SSO session is established for the tenant's logon client
-> (which may differ from the client you expect — e.g. **100** instead of `080`).
+> (which may differ from the client you expect, for example **100** instead of `080`).
 > Set `SAP_CLIENT` to the client your SSO session actually lands on. Access to a
 > different client (e.g. a separate developer-extensibility client) may require
-> its own login and is not guaranteed to be reachable via the same SSO session —
+> its own login and is not guaranteed to be reachable via the same SSO session:
 > verify per tenant.
 
 Verified end-to-end against a real S/4HANA Cloud DEV tenant: browser login →
 cookie harvest → `adt.login()` (CSRF ok) → `reentranceTicket()` and
-`nodeContents('DEVC/K','$TMP')` returned real data.
+`nodeContents('DEVC/K','$TMP')` returned real data. Since then `reentranceTicket`
+is refused unless the server is started with `SAP_ALLOW_REENTRANCE_TICKET=1`,
+because it returns a live logon credential into the conversation.
 
-## Mode 1 — Basic auth
+## Mode basic: basic auth
 
 Works for on-prem AS ABAP and for S/4HANA Cloud **Communication Users** (technical
 users that carry their own password).
@@ -147,7 +155,7 @@ SAP_PASSWORD=secret
 > via IAS) and **cannot** use Basic auth. For those tenants use Mode 2, or create a
 > Communication User.
 
-## Mode 2 — OAuth2 (S/4HANA Public Cloud)
+## Mode oauth: OAuth2 (S/4HANA Public Cloud)
 
 S/4HANA Public Cloud forces interactive SSO on the ADT endpoints, so a stored
 password does not work for a normal user. The sanctioned programmatic path is an
@@ -172,12 +180,12 @@ The server fetches a token via the `client_credentials` grant and caches it unti
 
 ### SAP-side setup (per tenant, done by an administrator)
 
-1. **Communication User** — *Maintain Communication Users* app → create a user;
+1. **Communication User**: *Maintain Communication Users* app, create a user;
    note the generated client id / secret (these become `SAP_OAUTH_CLIENT_ID` /
    `SAP_OAUTH_CLIENT_SECRET`).
-2. **Communication System** — pointing at the tenant, using the communication user
+2. **Communication System**: pointing at the tenant, using the communication user
    with **OAuth 2.0** as the authentication method.
-3. **Communication Arrangement** — for the communication scenario that exposes the
+3. **Communication Arrangement**: for the communication scenario that exposes the
    ABAP development / ADT access your landscape provides; assign the communication
    system from step 2.
 4. Read the **OAuth 2.0 token endpoint** from the communication system/arrangement
@@ -209,5 +217,5 @@ The server fetches a token via the `client_credentials` grant and caches it unti
 }
 ```
 
-Keep secrets out of version control — add `.mcp.json` to `.gitignore` when it holds
+Keep secrets out of version control: add `.mcp.json` to `.gitignore` when it holds
 real credentials.

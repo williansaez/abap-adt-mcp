@@ -1,19 +1,19 @@
 > Historical record: every item below shipped in 0.3.0/0.3.1. Current status lives in `docs/ROADMAP.md`.
 
-# Improvement Plan — Based on SAP Official Documentation
+# Improvement Plan, Based on SAP Official Documentation
 
 Source: SAP Help Portal, "ABAP Development Tools for Visual Studio Code" (deliverable 40559577, 18 pages, generated 2026-08-30). The document describes SAP's own official **ADT MCP Server** (shipped inside ADT for VS Code): its tool catalog (~20 tools in toolsets), the canonical agentic workflow, agent-configuration guidance (`agents.md`), and security considerations. This plan compares that against this project and lists concrete improvements, prioritized by value vs. effort.
 
-## P0 — Bug fix
+## P0, Bug fix
 
 ### 1. `validateNewObject` is unusable (breaks SAP's canonical validate-before-create step)
 `src/handlers/ObjectRegistrationHandlers.ts:20-29, 86-107` declares the input as `options: string`, but `abap-adt-api`'s `validateNewObject()` expects a `ValidateOptions` object (`objtype`, `objname`, `packagename`, `description`). No `JSON.parse` is performed, so any call fails and agents skip validation entirely.
 **Fix:** replace the schema with real fields mirroring `ValidateOptions` and build the object in the handler. Effort: small.
 
-## P1 — High value
+## P1, High value
 
 ### 2. Expose the RAP generator framework (SAP's headline capability, already in the library)
-SAP: `abap_generators-list_generators` / `get_schema` / `generate_objects` — "generating complete RAP applications" (tables, CDS views, behavior definitions, service definitions/bindings).
+SAP: `abap_generators-list_generators` / `get_schema` / `generate_objects`, "generating complete RAP applications" (tables, CDS views, behavior definitions, service definitions/bindings).
 The `abap-adt-api` library already ships the full API, unused by this server: `rapGenIsAvailable`, `rapGenGetSchema`, `rapGenValidateInitial`, `rapGenGetContent`, `rapGenGetUiConfig`, `rapGenValidateContent`, `rapGenPreview`, `rapGenGenerate`, `rapGenPublishService` (`node_modules/abap-adt-api/build/AdtClient.d.ts:339-347`).
 **Fix:** new `RapGeneratorHandlers.ts` with ~9 tools. Pure wrapper work, no new REST plumbing. Effort: medium (mechanical).
 
@@ -31,7 +31,7 @@ Effort: small (text only).
 
 ### 5. Ship an `agents.md` template (SAP page-12 guidance)
 SAP recommends providing agent context files with rules: cloud-compliant ABAP syntax, `$TMP`/local package conventions, class-prefix conventions, "always run unit tests after changing source", "add unit tests to the testclass include".
-**Fix:** add `docs/agents.template.md` encoding this server's loop (`listSystems` → `validateNewObject` → `transportInfo`/`createTransport` → `lock` → `setObjectSource` → `syntaxCheckCode` → `activateByName` → `unitTestRun` → `unLock`), with `destination` handling. Also fix the stale README "Custom Instruction" block: it references a nonexistent `activate` tool (README.md:195,210 — real names `activateObjects`/`activateByName`), omits creation flow and `destination`. Effort: small.
+**Fix:** add `docs/agents.template.md` encoding this server's loop (`listSystems` → `validateNewObject` → `transportInfo`/`createTransport` → `lock` → `setObjectSource` → `syntaxCheckCode` → `activateByName` → `unitTestRun` → `unLock`), with `destination` handling. Also fix the stale README "Custom Instruction" block: it references a nonexistent `activate` tool (README.md:195,210, real names `activateObjects`/`activateByName`), omits creation flow and `destination`. Effort: small.
 
 ### 6. Security hardening (from SAP's Security Considerations + audit findings)
 
@@ -40,9 +40,9 @@ SAP recommends providing agent context files with rules: cloud-compliant ABAP sy
 - **No security documentation:** add a `## Security` README section covering prompt-injection risk, per-tool approval / enterprise allowlist (GitHub Copilot MCP allowlist policy), least-privilege SAP users, DEV-system recommendation, and that `runQuery`/`tableContents` read business data. Effort: small.
 - **Error redaction:** defensive pass in `handleError` (`src/index.ts:245-262`) so upstream errors can never echo `Authorization`/`Cookie` headers. Effort: small.
 - **TLS bypass hygiene:** README recommends process-wide `NODE_TLS_REJECT_UNAUTHORIZED=0`; scope the advice to per-system `insecureTls` and log a startup warning when active (`src/lib/cookieHttpClient.ts:51`). Effort: small.
-- **Customer data in public docs:** docs/AUTH.md:18,70-71 embeds a real customer tenant hostname — replace with placeholders. Effort: trivial.
+- **Customer data in public docs:** docs/AUTH.md:18,70-71 embeds a real customer tenant hostname, replace with placeholders. Effort: trivial.
 
-## P2 — Functional parity gaps
+## P2, Functional parity gaps
 
 ### 7. Expose `transportDetails` + transport unified diff
 SAP: `abap_transport-get` (covered by `transportInfo`/`userTransports`) and `abap_transport-unifiedDifference` (missing).
@@ -57,13 +57,13 @@ SAP: `abap_atc_execute_deterministic_quickfixes`. This repo has the ATC pipeline
 ### 10. Creatable-type details tool
 SAP: `abap_creation-get_object_type_details` (per-type required fields) and version-aware `get_all_creatable_objects`. Add a thin composite exposing creatable types + required-field metadata; note the library's `CreatableTypeIds` union (~20 types) caps `createObject` coverage. Effort: small (composite) / large (beyond union).
 
-## P3 — Platform / docs
+## P3, Platform / docs
 
 ### 11. Optional Streamable HTTP transport with bearer token
-SAP's server: localhost HTTP `/mcp`, port default 2236, auto-generated bearer token — the format GitHub Copilot / Amazon Q configs expect. This server is stdio-only (`src/index.ts:369-372`), and README currently suggests an **unauthenticated** FLUJO proxy for HTTP (worse). Add `StreamableHTTPServerTransport` behind `MCP_HTTP_PORT`, bind 127.0.0.1, auto-generate token (0600 file), reject unauthenticated requests; retire the FLUJO advice. Effort: medium-large.
+SAP's server: localhost HTTP `/mcp`, port default 2236, auto-generated bearer token, the format GitHub Copilot / Amazon Q configs expect. This server is stdio-only (`src/index.ts:369-372`), and README currently suggests an **unauthenticated** FLUJO proxy for HTTP (worse). Add `StreamableHTTPServerTransport` behind `MCP_HTTP_PORT`, bind 127.0.0.1, auto-generate token (0600 file), reject unauthenticated requests; retire the FLUJO advice. Effort: medium-large.
 
 ### 12. README rewrite + config hygiene
-README still largely inherited from upstream (mario-andreschak branding, FLUJO, basic-auth only); no multi-destination quick start, no tool catalog, no workflow example. `server.json` is stale (missing `SAP_SYSTEMS*` vars, wrong version/repo URL). Prefer `SAP_SYSTEMS_FILE` (0600) over inline `SAP_SYSTEMS` in docs; support env-var indirection for secrets in systems.json. Also: `checkRateLimit` in `BaseHandler.ts:45-58` is dead code; git tools accept passwords as tool args (`GitHandlers.ts`) — backfill from per-destination config instead. Fix typo `adtCompatibiliyGraph` (`src/index.ts:103`). Effort: medium.
+README still largely inherited from upstream (mario-andreschak branding, FLUJO, basic-auth only); no multi-destination quick start, no tool catalog, no workflow example. `server.json` is stale (missing `SAP_SYSTEMS*` vars, wrong version/repo URL). Prefer `SAP_SYSTEMS_FILE` (0600) over inline `SAP_SYSTEMS` in docs; support env-var indirection for secrets in systems.json. Also: `checkRateLimit` in `BaseHandler.ts:45-58` is dead code; git tools accept passwords as tool args (`GitHandlers.ts`), backfill from per-destination config instead. Fix typo `adtCompatibiliyGraph` (`src/index.ts:103`). Effort: medium.
 
 ## Not applicable (from the doc)
 

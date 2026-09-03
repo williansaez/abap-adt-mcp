@@ -24,7 +24,7 @@ const icon = (t) => t.annotations?.readOnlyHint ? '📖' : (t.annotations?.destr
 const params = (t) => {
   const props = t.inputSchema?.properties || {};
   const req = new Set(t.inputSchema?.required || []);
-  return Object.keys(props).filter(p => p !== 'destination').map(p => `\`${p}\`${req.has(p) ? '*' : ''}`).join(', ') || '—';
+  return Object.keys(props).filter(p => p !== 'destination').map(p => `\`${p}\`${req.has(p) ? '*' : ''}`).join(', ') || 'none';
 };
 const short = (s, n = 260) => {
   const one = String(s || '').replace(/\s+/g, ' ').trim();
@@ -48,12 +48,55 @@ for (const ts of order) {
   md += `| \`${ts}\` | ${(byToolset[ts] || []).length} | ${TOOLSETS[ts].description} | ${TOOLSET_PRESETS.focused.includes(ts) ? 'yes' : 'no'} |\n`;
 }
 md += `\n`;
+// Curated usage notes (when to use, what comes back, pitfalls, related tools)
+// live in docs/tool-notes.json so they survive regeneration; the generator
+// only merges them. Missing entries are fine.
+let notes = {};
+try { notes = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'docs', 'tool-notes.json'), 'utf8')); } catch { notes = {}; }
+const cell = (s) => String(s || '').replace(/\s+/g, ' ').replace(/\|/g, '\\|').trim();
+const anchor = (name) => name.toLowerCase();
+
+md += `## Summary by toolset\n\n`;
 for (const ts of order) {
   const tools = byToolset[ts] || [];
   if (!tools.length) continue;
-  md += `## ${TOOLSETS[ts].title} (${tools.length}) · toolset \`${ts}\`\n\n| Tool | What it does | Key parameters |\n|---|---|---|\n`;
-  for (const t of tools) md += `| ${icon(t)} \`${t.name}\` | ${short(t.description).replace(/\|/g, '\\|')} | ${params(t)} |\n`;
+  md += `### ${TOOLSETS[ts].title} (${tools.length}) · toolset \`${ts}\`\n\n| Tool | What it does | Key parameters |\n|---|---|---|\n`;
+  for (const t of tools) md += `| ${icon(t)} [\`${t.name}\`](#${anchor(t.name)}) | ${short(t.description).replace(/\|/g, '\\|')} | ${params(t)} |\n`;
   md += `\n`;
+}
+
+md += `## Tool details\n\nFull description, every parameter with its examples, and usage notes. Parameter names are tolerant: the server maps case variants and common aliases (\`objectSourceUrl\`/\`objectUrl\`/\`uri\` for \`objSourceUrl\`, \`className\` for \`clas\`, \`source\` for \`code\`, and so on) onto the names below.\n\n`;
+for (const ts of order) {
+  const tools = byToolset[ts] || [];
+  if (!tools.length) continue;
+  md += `### ${TOOLSETS[ts].title} · toolset \`${ts}\`\n\n`;
+  for (const t of tools) {
+    const a = t.annotations || {};
+    const flags = [a.readOnlyHint ? 'read-only' : (a.destructiveHint ? 'destructive' : 'writes'), a.idempotentHint ? 'idempotent' : null, a.openWorldHint ? 'reaches the internet' : null].filter(Boolean).join(', ');
+    md += `#### ${t.name}\n\n${icon(t)} ${t.title || t.name} · toolset \`${ts}\` · ${flags}\n\n${String(t.description || '').trim()}\n\n`;
+    const props = t.inputSchema?.properties || {};
+    const req = new Set(t.inputSchema?.required || []);
+    const names = Object.keys(props).filter(p => p !== 'destination');
+    if (names.length) {
+      md += `| Parameter | Type | Required | Description | Example |\n|---|---|---|---|---|\n`;
+      for (const p of names) {
+        const d = props[p] || {};
+        const type = d.enum ? d.enum.map(e => `\`${e}\``).join(' / ') : (Array.isArray(d.type) ? d.type.join(' / ') : (d.type || 'any'));
+        const ex = Array.isArray(d.examples) && d.examples.length ? d.examples.slice(0, 2).map(e => `\`${String(e).replace(/`/g, '')}\``).join(', ') : (d.default !== undefined ? `default \`${d.default}\`` : '');
+        md += `| \`${p}\` | ${cell(type)} | ${req.has(p) ? 'yes' : 'no'} | ${cell(d.description)} | ${cell(ex)} |\n`;
+      }
+      md += `\n`;
+    } else {
+      md += `No parameters besides \`destination\`.\n\n`;
+    }
+    const n = notes[t.name];
+    if (n) {
+      if (n.when) md += `**When to use.** ${n.when.trim()}\n\n`;
+      if (n.returns) md += `**What comes back.** ${n.returns.trim()}\n\n`;
+      if (n.pitfalls) md += `**Pitfalls.** ${n.pitfalls.trim()}\n\n`;
+      if (Array.isArray(n.seeAlso) && n.seeAlso.length) md += `See also: ${n.seeAlso.map(x => `[\`${x}\`](#${anchor(x)})`).join(', ')}.\n\n`;
+    }
+  }
 }
 
 const snapshot = {
