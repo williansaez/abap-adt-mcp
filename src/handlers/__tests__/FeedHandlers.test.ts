@@ -91,7 +91,7 @@ describe('dumps tool', () => {
     const { handler } = makeHandler([dump(), older]);
     expect(parse(await handler.handle('dumps', { from: '2026-08-15' })).dumps).toHaveLength(1);
     expect(parse(await handler.handle('dumps', { to: '20260815000000' })).dumps[0].user).toBe('OTHER');
-    expect(parse(await handler.handle('dumps', { user: 'cb9980000040' })).totalItems).toBe(1);
+    expect(parse(await handler.handle('dumps', { user: 'developer' })).totalItems).toBe(1);
     expect(parse(await handler.handle('dumps', { contains: 'tpdapi_invalid' })).totalItems).toBe(2);
     expect(parse(await handler.handle('dumps', { contains: 'nomatch' })).totalItems).toBe(0);
     const res = parse(await handler.handle('dumps', { user: 'OTHER' }));
