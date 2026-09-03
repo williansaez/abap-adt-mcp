@@ -4,13 +4,14 @@ import type { ToolDefinition } from '../types/tools.js';
 import { ADTClient } from 'abap-adt-api';
 import { sourceCache } from '../lib/sourceCache.js';
 import { SAFE_OUTPUT_CHARS, shrinkToFit } from '../lib/responseSizing.js';
+import { htmlToText, stripAbapDocChrome } from '../lib/htmlText.js';
 
 export class CodeAnalysisHandlers extends BaseHandler {
     getTools(): ToolDefinition[] {
         return [
             {
                 name: 'syntaxCheckCode',
-                description: 'Perform ABAP syntax check. Provide the source in "code", or omit it to reuse the source last read/written for "url" via getObjectSource/setObjectSource (cached this session).',
+                description: 'ABAP syntax check of a source against the context of an existing object: url is the source URL of that object (…/source/main), required because the check resolves types and includes in its context; it is not a standalone check of free text. Provide the source in "code" (alias: source), or omit it to reuse the source last read/written for "url" this session. Returns line, offset, severity and text per finding. To try free ABAP without an object, use runSnippet on a development system.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -19,8 +20,8 @@ export class CodeAnalysisHandlers extends BaseHandler {
                             description: 'The ABAP source to check. Optional if the source for "url" was already read or written this session.',
                             optional: true
                         },
-                        url: { type: 'string', optional: true },
-                        mainUrl: { type: 'string', optional: true },
+                        url: { type: 'string', description: 'Source URL of the object the code belongs to, e.g. /sap/bc/adt/oo/classes/zcl_x/source/main (aliases accepted: objectSourceUrl, objectUrl)' },
+                        mainUrl: { type: 'string', description: 'Main program URL for includes (defaults to url)', optional: true },
                         mainProgram: { type: 'string', optional: true },
                         version: { type: 'string', optional: true }
                     },
@@ -202,17 +203,20 @@ export class CodeAnalysisHandlers extends BaseHandler {
             },
             {
                 name: 'abapDocumentation',
-                description: 'Retrieves ABAP documentation.',
+                description: 'ABAP keyword documentation (the F1 help) as plain text. Two ways to ask: (a) keyword: a statement or addition such as "SELECT SINGLE", "WITH PRIVILEGED ACCESS", "LOOP AT GROUP BY" (the server builds the context for you); (b) cursor: objectUri, body (the source; fetched from objectUri when omitted), line and column of the element to explain. Long documents are paged with startLine/maxLines.',
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        objectUri: { type: 'string' },
-                        body: { type: 'string' },
-                        line: { type: 'number' },
-                        column: { type: 'number' },
-                        language: { type: 'string', optional: true }
-                    },
-                    required: ['objectUri', 'body', 'line', 'column']
+                        keyword: { type: 'string', description: 'ABAP statement or addition to look up, e.g. "SELECT SINGLE", "WITH PRIVILEGED ACCESS"', optional: true },
+                        objectUri: { type: 'string', description: 'Source URL giving the context (…/source/main); optional with keyword', optional: true },
+                        body: { type: 'string', description: 'Source text the cursor refers to; omitted: read from objectUri', optional: true },
+                        line: { type: 'number', description: '1-based line of the element (cursor mode)', optional: true },
+                        column: { type: 'number', description: '1-based column of the element (cursor mode)', optional: true },
+                        language: { type: 'string', optional: true },
+                        startLine: { type: 'number', description: '1-based first line of the text to return (default 1)', optional: true },
+                        maxLines: { type: 'number', description: 'Maximum lines to return (default: as many as fit)', optional: true },
+                        raw: { type: 'boolean', description: 'Return the HTML instead of plain text', optional: true }
+                    }
                 }
             }
         ];
@@ -668,20 +672,39 @@ export class CodeAnalysisHandlers extends BaseHandler {
     async handleAbapDocumentation(args: any): Promise<any> {
         const startTime = performance.now();
         try {
-            const result = await this.adtclient.abapDocumentation(args.objectUri, args.body, args.line, args.column, args.language);
+            let { objectUri, body, line, column } = args;
+            const keyword = args.keyword ? String(args.keyword).trim() : undefined;
+            if (keyword) {
+                // Any source context works for keyword help; the statement itself is the body.
+                objectUri = objectUri || '/sap/bc/adt/oo/classes/cl_abap_char_utilities/source/main';
+                body = /\.\s*$/.test(keyword) ? keyword : `${keyword}.`;
+                line = 1; column = 1;
+            } else {
+                if (!objectUri) throw new McpError(ErrorCode.InvalidParams, 'Pass keyword (e.g. "SELECT SINGLE") or objectUri with line and column');
+                if (line === undefined || column === undefined) throw new McpError(ErrorCode.InvalidParams, 'Cursor mode needs line and column (1-based); or pass keyword instead');
+                if (!body) {
+                    const url = /\/source\/main\/?$/i.test(objectUri) || /\/includes\//i.test(objectUri) ? objectUri : `${objectUri.replace(/\/$/, '')}/source/main`;
+                    body = sourceCache.get(this.adtclient, url) ?? await this.adtclient.getObjectSource(url);
+                }
+            }
+            const html = await this.adtclient.abapDocumentation(objectUri, body, Number(line), Number(column), args.language);
             this.trackRequest(startTime, true);
-            return {
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify({
-                            status: 'success',
-                            result
-                        })
-                    }
-                ]
-            };
+            const title = (String(html).match(/<title>([^<]*)<\/title>/i)?.[1] || '').replace(/\s*\|\s*ABAP Keyword Documentation/i, '').trim();
+            const fullText = args.raw === true ? String(html) : stripAbapDocChrome(htmlToText(String(html)));
+            const lines = fullText.split('\n');
+            const totalLines = lines.length;
+            const startLine = Math.max(1, Number(args.startLine) || 1);
+            const startIndex = startLine - 1;
+            const initialMax = args.maxLines !== undefined ? Math.max(0, Number(args.maxLines)) : totalLines - startIndex;
+            const text = shrinkToFit(initialMax, (count, capped) => {
+                const endIndex = Math.min(startIndex + count, totalLines);
+                const payload: any = { status: 'success', title: title || undefined, keyword, text: lines.slice(startIndex, endIndex).join('\n'), totalLines, startLine, returnedLines: Math.max(0, endIndex - startIndex), hasMore: endIndex < totalLines };
+                if (capped) payload.capped = true;
+                return payload;
+            });
+            return { content: [{ type: 'text', text }] };
         } catch (error: any) {
+            if (error instanceof McpError) throw error;
             this.trackRequest(startTime, false);
             throw new McpError(
                 ErrorCode.InternalError,

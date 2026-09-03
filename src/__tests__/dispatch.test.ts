@@ -121,4 +121,11 @@ describe('dispatch', () => {
     expect(dest.adtClient.dropSession).toHaveBeenCalled();
     expect(listLocks(dest.adtClient)).toHaveLength(0);
   });
+
+  it('maps guessed parameter names onto the tool schema before calling the handler', async () => {
+    const dest = stub(server, 'DEV', 'objectSource', async (_n, args) => ({ got: args }));
+    const r = text(await server.dispatch('getObjectSource', { objectUrl: '/sap/bc/adt/oo/classes/zcl_x/source/main', MaxLines: 5 }, () => undefined));
+    expect(r.got).toEqual({ objectSourceUrl: '/sap/bc/adt/oo/classes/zcl_x/source/main', maxLines: 5 });
+    expect(dest.handlers.objectSource.handle).toHaveBeenCalledTimes(1);
+  });
 });

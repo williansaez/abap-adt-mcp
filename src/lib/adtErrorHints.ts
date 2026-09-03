@@ -30,7 +30,7 @@ const HINTS: Record<Exclude<AdtErrorKind, 'unknown'>, { hint: string; nextTools:
     nextTools: ['login', 'lock'],
   },
   locked: {
-    hint: 'The object is locked. If the lock is yours from an earlier call, run unLock (or dropSession) and lock again; if it belongs to another user, do not retry the write: wait for them or ask them to release it (SM12).',
+    hint: 'The object is locked. listLocks shows the locks this server holds: if the object is there, unLock/forceUnlock and retry. If it is not there, the lock belongs to another session (Eclipse/ADT of the same or another user, named in the message); dropSession and forceUnlock cannot release it: wait for that session to end or ask the user to release it (SM12).',
     nextTools: ['unLock', 'lock'],
   },
   staleLockHandle: {

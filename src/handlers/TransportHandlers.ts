@@ -16,7 +16,7 @@ export class TransportHandlers extends BaseHandler {
                     properties: {
                         transportNumber: {
                             type: 'string',
-                            description: 'Transport request number, e.g. DEVK900123'
+                            description: 'Transport request number, e.g. DEVK900123 (TransportNumber and other spellings are accepted)'
                         }
                     },
                     required: ['transportNumber']
@@ -24,13 +24,13 @@ export class TransportHandlers extends BaseHandler {
             },
             {
                 name: 'transportUnifiedDiff',
-                description: 'Generate a unified diff of the source-code objects recorded on a transport request: for each object it compares the version predating the transport against the current source. Useful for reviewing what a transport changes. Non-source objects (tables, customizing) are listed but not diffed.',
+                description: 'Generate a unified diff of the source-code objects recorded on a transport request: for each object it compares the version predating the transport against the current source. Covers whole objects (R3TR CLAS/PROG/INTF/FUGR/DDLS/BDEF/DCLS/DDLX/SRVD) and sub-objects (LIMU CINC class includes such as the CCIMP of a RAP behavior pool, METH/CLSD/CPUB/CPRO/CPRI class parts, REPS includes, FUNC function modules). Messages (LIMU MESS), DDIC and customizing entries have no source history and are listed in skipped with the reason.',
                 inputSchema: {
                     type: 'object',
                     properties: {
                         transportNumber: {
                             type: 'string',
-                            description: 'Transport request number, e.g. DEVK900123'
+                            description: 'Transport request number, e.g. DEVK900123 (TransportNumber and other spellings are accepted)'
                         },
                         maxObjects: {
                             type: 'number',
@@ -49,7 +49,7 @@ export class TransportHandlers extends BaseHandler {
                     properties: {
                         objSourceUrl: {
                             type: 'string',
-                            description: 'URL of the object source'
+                            description: 'Object URL or its source URL, e.g. /sap/bc/adt/oo/classes/zcl_x (aliases accepted: objectUrl, objectSourceUrl, uri)'
                         },
                         devClass: {
                             type: 'string',
@@ -88,15 +88,15 @@ export class TransportHandlers extends BaseHandler {
                     properties: {
                         objSourceUrl: {
                             type: 'string',
-                            description: 'URL of the object source'
+                            description: 'Object URL or its source URL, e.g. /sap/bc/adt/oo/classes/zcl_x (aliases accepted: objectUrl, objectSourceUrl, uri)'
                         },
                         REQUEST_TEXT: {
                             type: 'string',
-                            description: 'Description of the transport request'
+                            description: 'Description of the transport request (alias accepted: description)'
                         },
                         DEVCLASS: {
                             type: 'string',
-                            description: 'Development class (the ABAP package, e.g. ZPACKAGE)'
+                            description: 'The ABAP package, e.g. ZPACKAGE (alias accepted: packageName)'
                         },
                         transportLayer: {
                             type: 'string',
@@ -417,6 +417,53 @@ export class TransportHandlers extends BaseHandler {
         DDLS: 'DDLS', BDEF: 'BDEF', DCLS: 'DCLS', DDLX: 'DDLX', SRVD: 'SRVD'
     };
 
+    /** Class include suffix (E071 object name) -> ADT include name. */
+    private static readonly CINC_INCLUDES: Record<string, 'definitions' | 'implementations' | 'testclasses' | 'macros'> = {
+        CCDEF: 'definitions', CCIMP: 'implementations', CCAU: 'testclasses', CCMAC: 'macros'
+    };
+
+    /**
+     * Map a transport object (pgmid/type/name) to what can be diffed: the
+     * object to search for, its type filter and, for class includes, the
+     * include whose revisions to compare. LIMU entries name sub-objects with
+     * the 30-character padded parent name followed by the part.
+     */
+    static resolveDiffTarget(pgmid: string, type: string, name: string): { searchName: string; searchType?: string; include?: 'definitions' | 'implementations' | 'testclasses' | 'macros' | 'main'; label: string } | { skip: string } {
+        const clean = String(name || '').trim();
+        if (pgmid === 'R3TR') {
+            if (TransportHandlers.DIFFABLE_TYPES[type]) return { searchName: clean, searchType: type, label: clean };
+            return { skip: 'not a source object (DDIC, customizing or metadata); compare with getObjectSource or transportDetails' };
+        }
+        if (pgmid !== 'LIMU') return { skip: `${pgmid} entries are not source objects` };
+        // LIMU names: parent (padded to 30 or separated by spaces/=) + part.
+        const split = (): { parent: string; part: string } => {
+            const m = clean.match(/^(\S+?)[\s=]+(\S+)$/);
+            if (m) return { parent: m[1], part: m[2] };
+            if (clean.length > 30) return { parent: clean.slice(0, 30).trim(), part: clean.slice(30).trim() };
+            return { parent: clean, part: '' };
+        };
+        switch (type) {
+            case 'CINC': {
+                const { parent, part } = split();
+                const include = TransportHandlers.CINC_INCLUDES[part.toUpperCase()];
+                if (!include) return { skip: `class include ${part || '?'} of ${parent} is not a diffable include` };
+                return { searchName: parent, searchType: 'CLAS', include, label: `${parent} (${part.toUpperCase()})` };
+            }
+            case 'METH': case 'CLSD': case 'CPUB': case 'CPRO': case 'CPRI': case 'CLSI': {
+                const { parent, part } = split();
+                return { searchName: parent, searchType: 'CLAS', include: 'main', label: part ? `${parent} (${type} ${part})` : parent };
+            }
+            case 'REPS': case 'REPO':
+                return { searchName: clean, label: clean };
+            case 'FUNC':
+                return { searchName: clean, searchType: 'FUGR/FF', label: clean };
+            case 'MESS': case 'MSAD':
+                return { skip: 'messages have no source revisions; read the message class with getObjectSource(/sap/bc/adt/messageclass/<name>) to review texts' };
+            default:
+                return { skip: `LIMU ${type} has no diffable source` };
+        }
+    }
+
     async handleTransportUnifiedDiff(args: any): Promise<any> {
         const startTime = performance.now();
         try {
@@ -439,22 +486,34 @@ export class TransportHandlers extends BaseHandler {
             const diffs: any[] = [];
             const skipped: any[] = [];
             let diffed = 0;
+            const diffedKeys = new Set<string>();
             for (const obj of objects) {
                 const type = obj['tm:type'];
                 const name = obj['tm:name'];
-                if (obj['tm:pgmid'] !== 'R3TR' || !TransportHandlers.DIFFABLE_TYPES[type]) {
-                    skipped.push({ pgmid: obj['tm:pgmid'], type, name, reason: 'not a diffable source object' });
+                const target = TransportHandlers.resolveDiffTarget(obj['tm:pgmid'], type, name);
+                if ('skip' in target) {
+                    skipped.push({ pgmid: obj['tm:pgmid'], type, name, reason: target.skip });
                     continue;
                 }
+                // Several LIMU parts of the same class collapse into one diff of that include.
+                const key = `${target.searchName}|${target.include || ''}`.toUpperCase();
+                if (diffedKeys.has(key)) { skipped.push({ pgmid: obj['tm:pgmid'], type, name, reason: `covered by the diff of ${target.label}` }); continue; }
                 if (diffed >= maxObjects) {
                     skipped.push({ pgmid: obj['tm:pgmid'], type, name, reason: `maxObjects (${maxObjects}) reached` });
                     continue;
                 }
                 diffed++;
+                diffedKeys.add(key);
                 try {
-                    diffs.push(await this.diffObjectAgainstTransport(type, name, transportNumber));
+                    const d: any = await this.diffObjectAgainstTransport(target.searchType, target.searchName, transportNumber, target.include);
+                    if (d.error === 'object not found via searchObject') {
+                        diffed--;
+                        skipped.push({ pgmid: obj['tm:pgmid'], type, name, reason: 'object no longer exists in the system (deleted after being recorded)' });
+                        continue;
+                    }
+                    diffs.push({ pgmid: obj['tm:pgmid'], transportType: type, transportName: name, ...d });
                 } catch (error: any) {
-                    diffs.push({ type, name, error: this.formatAdtError(error) });
+                    diffs.push({ pgmid: obj['tm:pgmid'], type, name, error: this.formatAdtError(error) });
                 }
             }
 
@@ -484,15 +543,15 @@ export class TransportHandlers extends BaseHandler {
      * Diff one object: current source vs the newest revision that predates the
      * transport (identified by revisions tagged with the transport number).
      */
-    private async diffObjectAgainstTransport(type: string, name: string, transportNumber: string) {
-        const search = await this.adtclient.searchObject(name, type, 5);
+    private async diffObjectAgainstTransport(type: string | undefined, name: string, transportNumber: string, include?: 'definitions' | 'implementations' | 'testclasses' | 'macros' | 'main') {
+        const search = await this.adtclient.searchObject(name, type as any, 5);
         const hit = (search || []).find(
             (r: any) => (r['adtcore:name'] || '').toUpperCase() === name.toUpperCase()
         ) || (search || [])[0];
         if (!hit) return { type, name, error: 'object not found via searchObject' };
         const uri = hit['adtcore:uri'];
 
-        const revs = await this.adtclient.revisions(uri);
+        const revs = await this.adtclient.revisions(uri, include && include !== 'main' ? include : undefined);
         if (!revs || revs.length === 0) return { type, name, uri, error: 'no revisions available' };
         // Newest first, defensively.
         const sorted = [...revs].sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -521,6 +580,7 @@ export class TransportHandlers extends BaseHandler {
             type,
             name,
             uri,
+            ...(include ? { include } : {}),
             baselineRevision: baseline ? { version: baseline.version, date: baseline.date, title: baseline.versionTitle } : null,
             exactTransportMatch: lastIdx >= 0,
             diff: patch

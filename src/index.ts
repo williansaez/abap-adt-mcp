@@ -28,6 +28,7 @@ import { buildSystemProfile, SystemProfile } from './lib/systemProfile.js';
 import { evaluatePolicy, objectUrlOf, summarizePolicy } from './lib/policy.js';
 import { clearLedger, releaseAll } from './lib/lockLedger.js';
 import { sourceCache } from './lib/sourceCache.js';
+import { normalizeArgs } from './lib/argAliases.js';
 import { TOOLSET_FEATURE } from './lib/systemProfile.js';
 import { AuditLog, summarizeArgs } from './lib/audit.js';
 import { buildHttpsAgent, describeTls } from './lib/tls.js';
@@ -178,6 +179,7 @@ export class AbapAdtServer extends Server {
   private defaultDest?: string;
   private pool = new Map<string, Destination>();
   private toolToHandlerKey = new Map<string, keyof HandlerSet>();
+  private toolSchemas?: Map<string, any>;
   private schemaHandlers: HandlerSet;
   private toolsets: ToolsetSelection;
   private audit = new AuditLog(process.env.MCP_AUDIT_FILE, redactSecrets);
@@ -192,13 +194,13 @@ export class AbapAdtServer extends Server {
           '',
           'Creating a new object: loadTypes (pick objtype, e.g. CLAS/OC) -> validateNewObject (check name/package) -> resolveTransport (if package is not $TMP) -> createObject -> setObjectSource with activate=true -> unitTestRun.',
           '',
-          'Editing an existing object: searchObject / findObjectPath -> getObjectSource -> resolveTransport (for non-local packages) -> editObjectSource (replacements or line range) or setObjectSource, with activate=true -> unitTestRun. Write tools lock and unlock by themselves; call lock/unLock only to hold a lock across several writes, and listLocks/forceUnlock if a write left an object locked. syntaxCheckCode before writing catches errors early.',
+          'Editing an existing object: searchObject / findObjectPath -> getObjectSource -> resolveTransport (for non-local packages) -> editObjectSource (replacements or line range), setMethodSource (one method) or setObjectSource (whole source), with activate=true -> unitTestRun -> objectDiff to review what changed. Never resend a whole source to change a few lines. Write tools lock and unlock by themselves; call lock/unLock only to hold a lock across several writes, and listLocks/forceUnlock if a write left an object locked. syntaxCheckCode before writing catches errors early. Class includes (implementations, testclasses, definitions) are read with getObjectSource on the URL from classIncludes, without /source/main.',
           '',
           'Always run unit tests after adding tests or changing source code. Unit tests belong in the testclass include (createTestInclude). Use $TMP for local throwaway development; transportable packages require a transport request (resolveTransport picks it for you).',
           '',
           'ABAP Cloud: apiReleaseState(names or source) checks SAP objects against the official cloudification repository before you use them; runSnippet executes throwaway ABAP in $TMP and returns the console output.',
           '',
-          'Finding code: sourceTextSearch (server index) or grepPackage (client grep with context) locate usages of tables, messages, methods or literals; read whole sources only for the hits.',
+          'Finding code: sourceTextSearch (server index) or grepPackage (client grep with context) locate usages of tables, messages, methods or literals; read whole sources only for the hits. Data: runQuery for SQL over tables and CDS views (statements are wrapped to the 255-character line limit of the data preview), tableContents when the preview refuses a table, getDataElementProperties/getDomainProperties for the internal format of a key (leading zeros, conversion exits).',
           '',
           'Errors carry kind/hint/nextTools: follow the hint instead of retrying blindly. systemProfile(destination) tells which toolsets the backend supports (S/4HANA Cloud lacks some); dumps/dumpDetails are the root-cause path when the debugger toolset is unavailable on a destination.',
         ].join('\n'),
@@ -619,7 +621,12 @@ export class AbapAdtServer extends Server {
     }
 
     const dest = this.getDestination(destination);
-    const { destination: _d, ...args } = rawArgs;
+    const { destination: _d, ...rawToolArgs } = rawArgs;
+    // Tolerate the parameter names agents guess (TransportNumber, objectSourceUrl
+    // for objSourceUrl, source for code, ...): map them onto the schema.
+    if (!this.toolSchemas) this.toolSchemas = new Map(this.getToolCatalog().map((t: any) => [t.name, t.inputSchema]));
+    const { args, renamed } = normalizeArgs(this.toolSchemas.get(name), rawToolArgs);
+    if (Object.keys(renamed).length) console.error(`[abap-adt-mcp] ${name}: argument(s) renamed ${Object.entries(renamed).map(([a, b]) => `${a}->${b}`).join(', ')}`);
 
     // Checks that need no SAP round trip come first and are protocol errors.
     const handlerKey = name === 'systemProfile' ? undefined : this.toolToHandlerKey.get(name);

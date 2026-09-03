@@ -22,13 +22,13 @@ export class ClassHandlers extends BaseHandler {
         return [
             {
                 name: 'classIncludes',
-                description: 'Get class includes structure (maps include type to its ADT URL)',
+                description: 'URLs of the includes of a class (main, definitions, implementations, testclasses, macros) to use with getObjectSource/editObjectSource as they are (no /source/main suffix).',
                 inputSchema: {
                     type: 'object',
                     properties: {
                         clas: {
                             type: 'string',
-                            description: 'The class name'
+                            description: 'The class name (aliases accepted: className, classUrl)'
                         }
                     },
                     required: ['clas']

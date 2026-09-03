@@ -1,5 +1,5 @@
 {
-  "version": "0.3.2",
+  "version": "0.3.3",
   "count": 173,
   "toolsets": {
     "core": [
@@ -761,18 +761,17 @@
       "toolset": "analysis",
       "readOnly": true,
       "destructive": false,
-      "required": [
-        "objectUri",
-        "body",
-        "line",
-        "column"
-      ],
+      "required": [],
       "params": [
+        "keyword",
         "objectUri",
         "body",
         "line",
         "column",
-        "language"
+        "language",
+        "startLine",
+        "maxLines",
+        "raw"
       ]
     },
     {

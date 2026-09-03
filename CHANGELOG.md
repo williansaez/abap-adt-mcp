@@ -67,3 +67,13 @@ Fixes driven by a full live test round against a Public Cloud tenant (95/142 too
   - Docs: README custom instruction rewritten for the auto-lock flow, TLS advice no longer suggests `NODE_TLS_REJECT_UNAUTHORIZED=0`, `editObjectSource`/`getObjectSource` descriptions corrected (default read is what ADT serves: inactive when present), debugger availability described per destination instead of "not on Cloud".
   - Packaging: `puppeteer-core` ^24 (Node 18 compatible, as declared in `engines`), `axios` declared, `prebuild` cleans `dist`, compiled tests excluded from the npm package, release workflow runs the docs staleness and test type-check steps, `server.json` lists the SSO/OAuth/TLS variables.
 
+## [0.3.3] - 2026-09-03 - Field report fixes
+Driven by two real development sessions on the 0.3.1 build (docs/FIELD-NOTES.md):
+- Parameter names are tolerant: the dispatcher maps case variants (`TransportNumber`) and known aliases (`objectSourceUrl`/`objectUrl`/`uri` for `objSourceUrl`, `className` for `clas`, `source` for `code`, `description`/`packageName` for `REQUEST_TEXT`/`DEVCLASS`, ...) onto each tool's schema; existing names unchanged.
+- `runQuery`: statements are wrapped to the data preview's 255-character line limit before sending (wide CDS select lists no longer fail with "Boolean expression expected" or "size 256 out of bounds"); errors carry hints for restricted tables (use `tableContents`), truncation and missing display authorization.
+- `transportUnifiedDiff` diffs `LIMU` entries: class includes (CINC, e.g. the CCIMP of a RAP behavior pool), METH/CLSD/CPUB/CPRO/CPRI, REPS includes and FUNC modules; messages and DDIC are skipped with a reason. Diffs report the include compared.
+- `getObjectSource`: class include URLs with a trailing `/source/main` are corrected; a bare object URL that answers ADT metadata (application job templates) is retried with `/source/main`; both cases return a `note`.
+- `abapDocumentation`: `keyword` mode ("SELECT SINGLE", "WITH PRIVILEGED ACCESS"), `body` fetched from `objectUri` when omitted, HTML converted to paged plain text (was 140 kB of raw HTML).
+- Descriptions corrected from the reports: `syntaxCheckCode` needs an object context, `classIncludes` URLs are used as is, `setObjectSource` on message classes rewrites the whole class, `runSnippet` needs S_DEVELOP (development systems only), `tableContents` versus `runQuery`, `getObjectSource` paging; the `locked` hint distinguishes the server's own locks from foreign sessions; server instructions add `objectDiff` and the DDIC property tools.
+- New docs/FIELD-NOTES.md; README links it.
+

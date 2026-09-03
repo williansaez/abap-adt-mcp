@@ -42,11 +42,11 @@ export class ObjectSourceHandlers extends BaseHandler {
     return [
       {
         name: 'getObjectSource',
-        description: 'Retrieves source code for ABAP objects. For large objects, use startLine/maxLines to page through the source instead of retrieving it all at once.',
+        description: 'Retrieves source code for ABAP objects. Omit startLine/maxLines to get as much as fits the response budget (about 40,000 characters, several hundred lines); larger sources are paged automatically and report hasMore, then continue with startLine. Pass version=inactive to see what you wrote before activating.',
         inputSchema: {
           type: 'object',
           properties: {
-            objectSourceUrl: { type: 'string', description: 'Source URL of the object, usually the object URL plus /source/main' },
+            objectSourceUrl: { type: 'string', description: 'Source URL: the object URL plus /source/main for classes, programs, interfaces, CDS, function modules and application job templates (e.g. /sap/bc/adt/oo/classes/zcl_x/source/main). Class includes use the URL from classIncludes as is (/sap/bc/adt/oo/classes/zcl_x/includes/implementations, no /source/main). Message classes: /sap/bc/adt/messageclass/<name> returns the ADT XML. A bare object URL is retried with /source/main when it answers metadata.' },
             version: {
               type: 'string',
               enum: ['active', 'inactive', 'workingArea'],
@@ -69,7 +69,7 @@ export class ObjectSourceHandlers extends BaseHandler {
       },
       {
         name: 'setObjectSource',
-        description: 'Write the full source code of an ABAP object. Locks, writes and unlocks in one call when no lockHandle is given (pass activate=true to also activate); pass a lockHandle from lock only when you hold the lock across several calls. Run syntaxCheckCode before writing to catch errors early. For a targeted change to a large object, prefer editObjectSource instead of resending the full source.',
+        description: 'Write the full source code of an ABAP object. Locks, writes and unlocks in one call when no lockHandle is given (pass activate=true to also activate); pass a lockHandle from lock only when you hold the lock across several calls. Run syntaxCheckCode before writing to catch errors early. For a targeted change to a large object, prefer editObjectSource (unique text anchors) or setMethodSource instead of resending the full source, and objectDiff afterwards to review. Message classes (/sap/bc/adt/messageclass/<name>) are written as the whole ADT XML: every message lands in the transport and masterLanguage/createdAt follow the logon language and system, whatever the XML says.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -177,13 +177,29 @@ export class ObjectSourceHandlers extends BaseHandler {
     
     const startTime = performance.now();
     try {
-      const fullSource = await this.adtclient.getObjectSource(args.objectSourceUrl, args.version ? { version: args.version } : undefined);
+      let url = String(args.objectSourceUrl || '');
+      const notes: string[] = [];
+      // Class includes are addressed without the /source/main suffix (404 otherwise).
+      if (/\/includes\/[^/]+\/source\/main\/?$/i.test(url)) { url = url.replace(/\/source\/main\/?$/i, ''); notes.push('class includes are read without /source/main; suffix removed'); }
+      const opts = args.version ? { version: args.version } : undefined;
+      let fullSource = await this.adtclient.getObjectSource(url, opts);
+      // A bare object URL answers the ADT metadata document for some types
+      // (application job templates, ...): retry the source resource.
+      if (/^\s*<\?xml|^\s*<[a-z]+:/i.test(fullSource) && !/\/source\/main\/?$/i.test(url) && !/\/includes\/|\/messageclass\//i.test(url)) {
+        try {
+          const retried = await this.adtclient.getObjectSource(`${url.replace(/\/$/, '')}/source/main`, opts);
+          if (retried && retried.trim()) { fullSource = retried; url = `${url.replace(/\/$/, '')}/source/main`; notes.push('the object URL returned metadata; /source/main was read instead'); }
+        } catch { /* keep the metadata answer */ }
+      }
+      args = { ...args, objectSourceUrl: url };
+      if (notes.length) args._notes = notes;
       // Remember the source so a later syntaxCheckCode on the same URL can reuse
       // it without the caller re-sending it (issue #2).
       sourceCache.set(this.adtclient, args.objectSourceUrl, fullSource);
       this.trackRequest(startTime, true);
 
       const lines = fullSource.split('\n');
+      const noteFields = args._notes ? { objectSourceUrl: url, note: args._notes.join('; ') } : {};
       const totalLines = lines.length;
 
       // Optional pagination for large sources (issue #4). When the caller
@@ -199,6 +215,7 @@ export class ObjectSourceHandlers extends BaseHandler {
               type: 'text',
               text: JSON.stringify({
                 status: 'success',
+                ...noteFields,
                 source: fullSource,
                 totalLines,
                 startLine: 1,
@@ -216,7 +233,10 @@ export class ObjectSourceHandlers extends BaseHandler {
         ? Math.max(0, Number(args.maxLines))
         : totalLines - startIndex;
 
-      const text = buildPagedSourcePayload(lines, totalLines, startLine, initialMaxLines, requestedPaging);
+      let text = buildPagedSourcePayload(lines, totalLines, startLine, initialMaxLines, requestedPaging);
+      if (args._notes) {
+        try { text = JSON.stringify({ ...JSON.parse(text), ...noteFields }); } catch { /* keep */ }
+      }
 
       return {
         content: [

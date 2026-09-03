@@ -2,6 +2,7 @@ import { ADTClient } from 'abap-adt-api';
 import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
 import { SAFE_OUTPUT_CHARS, shrinkToFit } from '../lib/responseSizing.js';
+import { reflowSql, dataPreviewHint } from '../lib/sqlReflow.js';
 
 // SAP-side cap on rows requested from the ADT service itself (tableContents/
 // runQuery `rowNumber` param). Independent from the JSON-output-size
@@ -16,7 +17,7 @@ export class QueryHandlers extends BaseHandler {
         return [
             {
                 name: 'tableContents',
-                description: `Retrieves the contents of an ABAP table. rowNumber caps how many rows are requested from SAP itself (default ${DEFAULT_ROW_NUMBER} if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.`,
+                description: `Retrieves the contents of an ABAP table or CDS entity by name (no SQL). Works on tables the data preview refuses for runQuery (dataMaintenance restricted); authorization (S_TABU_DIS/S_TABU_NAM) still applies. rowNumber caps how many rows are requested from SAP itself (default ${DEFAULT_ROW_NUMBER} if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.`,
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -55,7 +56,7 @@ export class QueryHandlers extends BaseHandler {
             },
             {
                 name: 'runQuery',
-                description: `Runs a SQL query on the target system. rowNumber caps how many rows are requested from SAP itself (default ${DEFAULT_ROW_NUMBER} if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.`,
+                description: `Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, released API views included). Long statements are wrapped automatically to the preview's 255-character line limit, so wide select lists are fine; a single literal longer than 255 characters is not. Tables whose DDIC dataMaintenance is restricted are refused by the preview: use tableContents for those. Key fields keep their internal format (leading zeros, see getDataElementProperties). rowNumber caps how many rows are requested from SAP itself (default ${DEFAULT_ROW_NUMBER} if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.`,
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -115,7 +116,7 @@ export class QueryHandlers extends BaseHandler {
             return this.buildQueryResultResponse(result, args);
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new Error(`Failed to retrieve table contents: ${this.formatAdtError(error)}`);
+            throw new Error(`Failed to retrieve table contents: ${this.formatAdtError(error)}${dataPreviewHint(this.formatAdtError(error)) ? ' Hint: ' + dataPreviewHint(this.formatAdtError(error)) : ''}`);
         }
     }
 
@@ -123,16 +124,23 @@ export class QueryHandlers extends BaseHandler {
         const startTime = performance.now();
         try {
             const rowNumber = args.rowNumber !== undefined ? args.rowNumber : DEFAULT_ROW_NUMBER;
-            const result = await this.adtclient.runQuery(
-                args.sqlQuery,
-                rowNumber,
-                args.decode
-            );
+            const { sql, reflowed } = reflowSql(String(args.sqlQuery ?? ''));
+            const result = await this.adtclient.runQuery(sql, rowNumber, args.decode);
             this.trackRequest(startTime, true);
-            return this.buildQueryResultResponse(result, args);
+            const response = this.buildQueryResultResponse(result, args);
+            if (reflowed) {
+                try {
+                    const payload = JSON.parse(response.content[0].text);
+                    payload.note = 'Statement was wrapped onto short lines for the data preview (255-character line limit); semantics unchanged.';
+                    response.content[0].text = JSON.stringify(payload);
+                } catch { /* keep as is */ }
+            }
+            return response;
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new Error(`Failed to run query: ${this.formatAdtError(error)}`);
+            const message = this.formatAdtError(error);
+            const hint = dataPreviewHint(message);
+            throw new Error(`Failed to run query: ${message}${hint ? ` Hint: ${hint}` : ''}`);
         }
     }
 

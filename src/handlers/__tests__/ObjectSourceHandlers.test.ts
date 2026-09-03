@@ -215,3 +215,28 @@ describe('getObjectSource paging', () => {
     expect(res).toMatchObject({ source: 'b\nc', startLine: 2, returnedLines: 2, hasMore: true });
   });
 });
+
+describe('getObjectSource URL handling', () => {
+  const { ObjectSourceHandlers } = require('../ObjectSourceHandlers');
+  const parse = (r: any) => JSON.parse(r.content[0].text);
+  it('strips /source/main from class include URLs and retries a bare object URL that answers metadata', async () => {
+    const calls: string[] = [];
+    const client: any = {
+      getObjectSource: jest.fn(async (url: string) => {
+        calls.push(url);
+        if (url === '/sap/bc/adt/oo/classes/zcl_a/includes/implementations') return 'CLASS lcl IMPLEMENTATION. ENDCLASS.';
+        if (url === '/sap/bc/adt/applicationjob/templates/zjob') return '<?xml version="1.0"?><blue:source xmlns:blue="x"/>';
+        if (url === '/sap/bc/adt/applicationjob/templates/zjob/source/main') return '{"className":"ZCL_JOB"}';
+        throw new Error('Not Found');
+      }),
+    };
+    const h = new ObjectSourceHandlers(client);
+    const inc = parse(await h.handle('getObjectSource', { objectSourceUrl: '/sap/bc/adt/oo/classes/zcl_a/includes/implementations/source/main' }));
+    expect(inc.source).toContain('lcl');
+    expect(inc.note).toMatch(/without \/source\/main/);
+    const job = parse(await h.handle('getObjectSource', { objectSourceUrl: '/sap/bc/adt/applicationjob/templates/zjob' }));
+    expect(job.source).toContain('ZCL_JOB');
+    expect(job.objectSourceUrl).toBe('/sap/bc/adt/applicationjob/templates/zjob/source/main');
+    expect(calls).toEqual(['/sap/bc/adt/oo/classes/zcl_a/includes/implementations', '/sap/bc/adt/applicationjob/templates/zjob', '/sap/bc/adt/applicationjob/templates/zjob/source/main']);
+  });
+});

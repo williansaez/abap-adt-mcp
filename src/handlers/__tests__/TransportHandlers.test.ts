@@ -58,3 +58,21 @@ describe('resolveTransport', () => {
     await expect(handler.handle('resolveTransport', { objSourceUrl: URL })).rejects.toThrow(/Package ZPKG does not exist/);
   });
 });
+
+describe('transportUnifiedDiff targets', () => {
+  const resolve = (TransportHandlers as any).resolveDiffTarget as (p: string, t: string, n: string) => any;
+  it('maps LIMU class parts onto the class and its include', () => {
+    expect(resolve('LIMU', 'CINC', 'ZBP_R_EXAMPLE_HEAD==CCIMP')).toMatchObject({ searchName: 'ZBP_R_EXAMPLE_HEAD', searchType: 'CLAS', include: 'implementations' });
+    expect(resolve('LIMU', 'CINC', 'ZCL_A                         CCAU')).toMatchObject({ searchName: 'ZCL_A', include: 'testclasses' });
+    expect(resolve('LIMU', 'METH', 'ZCL_A                         GET_DATA')).toMatchObject({ searchName: 'ZCL_A', include: 'main' });
+    expect(resolve('LIMU', 'CPUB', 'ZCL_A')).toMatchObject({ searchName: 'ZCL_A', searchType: 'CLAS' });
+    expect(resolve('LIMU', 'REPS', 'ZINCLUDE_TOP')).toMatchObject({ searchName: 'ZINCLUDE_TOP' });
+    expect(resolve('LIMU', 'FUNC', 'Z_FM')).toMatchObject({ searchName: 'Z_FM', searchType: 'FUGR/FF' });
+  });
+  it('explains what cannot be diffed', () => {
+    expect(resolve('LIMU', 'MESS', 'ZMSG000').skip).toMatch(/messageclass/);
+    expect(resolve('R3TR', 'TABL', 'ZTAB').skip).toMatch(/not a source object/);
+    expect(resolve('R3TR', 'CLAS', 'ZCL_A')).toMatchObject({ searchName: 'ZCL_A', searchType: 'CLAS' });
+    expect(resolve('LIMU', 'CINC', 'ZCL_A==XXXX').skip).toMatch(/not a diffable include/);
+  });
+});
