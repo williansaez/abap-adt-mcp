@@ -40,6 +40,7 @@ const ALWAYS_ALLOWED = new Set(['login', 'logout', 'dropSession', 'listSystems',
 const OBJECT_URL_ARGS: Record<string, string> = {
   setObjectSource: 'objectSourceUrl',
   editObjectSource: 'objectSourceUrl',
+  setMethodSource: 'classUrl',
   atcApplyQuickfix: 'objectSourceUrl',
   deleteObject: 'objectUrl',
   lock: 'objectUrl',
@@ -52,7 +53,7 @@ const OBJECT_URL_ARGS: Record<string, string> = {
 
 /** Tools that take a transport request as argument. */
 const TRANSPORT_ARGS: Record<string, string> = {
-  setObjectSource: 'transport', editObjectSource: 'transport', createObject: 'transport', deleteObject: 'transport',
+  setObjectSource: 'transport', editObjectSource: 'transport', setMethodSource: 'transport', createObject: 'transport', deleteObject: 'transport',
   atcApplyQuickfix: 'transport', gitPullRepo: 'transport', gitCreateRepo: 'transport', rapGenGenerate: 'transport',
   createTestInclude: 'transport', runSnippet: 'transport', setDomainProperties: 'transport', setDataElementProperties: 'transport',
   setTextElements: 'transport', changePackagePreview: 'transport',
@@ -149,7 +150,9 @@ export async function evaluatePolicy(
     else if (toolName === 'createTestInclude' && a.clas) {
       pkg = await ctx.resolvePackage(`/sap/bc/adt/oo/classes/${encodeURIComponent(String(a.clas).toLowerCase())}`); where = 'class package';
     } else if (OBJECT_URL_ARGS[toolName] && a[OBJECT_URL_ARGS[toolName]]) {
-      pkg = await ctx.resolvePackage(objectUrlOf(String(a[OBJECT_URL_ARGS[toolName]]))); where = 'object package';
+      const raw = String(a[OBJECT_URL_ARGS[toolName]]);
+      const url = raw.startsWith('/') ? objectUrlOf(raw) : `/sap/bc/adt/oo/classes/${encodeURIComponent(raw.toLowerCase())}`;
+      pkg = await ctx.resolvePackage(url); where = 'object package';
     } else if (toolName === 'changePackageExecute' || toolName === 'changePackagePreview') {
       const target = a.newPackage || (typeof a.refactoring === 'string' ? (() => { try { return JSON.parse(a.refactoring).newPackage; } catch { return undefined; } })() : a.refactoring?.newPackage);
       if (target && !matchesAny(policy.allowedPackages, String(target))) return deny('allowedPackages', `target package ${target} is not in allowedPackages`);

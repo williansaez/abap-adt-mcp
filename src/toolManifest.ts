@@ -28,7 +28,7 @@ export const TOOL_ROUTES: Record<HandlerKey, string[]> = {
   codeAnalysis: ['syntaxCheckCode', 'syntaxCheckCdsUrl', 'codeCompletion', 'findDefinition',
     'usageReferences', 'syntaxCheckTypes', 'codeCompletionFull', 'runClass', 'codeCompletionElement',
     'usageReferenceSnippets', 'fixProposals', 'fixEdits', 'fragmentMappings', 'abapDocumentation'],
-  objectSource: ['getObjectSource', 'setObjectSource', 'editObjectSource'],
+  objectSource: ['getObjectSource', 'setObjectSource', 'editObjectSource', 'getMethodSource', 'setMethodSource'],
   objectDeletion: ['deleteObject'],
   objectManagement: ['activateObjects', 'activateByName', 'inactiveObjects', 'activatePackage'],
   objectRegistration: ['objectRegistrationInfo', 'validateNewObject', 'createObject', 'creatableTypeDetails'],
@@ -75,7 +75,7 @@ export const READ_ONLY_TOOLS = new Set([
   'transportUnifiedDiff',
   // object / class / source
   'objectStructure', 'searchObject', 'findObjectPath', 'objectTypes', 'reentranceTicket',
-  'classIncludes', 'classComponents', 'getObjectSource', 'inactiveObjects', 'objectRegistrationInfo',
+  'classIncludes', 'classComponents', 'getObjectSource', 'getMethodSource', 'inactiveObjects', 'objectRegistrationInfo',
   'validateNewObject', 'creatableTypeDetails',
   // code analysis
   'syntaxCheckCode', 'syntaxCheckCdsUrl', 'codeCompletion', 'findDefinition', 'usageReferences',
@@ -109,7 +109,7 @@ export const READ_ONLY_TOOLS = new Set([
 ]);
 
 export const DESTRUCTIVE_TOOLS = new Set([
-  'deleteObject', 'transportDelete', 'transportRelease', 'setObjectSource', 'editObjectSource', 'atcApplyQuickfix', 'gitUnlinkRepo',
+  'deleteObject', 'transportDelete', 'transportRelease', 'setObjectSource', 'editObjectSource', 'setMethodSource', 'atcApplyQuickfix', 'gitUnlinkRepo',
   'pushRepo', 'runClass', 'renameExecute', 'extractMethodExecute', 'changePackageExecute', 'debuggerSetVariableValue',
   'tracesDelete', 'tracesDeleteConfiguration', 'unPublishServiceBinding', 'dropSession',
   'setDomainProperties', 'setDataElementProperties', 'setTextElements', 'forceUnlock', 'runSnippet',

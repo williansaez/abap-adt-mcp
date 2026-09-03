@@ -101,6 +101,31 @@ describe('auto-lock writes', () => {
   });
 });
 
+describe('getMethodSource / setMethodSource', () => {
+  const CLS = 'CLASS zcl_demo DEFINITION PUBLIC.\nENDCLASS.\nCLASS zcl_demo IMPLEMENTATION.\n  METHOD a.\n    x = 1.\n  ENDMETHOD.\n  METHOD b.\n    y = 2.\n  ENDMETHOD.\nENDCLASS.';
+
+  it('returns one method block by class name and lists methods when missing', async () => {
+    const { client, handler } = makeHandler(CLS);
+    const res = parse(await handler.handle('getMethodSource', { classUrl: 'ZCL_DEMO', methodName: 'b' }));
+    expect(client.getObjectSource).toHaveBeenCalledWith(URL);
+    expect(res).toMatchObject({ method: 'B', startLine: 7, endLine: 9, lines: 3 });
+    expect(res.source).toBe('  METHOD b.\n    y = 2.\n  ENDMETHOD.');
+    const miss = await handler.handle('getMethodSource', { classUrl: URL, methodName: 'zzz', include: 'testclasses' });
+    expect(miss.isError).toBe(true);
+    expect(client.getObjectSource).toHaveBeenLastCalledWith('/sap/bc/adt/oo/classes/zcl_demo/includes/testclasses');
+  });
+
+  it('replaces only the method, wrapping a bare body, under an automatic lock', async () => {
+    const { client, handler } = makeHandler(CLS);
+    const res = parse(await handler.handle('setMethodSource', { classUrl: 'zcl_demo', methodName: 'A', source: '    x = 42.', transport: 'TR1', activate: true }));
+    expect(client.source).toBe('CLASS zcl_demo DEFINITION PUBLIC.\nENDCLASS.\nCLASS zcl_demo IMPLEMENTATION.\n  METHOD a.\n    x = 42.\n  ENDMETHOD.\n  METHOD b.\n    y = 2.\n  ENDMETHOD.\nENDCLASS.');
+    expect(client.setObjectSource).toHaveBeenCalledWith(URL, client.source, 'AUTO1', 'TR1');
+    expect(res).toMatchObject({ method: 'A', bodyWrapped: true, lockMode: 'auto', replaced: { startLine: 4, endLine: 6 }, now: { startLine: 4, endLine: 6 } });
+    expect(res.activation.success).toBe(true);
+    await expect(handler.handle('setMethodSource', { classUrl: 'zcl_demo', methodName: 'nope', source: 'x.' })).rejects.toThrow(/Methods present: A, B/);
+  });
+});
+
 describe('editObjectSource replacements', () => {
   it('applies a unique text anchor and writes back with lock handle and transport', async () => {
     const { client, handler } = makeHandler('METHOD a.\n  x = 1.\nENDMETHOD.');

@@ -1,3 +1,5 @@
+> Historical record: every item below shipped in 0.3.0/0.3.1. Current status lives in `docs/ROADMAP.md`.
+
 # Improvement Plan — Based on SAP Official Documentation
 
 Source: SAP Help Portal, "ABAP Development Tools for Visual Studio Code" (deliverable 40559577, 18 pages, generated 2026-08-30). The document describes SAP's own official **ADT MCP Server** (shipped inside ADT for VS Code): its tool catalog (~20 tools in toolsets), the canonical agentic workflow, agent-configuration guidance (`agents.md`), and security considerations. This plan compares that against this project and lists concrete improvements, prioritized by value vs. effort.

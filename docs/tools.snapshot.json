@@ -1,6 +1,6 @@
 {
   "version": "0.3.2",
-  "count": 169,
+  "count": 171,
   "toolsets": {
     "core": [
       "login",
@@ -18,6 +18,8 @@
       "getObjectSource",
       "setObjectSource",
       "editObjectSource",
+      "getMethodSource",
+      "setMethodSource",
       "prettyPrinterSetting",
       "setPrettyPrinterSetting",
       "prettyPrinter",
@@ -863,6 +865,41 @@
         "endLine",
         "newText",
         "expectedText",
+        "lockHandle",
+        "transport",
+        "activate"
+      ]
+    },
+    {
+      "name": "getMethodSource",
+      "toolset": "source",
+      "readOnly": true,
+      "destructive": false,
+      "required": [
+        "classUrl",
+        "methodName"
+      ],
+      "params": [
+        "classUrl",
+        "methodName",
+        "include"
+      ]
+    },
+    {
+      "name": "setMethodSource",
+      "toolset": "source",
+      "readOnly": false,
+      "destructive": true,
+      "required": [
+        "classUrl",
+        "methodName",
+        "source"
+      ],
+      "params": [
+        "classUrl",
+        "methodName",
+        "source",
+        "include",
         "lockHandle",
         "transport",
         "activate"

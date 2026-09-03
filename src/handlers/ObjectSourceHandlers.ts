@@ -5,6 +5,7 @@ import { session_types } from "abap-adt-api";
 import { sourceCache } from '../lib/sourceCache';
 import { withLock, objectNameFromUrl } from '../lib/lockLedger';
 import { objectUrlOf } from '../lib/policy';
+import { listMethods, findMethod, replaceMethod, classUrlOf, includeSourceUrl } from '../lib/methodSource';
 import { SAFE_OUTPUT_CHARS, shrinkToFit } from '../lib/responseSizing';
 
 function buildPagedSourcePayload(lines: string[], totalLines: number, startLine: number, initialMaxLines: number, requestedPaging: boolean): string {
@@ -113,6 +114,36 @@ export class ObjectSourceHandlers extends BaseHandler {
           },
           required: ['objectSourceUrl']
         }
+      },
+      {
+        name: 'getMethodSource',
+        description: 'Source of one method of a class (METHOD … ENDMETHOD block with its line range) instead of the whole class. Pass the class name or URL and the method name (interface methods as if_x~m). include selects main (default: definition and implementations), implementations (local classes), testclasses, definitions or macros. When the method is not found, the methods present in that include are listed.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            classUrl: { type: 'string', description: 'Class name (ZCL_DEMO) or class URL (/sap/bc/adt/oo/classes/zcl_demo)' },
+            methodName: { type: 'string', description: 'Method name, e.g. GET_DATA or IF_OO_ADT_CLASSRUN~MAIN' },
+            include: { type: 'string', enum: ['main', 'implementations', 'testclasses', 'definitions', 'macros'], description: 'Class include to read (default main)', optional: true }
+          },
+          required: ['classUrl', 'methodName']
+        }
+      },
+      {
+        name: 'setMethodSource',
+        description: 'Replace one method of a class without touching the rest: re-reads the include from SAP, swaps the METHOD … ENDMETHOD block (pass the full block, or only the body to keep the existing header/footer), writes it back under an automatic lock and optionally activates. Use for focused fixes in large classes.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            classUrl: { type: 'string', description: 'Class name or class URL' },
+            methodName: { type: 'string', description: 'Method to replace' },
+            source: { type: 'string', description: 'New METHOD … ENDMETHOD block, or just the body statements' },
+            include: { type: 'string', enum: ['main', 'implementations', 'testclasses', 'definitions', 'macros'], description: 'Class include holding the method (default main)', optional: true },
+            lockHandle: { type: 'string', description: 'Optional lock handle when you hold the lock yourself', optional: true },
+            transport: { type: 'string', description: 'Transport for transportable packages (see resolveTransport)', optional: true },
+            activate: { type: 'boolean', description: 'Activate the class after the write (default false)', optional: true }
+          },
+          required: ['classUrl', 'methodName', 'source']
+        }
       }
     ];
   }
@@ -125,6 +156,10 @@ export class ObjectSourceHandlers extends BaseHandler {
         return this.handleSetObjectSource(args);
       case 'editObjectSource':
         return this.handleEditObjectSource(args);
+      case 'getMethodSource':
+        return this.handleGetMethodSource(args);
+      case 'setMethodSource':
+        return this.handleSetMethodSource(args);
       default:
         throw new McpError(ErrorCode.MethodNotFound, `Unknown object source tool: ${toolName}`);
     }
@@ -407,5 +442,61 @@ export class ObjectSourceHandlers extends BaseHandler {
         })
       }]
     };
+  }
+
+  async handleGetMethodSource(args: any): Promise<any> {
+    const startTime = performance.now();
+    try {
+      const classUrl = classUrlOf(args.classUrl);
+      const sourceUrl = includeSourceUrl(classUrl, args.include);
+      const source = await this.adtclient.getObjectSource(sourceUrl);
+      sourceCache.set(sourceUrl, source);
+      const block = findMethod(source, String(args.methodName));
+      this.trackRequest(startTime, true);
+      if (!block) {
+        const names = listMethods(source).map(b => b.name);
+        return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', classUrl, include: args.include || 'main', methodName: String(args.methodName).toUpperCase(), found: false, methodsInInclude: names, hint: names.length ? 'Pick one of methodsInInclude, or try include=implementations/testclasses for local and test classes.' : 'No METHOD blocks in this include; try another include.' }) }], isError: true };
+      }
+      return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', classUrl, sourceUrl, include: args.include || 'main', method: block.name, startLine: block.startLine, endLine: block.endLine, lines: block.endLine - block.startLine + 1, amdp: block.amdp, source: block.text }) }] };
+    } catch (error: any) {
+      this.trackRequest(startTime, false);
+      throw new McpError(ErrorCode.InternalError, `Failed to get method source: ${this.formatAdtError(error)}`);
+    }
+  }
+
+  async handleSetMethodSource(args: any): Promise<any> {
+    const startTime = performance.now();
+    try {
+      const classUrl = classUrlOf(args.classUrl);
+      const sourceUrl = includeSourceUrl(classUrl, args.include);
+      const current = await this.adtclient.getObjectSource(sourceUrl);
+      const block = findMethod(current, String(args.methodName));
+      if (!block) {
+        const names = listMethods(current).map(b => b.name);
+        throw new McpError(ErrorCode.InvalidRequest, `Method ${String(args.methodName).toUpperCase()} not found in ${args.include || 'main'} of ${classUrl}. Methods present: ${names.join(', ') || 'none'}`);
+      }
+      const { source: newSource, wrapped } = replaceMethod(current, block, String(args.source));
+      this.adtclient.stateful = session_types.stateful;
+      const written = await withLock(this.adtclient, sourceUrl, args.lockHandle, async (handle) => {
+        await this.adtclient.setObjectSource(sourceUrl, newSource, handle, args.transport);
+        return true;
+      });
+      sourceCache.set(sourceUrl, newSource);
+      const activation = await this.maybeActivate({ objectSourceUrl: sourceUrl, activate: args.activate });
+      const after = findMethod(newSource, String(args.methodName));
+      this.trackRequest(startTime, true);
+      return { content: [{ type: 'text', text: JSON.stringify({
+        status: 'success', updated: true, classUrl, sourceUrl, method: block.name,
+        replaced: { startLine: block.startLine, endLine: block.endLine },
+        now: after ? { startLine: after.startLine, endLine: after.endLine } : undefined,
+        bodyWrapped: wrapped, lockMode: written.lockMode,
+        ...(written.unlockError ? { unlockError: written.unlockError } : {}),
+        ...(activation ? { activation } : {})
+      }) }] };
+    } catch (error: any) {
+      this.trackRequest(startTime, false);
+      if (error instanceof McpError) throw error;
+      throw new McpError(ErrorCode.InternalError, `Failed to set method source: ${this.formatAdtError(error)}`);
+    }
   }
 }
