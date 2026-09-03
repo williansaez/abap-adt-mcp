@@ -4,7 +4,7 @@
 
 > Use with caution, and prefer development systems.
 
-A single **Model Context Protocol (MCP) server** that gives AI agents full ABAP development capabilities over **multiple SAP systems at once**. It wraps [abap-adt-api](https://github.com/marcellourbani/abap-adt-api/) (the ADT REST protocol used by Eclipse ADT) and exposes **171 tools**: object creation and editing, transports (including unified diffs), activation, unit tests, ATC runs with deterministic quickfixes, RAP application generation, OData service inspection, abapGit, debugging, traces and more.
+A single **Model Context Protocol (MCP) server** that gives AI agents full ABAP development capabilities over **multiple SAP systems at once**. It wraps [abap-adt-api](https://github.com/marcellourbani/abap-adt-api/) (the ADT REST protocol used by Eclipse ADT) and exposes **173 tools**: object creation and editing, transports (including unified diffs), activation, unit tests, ATC runs with deterministic quickfixes, RAP application generation, OData service inspection, abapGit, debugging, traces and more.
 
 Originally forked from [mario-andreschak/mcp-abap-abap-adt-api](https://github.com/mario-andreschak/mcp-abap-abap-adt-api); this fork adds multi-destination support, browser-SSO and OAuth2 authentication for S/4HANA Cloud, MCP tool annotations, an optional HTTP transport and workflow guidance aligned with SAP's official ADT MCP Server documentation.
 
@@ -20,7 +20,7 @@ Originally forked from [mario-andreschak/mcp-abap-abap-adt-api](https://github.c
 - **Actionable errors and self-healing sessions**: every error carries `kind`, `hint` and `nextTools` (stale lock handle, foreign lock, transport required, missing authorization, endpoint absent on Cloud…); an expired SSO/OAuth/basic session is re-established and the call retried once. `systemProfile` tells which toolsets a destination supports before you use them.
 - **Progress, ATC summaries, local export**: long calls report progress to hosts that pass a `progressToken` (plus a heartbeat), `atcSummary` condenses an ATC run into priorities/checks/objects, and `exportPackageSources` dumps a package in abapGit file layout for local tooling.
 - **Prompts and titles**: six MCP prompts (`create-object`, `safe-edit`, `review-transport`, `fix-atc`, `clean-core-check`, `debug-dump`) encode the canonical flows for hosts that expose prompts as commands; every tool carries a human title and URL-style parameters carry examples. Per-destination `tls` supports corporate CAs and X.509 client certificates.
-- **Toolsets**: publish only what a host needs with `MCP_TOOLSETS` (`focused` = 99 development tools, or any comma list) so tool schemas do not eat the context window. See [docs/TOOLS.md](docs/TOOLS.md).
+- **Toolsets**: publish only what a host needs with `MCP_TOOLSETS` (`focused` = 114 development tools, or any comma list) so tool schemas do not eat the context window. See [docs/TOOLS.md](docs/TOOLS.md).
 - **Tested**: Jest suites (handlers, error hints, response sizing, toolsets, catalog contract against `docs/tools.snapshot.json`) run in CI on Node 18/20/22, plus a four-layer test plan with results in [docs/TESTPLAN.md](docs/TESTPLAN.md) — offline protocol/config/HTTP suites plus live read and write flows against a real S/4HANA Cloud tenant. The full SAP-doc-based improvement analysis lives in [docs/IMPROVEMENTS.md](docs/IMPROVEMENTS.md).
 
 ## Prerequisites
@@ -87,7 +87,7 @@ What the HTTP front door does:
 - **`GET /health`** answers without a token: version, open sessions, uptime.
 - **Containers**: set `MCP_HTTP_HOST=0.0.0.0`, publish the port, keep the token secret and put TLS in front. Everyone using a shared instance acts with the same SAP credentials; prefer one instance per person, or per-destination policies with `readOnly`.
 
-## Tool catalog (all 171 tools, by toolset)
+## Tool catalog (all 173 tools, by toolset)
 
 The complete per-tool reference (description, parameters, read-only/destructive annotations) lives in [docs/TOOLS.md](docs/TOOLS.md), generated from the live `tools/list` response by `npm run tools:docs` and verified by the catalog contract test.
 
@@ -98,12 +98,12 @@ The complete per-tool reference (description, parameters, read-only/destructive 
 | Toolset | In `focused` | Tools |
 |---|---|---|
 | `core` · Destinations, health & session (6) | yes | `login`, `logout`, `dropSession`, `listSystems`, `healthcheck`, `systemProfile` |
-| `source` · Source code (11) | yes | `lock`, `unLock`, `getObjectSource`, `setObjectSource`, `editObjectSource`, `prettyPrinterSetting`, `setPrettyPrinterSetting`, `prettyPrinter`, `revisions`, `getTextElements`, `setTextElements` |
-| `objects` · Objects & navigation (20) | yes | `objectStructure`, `searchObject`, `findObjectPath`, `objectTypes`, `reentranceTicket`, `classIncludes`, `classComponents`, `deleteObject`, `activateObjects`, `activateByName`, `inactiveObjects`, `objectRegistrationInfo`, `creatableTypeDetails`, `validateNewObject`, `createObject`, `nodeContents`, `mainPrograms`, `typeHierarchy`, `objectStructureElements`, `objectEnhancements` |
+| `source` · Source code (16) | yes | `lock`, `unLock`, `listLocks`, `forceUnlock`, `getObjectSource`, `setObjectSource`, `editObjectSource`, `getMethodSource`, `setMethodSource`, `prettyPrinterSetting`, `setPrettyPrinterSetting`, `prettyPrinter`, `revisions`, `objectDiff`, `getTextElements`, `setTextElements` |
+| `objects` · Objects & navigation (27) | yes | `objectStructure`, `searchObject`, `findObjectPath`, `objectTypes`, `reentranceTicket`, `classIncludes`, `classComponents`, `deleteObject`, `activateObjects`, `activateByName`, `activatePackage`, `inactiveObjects`, `objectRegistrationInfo`, `creatableTypeDetails`, `validateNewObject`, `createObject`, `nodeContents`, `mainPrograms`, `typeHierarchy`, `objectStructureElements`, `objectEnhancements`, `packageTree`, `exportPackageSources`, `whereUsed`, `cdsViewInfo`, `sourceTextSearch`, `grepPackage` |
 | `transports` · Transports (18) | yes | `transportDetails`, `transportUnifiedDiff`, `transportInfo`, `resolveTransport`, `createTransport`, `hasTransportConfig`, `transportConfigurations`, `getTransportConfiguration`, `setTransportsConfig`, `createTransportsConfig`, `userTransports`, `transportsByConfig`, `transportDelete`, `transportRelease`, `transportSetOwner`, `transportAddUser`, `systemUsers`, `transportReference` |
-| `analysis` · Syntax & code analysis (14) | yes | `syntaxCheckCode`, `syntaxCheckCdsUrl`, `codeCompletion`, `findDefinition`, `usageReferences`, `syntaxCheckTypes`, `codeCompletionFull`, `runClass`, `codeCompletionElement`, `usageReferenceSnippets`, `fixProposals`, `fixEdits`, `fragmentMappings`, `abapDocumentation` |
+| `analysis` · Syntax & code analysis (16) | yes | `syntaxCheckCode`, `syntaxCheckCdsUrl`, `codeCompletion`, `findDefinition`, `usageReferences`, `syntaxCheckTypes`, `codeCompletionFull`, `runClass`, `codeCompletionElement`, `usageReferenceSnippets`, `fixProposals`, `fixEdits`, `fragmentMappings`, `abapDocumentation`, `apiReleaseState`, `runSnippet` |
 | `tests` · Unit tests (4) | yes | `unitTestRun`, `unitTestEvaluation`, `unitTestOccurrenceMarkers`, `createTestInclude` |
-| `atc` · ATC (13) | yes | `atcCustomizing`, `atcQuickfixProposals`, `atcApplyQuickfix`, `atcCheckVariant`, `createAtcRun`, `atcWorklists`, `atcUsers`, `atcExemptProposal`, `atcRequestExemption`, `isProposalMessage`, `atcContactUri`, `atcChangeContact`, `atcDocumentation` |
+| `atc` · ATC (14) | yes | `atcCustomizing`, `atcQuickfixProposals`, `atcApplyQuickfix`, `atcCheckVariant`, `atcSummary`, `createAtcRun`, `atcWorklists`, `atcUsers`, `atcExemptProposal`, `atcRequestExemption`, `isProposalMessage`, `atcContactUri`, `atcChangeContact`, `atcDocumentation` |
 | `data` · Data access & DDIC (10) | yes | `annotationDefinitions`, `ddicElement`, `ddicRepositoryAccess`, `packageSearchHelp`, `getDomainProperties`, `setDomainProperties`, `getDataElementProperties`, `setDataElementProperties`, `tableContents`, `runQuery` |
 | `discovery` · Discovery & metadata (7) | no | `featureDetails`, `collectionFeatureDetails`, `findCollectionByUrl`, `loadTypes`, `adtDiscovery`, `adtCoreDiscovery`, `adtCompatibilityGraph` |
 | `runtime` · Runtime errors (3) | yes | `feeds`, `dumps`, `dumpDetails` |

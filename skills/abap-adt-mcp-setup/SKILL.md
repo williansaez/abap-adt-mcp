@@ -34,7 +34,7 @@ Claude Code (`.mcp.json` or `claude mcp add`):
 ```
 From a source checkout use `"command": "node", "args": ["/abs/path/abap-adt-mcp/dist/index.js"]` after `npm ci && npm run build`.
 
-Useful environment variables: `MCP_TOOLSETS=focused` (99 development tools instead of 164) or a comma list of toolsets, `MCP_DISABLED_TOOLSETS=debugger,traces`, `MCP_MAX_RESPONSE_CHARS`, `MCP_HTTP_PORT` (Streamable HTTP with bearer token, `MCP_HTTP_HOST=0.0.0.0` only in containers).
+Useful environment variables: `MCP_TOOLSETS=focused` (114 development tools instead of 173) or a comma list of toolsets, `MCP_DISABLED_TOOLSETS=debugger,traces`, `MCP_MAX_RESPONSE_CHARS`, `MCP_HTTP_PORT` (Streamable HTTP with bearer token, `MCP_HTTP_HOST=0.0.0.0` only in containers).
 
 ## 3. Verify
 1. `healthcheck`: version, destinations, active toolsets, tool count.

@@ -26,8 +26,8 @@ jobs:
       - name: Tool catalog docs are up to date
         run: |
           node scripts/gen-tools-docs.js
-          git diff --exit-code -- docs/TOOLS.md docs/tools.snapshot.json || {
-            echo "docs/TOOLS.md or docs/tools.snapshot.json is stale: run 'npm run tools:docs' and commit." >&2
+          git diff --exit-code -- docs/TOOLS.md docs/tools.snapshot.json README.md skills/abap-adt-mcp-setup/SKILL.md .claude-plugin/plugin.json || {
+            echo "generated docs are stale: run 'npm run tools:docs' and commit." >&2
             exit 1
           }
       - name: Version files agree

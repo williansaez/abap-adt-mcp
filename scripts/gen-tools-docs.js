@@ -73,4 +73,19 @@ const snapshot = {
 const docsDir = path.join(__dirname, '..', 'docs');
 fs.writeFileSync(path.join(docsDir, 'TOOLS.md'), md);
 fs.writeFileSync(path.join(docsDir, 'tools.snapshot.json'), JSON.stringify(snapshot, null, 2) + '\n');
+
+// Keep the numbers and the toolset table in README, the setup skill and the plugin manifest in sync.
+const focusedCount = catalog.filter(t => TOOLSET_PRESETS.focused.includes(selection.toolsetOf.get(t.name) || 'core')).length;
+const rootDir = path.join(__dirname, '..');
+const rewrite = (file, fn) => { const p = path.join(rootDir, file); const before = fs.readFileSync(p, 'utf8'); const after = fn(before); if (after !== before) fs.writeFileSync(p, after); };
+rewrite('README.md', (s) => {
+  s = s.replace(/exposes \*\*\d+ tools\*\*/, `exposes **${catalog.length} tools**`);
+  s = s.replace(/## Tool catalog \(all \d+ tools, by toolset\)/, `## Tool catalog (all ${catalog.length} tools, by toolset)`);
+  s = s.replace(/`focused` = \d+ development tools/, `\`focused\` = ${focusedCount} development tools`);
+  const rows = order.map(ts => `| \`${ts}\` · ${TOOLSETS[ts].title} (${(byToolset[ts] || []).length}) | ${TOOLSET_PRESETS.focused.includes(ts) ? 'yes' : 'no'} | ${(byToolset[ts] || []).map(t => '`' + t.name + '`').join(', ')} |`).join('\n');
+  return s.replace(/(\| Toolset \| In `focused` \| Tools \|\n\|---\|---\|---\|\n)(?:\|[^\n]*\n)+/, `$1${rows}\n`);
+});
+rewrite('skills/abap-adt-mcp-setup/SKILL.md', (s) => s.replace(/`MCP_TOOLSETS=focused` \(\d+ development tools instead of \d+\)/, `\`MCP_TOOLSETS=focused\` (${focusedCount} development tools instead of ${catalog.length})`));
+rewrite('.claude-plugin/plugin.json', (s) => s.replace(/: \d+ tools over/, `: ${catalog.length} tools over`));
+console.log(`README, setup skill and plugin manifest synced (${catalog.length} tools, focused ${focusedCount})`);
 console.log(`docs/TOOLS.md and docs/tools.snapshot.json written: ${catalog.length} tools, ${order.length} toolsets (server tools: ${SERVER_TOOLS.join(', ')})`);
