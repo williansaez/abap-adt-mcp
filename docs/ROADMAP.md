@@ -26,8 +26,8 @@ Source: `docs/ANALISE-ECOSSISTEMA-SAP-MCP.md` (research across 30+ SAP MCP proje
 | 20 | X.509 client certificate / CA file per destination | done |
 | 21 | MCP prompts for canonical flows | done |
 | 22 | `title`, parameter `examples`, `outputSchema` | done (title, examples); `outputSchema` deliberately not published: paged/variant responses would fail SDK validation |
-| 23 | Progress notifications for long runs | open |
-| 24 | ATC summary by priority, historic ATC results | open |
-| 25 | Source export in abapGit layout, `debugSession` composition | open |
+| 23 | Progress notifications for long runs | done (steps + 10 s heartbeat) |
+| 24 | ATC summary by priority, historic ATC results | done (`atcSummary`); historic result listing not built: endpoint undocumented |
+| 25 | Source export in abapGit layout, `debugSession` composition | done (`exportPackageSources`); `debugSession` not built: on-prem only, no system to validate |
 
 The earlier plan based on SAP's official documentation (`docs/IMPROVEMENTS.md`) is complete since 0.3.1 and kept for history.

@@ -52,4 +52,7 @@ Fixes driven by a full live test round against a Public Cloud tenant (95/142 too
 - Per-destination `tls` (CA bundle, X.509 client certificate/key or PFX) applied to basic, OAuth and SSO API calls; `listSystems` describes it.
 - MCP prompts capability with six workflow prompts (create-object, safe-edit, review-transport, fix-atc, clean-core-check, debug-dump) that reference the server's real tool names.
 - Every tool publishes a `title` (also in annotations) and URL/name-style parameters carry `examples`.
+- Progress notifications: calls that carry a `progressToken` receive step updates (runSnippet phases, grepPackage/export scan counts, ATC run start, unit test start, SSO browser login) and a heartbeat every 10 seconds while a long SAP call runs.
+- `atcSummary`: totals by priority, check and object plus top findings with line and quickfix flag; runs ATC first when given `mainUrl` (object, package or transport URL, now documented on `createAtcRun` too).
+- `exportPackageSources`: writes a package tree to a local directory in abapGit file layout (class includes included), with an `EXPORT.json` manifest; `MCP_EXPORT_ROOT` confines the target. 173 tools.
 

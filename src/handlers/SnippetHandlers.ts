@@ -5,6 +5,7 @@ import { session_types } from 'abap-adt-api';
 import { withLock } from '../lib/lockLedger.js';
 import { hardTruncateJson } from '../lib/responseSizing.js';
 import { runClassFresh } from '../lib/runFresh.js';
+import { reportProgress } from '../lib/progress.js';
 
 /** Build an IF_OO_ADT_CLASSRUN class around a snippet, or accept a full class. */
 export function buildSnippetClass(className: string, code: string): { source: string; wrapped: boolean } {
@@ -89,9 +90,11 @@ export class SnippetHandlers extends BaseHandler {
             await this.adtclient.createObject('CLAS/OC', className, packageName, 'abap-adt-mcp temporary snippet', `/sap/bc/adt/packages/${encodeURIComponent(packageName.toLowerCase())}`, args.responsible ? String(args.responsible).toUpperCase() : undefined, args.transport);
             created = true;
             steps.push('created');
+            reportProgress(`class ${className} created`, 1, 4);
 
             await withLock(this.adtclient, classUrl, undefined, (h) => this.adtclient.setObjectSource(sourceUrl, source, h, args.transport));
             steps.push('source written');
+            reportProgress('source written, activating', 2, 4);
 
             const activation: any = await this.adtclient.activate(className, classUrl);
             if (activation && activation.success === false) {
@@ -104,6 +107,7 @@ export class SnippetHandlers extends BaseHandler {
                 }) }], isError: true };
             }
             steps.push('activated');
+            reportProgress('activated, running', 3, 4);
 
             const output = await runClassFresh(this.adtclient, className);
             steps.push('ran');

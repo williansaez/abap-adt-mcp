@@ -4,6 +4,7 @@ import type { ToolDefinition } from '../types/tools.js';
 import { AtcProposal } from 'abap-adt-api';
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { shrinkToFit, SAFE_OUTPUT_CHARS } from '../lib/responseSizing.js';
+import { reportProgress } from '../lib/progress.js';
 
 export class AtcHandlers extends BaseHandler {
     getTools(): ToolDefinition[] {
@@ -66,6 +67,20 @@ export class AtcHandlers extends BaseHandler {
                         }
                     },
                     required: ['variant']
+                }
+            },
+            {
+                name: 'atcSummary',
+                description: 'Aggregated view of an ATC result: totals by priority, by check and by object, top findings with location and quickfix availability. Pass runResultId from createAtcRun, or mainUrl (+ variant) to run ATC and summarize in one call. mainUrl accepts an object URL, a package URL (/sap/bc/adt/packages/zfin) or a transport URL (/sap/bc/adt/cts/transportrequests/DEVK900123).',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        runResultId: { type: 'string', description: 'Result id returned by createAtcRun', optional: true },
+                        mainUrl: { type: 'string', description: 'Object, package or transport URL to check when no runResultId is given', optional: true },
+                        variant: { type: 'string', description: 'Check variant name or worklist id (default ABAP_CLOUD_DEVELOPMENT_DEFAULT when running)', optional: true },
+                        includeExempted: { type: 'boolean', description: 'Include exempted findings (default false)', optional: true },
+                        topFindings: { type: 'number', description: 'How many findings to list in detail (default 30)', optional: true }
+                    }
                 }
             },
             {
@@ -254,6 +269,8 @@ export class AtcHandlers extends BaseHandler {
                 return this.handleAtcChangeContact(args);
             case 'atcDocumentation':
                 return this.handleAtcDocumentation(args);
+            case 'atcSummary':
+                return this.handleAtcSummary(args);
             default:
                 throw new McpError(ErrorCode.MethodNotFound, `Unknown ATC tool: ${toolName}`);
         }
@@ -419,8 +436,10 @@ export class AtcHandlers extends BaseHandler {
             // (anything that is not a 32-char hex id) via atcCheckVariant first.
             let worklistId = args.variant;
             if (!/^[0-9A-Fa-f]{32}$/.test(worklistId)) {
+                reportProgress(`resolving check variant ${args.variant}`);
                 worklistId = await this.adtclient.atcCheckVariant(args.variant);
             }
+            reportProgress(`ATC run started on ${args.mainUrl}`);
             const result = await this.adtclient.createAtcRun(worklistId, args.mainUrl, args.maxResults);
             this.trackRequest(startTime, true);
             return {
@@ -667,4 +686,69 @@ export class AtcHandlers extends BaseHandler {
             throw new McpError(ErrorCode.InternalError, `Failed to get ATC documentation: ${this.formatAdtError(error)}`);
         }
     }
+
+    async handleAtcSummary(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            let runResultId = args.runResultId ? String(args.runResultId) : undefined;
+            let run: any;
+            if (!runResultId) {
+                if (!args.mainUrl) throw new McpError(ErrorCode.InvalidParams, 'Pass runResultId (from createAtcRun) or mainUrl to run ATC first');
+                let worklistId = String(args.variant || 'ABAP_CLOUD_DEVELOPMENT_DEFAULT');
+                if (!/^[0-9A-Fa-f]{32}$/.test(worklistId)) worklistId = await this.adtclient.atcCheckVariant(worklistId);
+                reportProgress(`ATC run started on ${args.mainUrl}`);
+                run = await this.adtclient.createAtcRun(worklistId, String(args.mainUrl), args.maxResults);
+                runResultId = run.id;
+            }
+            reportProgress('reading ATC worklist');
+            const worklist: any = await this.adtclient.atcWorklists(runResultId!, 0, '', args.includeExempted === true);
+            this.trackRequest(startTime, true);
+            const summary = summarizeAtcWorklist(worklist, Math.max(1, Number(args.topFindings) || 30));
+            return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', runResultId, ...(run ? { runInfos: run.infos } : {}), ...summary }) }] };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to summarize ATC results: ${this.formatAdtError(error)}`);
+        }
+    }
+}
+
+/** Aggregate an ATC worklist into counts by priority, check and object plus the top findings. */
+export function summarizeAtcWorklist(worklist: any, top = 30) {
+    const objects: any[] = Array.isArray(worklist?.objects) ? worklist.objects : [];
+    const byPriority: Record<string, number> = { '1': 0, '2': 0, '3': 0 };
+    const byCheck = new Map<string, { checkId: string; checkTitle: string; count: number; worstPriority: number }>();
+    const byObject: Array<{ name: string; type: string; packageName?: string; findings: number; p1: number; p2: number; p3: number; uri: string }> = [];
+    const all: any[] = [];
+    let exempted = 0;
+    for (const o of objects) {
+        const row = { name: o.name, type: o.type, packageName: o.packageName, findings: 0, p1: 0, p2: 0, p3: 0, uri: o.uri };
+        for (const f of o.findings || []) {
+            const pr = Number(f.priority) || 3;
+            byPriority[String(pr)] = (byPriority[String(pr)] || 0) + 1;
+            row.findings++; if (pr === 1) row.p1++; else if (pr === 2) row.p2++; else row.p3++;
+            const c = byCheck.get(f.checkId) || { checkId: f.checkId, checkTitle: f.checkTitle, count: 0, worstPriority: 9 };
+            c.count++; c.worstPriority = Math.min(c.worstPriority, pr); byCheck.set(f.checkId, c);
+            if (f.exemptionKind && f.exemptionKind !== 'none') exempted++;
+            all.push({
+                priority: pr, checkId: f.checkId, checkTitle: f.checkTitle, message: f.messageTitle, messageId: f.messageId,
+                object: o.name, objectType: o.type, uri: f.uri,
+                line: f.location?.range?.start?.line ?? f.location?.start?.line,
+                quickfix: !!f.quickfixInfo, exemption: f.exemptionKind && f.exemptionKind !== 'none' ? f.exemptionKind : undefined
+            });
+        }
+        if (row.findings) byObject.push(row);
+    }
+    all.sort((a, b) => a.priority - b.priority || String(a.object).localeCompare(String(b.object)));
+    byObject.sort((a, b) => b.p1 - a.p1 || b.p2 - a.p2 || b.findings - a.findings);
+    return {
+        worklistId: worklist?.id, usedObjectSet: worklist?.usedObjectSet, objectSetIsComplete: worklist?.objectSetIsComplete,
+        totals: { objectsChecked: objects.length, objectsWithFindings: byObject.length, findings: all.length, exempted, quickfixable: all.filter(f => f.quickfix).length },
+        byPriority,
+        byCheck: [...byCheck.values()].sort((a, b) => a.worstPriority - b.worstPriority || b.count - a.count),
+        byObject: byObject.slice(0, 50),
+        topFindings: all.slice(0, top),
+        clean: all.length === 0,
+        hint: all.length === 0 ? 'No findings.' : (byPriority['1'] || byPriority['2'] ? 'Fix priority 1 and 2 first; atcQuickfixProposals/atcApplyQuickfix for findings marked quickfix.' : 'Only priority 3 findings.')
+    };
 }

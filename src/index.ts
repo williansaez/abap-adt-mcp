@@ -29,6 +29,7 @@ import { clearLedger } from './lib/lockLedger.js';
 import { AuditLog, summarizeArgs } from './lib/audit.js';
 import { buildHttpsAgent, describeTls } from './lib/tls.js';
 import { listPrompts, getPrompt } from './prompts.js';
+import { createReporter, withProgress, withHeartbeat, reportProgress, ProgressReporter } from './lib/progress.js';
 import { AuthHandlers } from './handlers/AuthHandlers.js';
 import { TransportHandlers } from './handlers/TransportHandlers.js';
 import { ObjectHandlers } from './handlers/ObjectHandlers.js';
@@ -301,6 +302,7 @@ export class AbapAdtServer extends Server {
     const dest = this.getDestination(name);
     if (dest.system.authType !== 'sso') return;
     if (dest.loggedIn && !force) return;
+    reportProgress(`opening the browser for SSO login to ${name}; complete the login if a window appears`);
     const cookies = await browserLogin(dest.system.url, dest.system.client);
     dest.cookieClient!.setCookies(cookies);
     await dest.adtClient.login();
@@ -506,9 +508,13 @@ export class AbapAdtServer extends Server {
       }
     });
 
-    this.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const name = request.params.name;
       const rawArgs: any = request.params.arguments || {};
+      const progressToken = (request.params as any)._meta?.progressToken;
+      const reporter: ProgressReporter | undefined = progressToken !== undefined
+        ? createReporter((params) => extra.sendNotification({ method: 'notifications/progress', params: { progressToken, ...params } } as any))
+        : undefined;
       const requestId = this.audit.nextId();
       const startedAt = Date.now();
       let retried = false;
@@ -521,7 +527,7 @@ export class AbapAdtServer extends Server {
         });
       };
       try {
-        const response = await this.dispatch(name, rawArgs, () => { retried = true; });
+        const response = await withProgress(reporter, () => withHeartbeat(reporter, name, () => this.dispatch(name, rawArgs, () => { retried = true; })));
         audited('ok');
         return response;
       } catch (error) {

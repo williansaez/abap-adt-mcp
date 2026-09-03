@@ -4,6 +4,7 @@ import type { ToolDefinition } from '../types/tools.js';
 import { sourceCache } from '../lib/sourceCache.js';
 import { shrinkToFit } from '../lib/responseSizing.js';
 import { parseTextSearchResponse, GREPPABLE_TYPES, grepSource, buildPattern, mapLimit, GrepHit, TextSearchMatch } from '../lib/textSearch.js';
+import { reportProgress } from '../lib/progress.js';
 
 const TEXTSEARCH_PATH = '/sap/bc/adt/repository/informationsystem/textsearch';
 
@@ -178,7 +179,9 @@ export class SearchHandlers extends BaseHandler {
             const contextLines = Math.max(0, Number(args.contextLines ?? 1));
 
             const { objects, packagesScanned, truncated } = await this.collectObjects(String(args.packageName), recursive, types, maxObjects);
+            reportProgress(`${objects.length} sources to scan in ${packagesScanned.length} package(s)`, 0, objects.length);
             let remaining = maxMatches;
+            let scanned = 0;
             const failures: Array<{ objectUrl: string; error: string }> = [];
             const perObject = await mapLimit(objects, 4, async (obj) => {
                 if (remaining <= 0) return [] as GrepHit[];
@@ -190,6 +193,8 @@ export class SearchHandlers extends BaseHandler {
                     }
                     const hits = grepSource(source, re, contextLines, Math.max(0, remaining), { objectUrl: obj.objectUrl, name: obj.name, type: obj.type });
                     remaining -= hits.length;
+                    scanned++;
+                    if (scanned % 10 === 0) reportProgress(`scanned ${scanned}/${objects.length} sources, ${maxMatches - remaining} matches`, scanned, objects.length);
                     return hits;
                 } catch (e: any) {
                     failures.push({ objectUrl: obj.objectUrl, error: this.formatAdtError(e) });

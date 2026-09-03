@@ -1,5 +1,6 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler.js';
+import { reportProgress } from '../lib/progress.js';
 import type { ToolDefinition } from '../types/tools.js';
 import { ADTClient, UnitTestRunFlags } from 'abap-adt-api';
 import { SAFE_OUTPUT_CHARS, shrinkToFit } from '../lib/responseSizing.js';
@@ -170,6 +171,7 @@ export class UnitTestHandlers extends BaseHandler {
         const startTime = performance.now();
         try {
             const flags = typeof args.flags === 'string' ? JSON.parse(args.flags) : args.flags;
+            reportProgress(`running unit tests for ${args.url}`);
             const result = await this.adtclient.unitTestRun(args.url, flags);
             this.trackRequest(startTime, true);
             const trimmed = Array.isArray(result) ? result.map(trimUnitTestClass) : result;

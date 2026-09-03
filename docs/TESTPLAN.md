@@ -133,3 +133,5 @@ Live over stdio with the real `systems.json`: `login` (silent SSO, ~6 s) · `sys
 
 Same tenant, 2026-09-03: `getMethodSource` / `setMethodSource(activate=true)` / `runClass` cycle on a throwaway class in ZSANDBOX. Finding: with a stateful session `runClass` kept printing the pre-change output although `getObjectSource` (active and inactive) and `activateByName` were current; running the class in a stateless request fixed it (`v2` on three consecutive runs). `packageTree`, `cdsViewInfo`, `activatePackage`, `objectDiff` (correctly refusing single-revision objects) also exercised.
 
+Same tenant, 2026-09-03 (items 23-25): progress notifications observed over stdio with a `progressToken` (runSnippet 1/4…3/4 steps, SSO login message, heartbeat after 10 s during `atcSummary`); `atcSummary(mainUrl=/sap/bc/adt/packages/zsandbox)` ran ATC (14 s, 2 objects, no findings); `exportPackageSources` wrote `zsandbox/zcube_cds.ddls.asddls` plus `EXPORT.json`.
+

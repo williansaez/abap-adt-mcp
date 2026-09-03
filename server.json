@@ -75,6 +75,11 @@
           "isRequired": false
         },
         {
+          "name": "MCP_EXPORT_ROOT",
+          "description": "When set, exportPackageSources may only write inside this directory",
+          "isRequired": false
+        },
+        {
           "name": "MCP_AUDIT_FILE",
           "description": "Path of a JSONL audit trail: one record per tool call (tool, destination, duration, outcome ok/error/denied/unavailable, policy gate, redacted argument summary)",
           "isRequired": false

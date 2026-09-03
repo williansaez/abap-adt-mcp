@@ -1,6 +1,6 @@
 {
   "version": "0.3.2",
-  "count": 171,
+  "count": 173,
   "toolsets": {
     "core": [
       "login",
@@ -51,6 +51,7 @@
       "objectStructureElements",
       "objectEnhancements",
       "packageTree",
+      "exportPackageSources",
       "whereUsed",
       "cdsViewInfo",
       "sourceTextSearch",
@@ -105,6 +106,7 @@
       "atcQuickfixProposals",
       "atcApplyQuickfix",
       "atcCheckVariant",
+      "atcSummary",
       "createAtcRun",
       "atcWorklists",
       "atcUsers",
@@ -1943,6 +1945,20 @@
       ]
     },
     {
+      "name": "atcSummary",
+      "toolset": "atc",
+      "readOnly": true,
+      "destructive": false,
+      "required": [],
+      "params": [
+        "runResultId",
+        "mainUrl",
+        "variant",
+        "includeExempted",
+        "topFindings"
+      ]
+    },
+    {
       "name": "createAtcRun",
       "toolset": "atc",
       "readOnly": false,
@@ -2444,6 +2460,23 @@
         "packageName",
         "maxDepth",
         "includeObjects",
+        "objectTypes",
+        "maxObjects"
+      ]
+    },
+    {
+      "name": "exportPackageSources",
+      "toolset": "objects",
+      "readOnly": false,
+      "destructive": false,
+      "required": [
+        "packageName",
+        "targetDir"
+      ],
+      "params": [
+        "packageName",
+        "targetDir",
+        "recursive",
         "objectTypes",
         "maxObjects"
       ]

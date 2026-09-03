@@ -4,6 +4,10 @@ import type { ToolDefinition } from '../types/tools.js';
 import { sourceCache } from '../lib/sourceCache.js';
 import { SAFE_OUTPUT_CHARS, shrinkToFit, hardTruncateJson } from '../lib/responseSizing.js';
 import { walkPackage } from '../lib/packageWalk.js';
+import { abapgitFileName, CLASS_INCLUDES, EXPORTABLE_TYPES, resolveExportDir } from '../lib/abapgitExport.js';
+import { reportProgress } from '../lib/progress.js';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Navigation helpers that abap-adt-api already implements but were never
@@ -71,6 +75,21 @@ export class NavigationHandlers extends BaseHandler {
                 }
             },
             {
+                name: 'exportPackageSources',
+                description: 'Write the sources of a package (and sub-packages) to a local directory in abapGit file layout (zcl_x.clas.abap, zcl_x.clas.testclasses.abap, zi_x.ddls.asddls, zrep.prog.abap …) so local tools (grep, editors, code review, documentation pipelines) can work on them. Read-only on SAP; writes only to the given directory (must be absolute; restricted to MCP_EXPORT_ROOT when set). Classes, interfaces, programs/includes, CDS, access controls, metadata extensions, behavior and service definitions are exported; other types are listed as skipped.',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        packageName: { type: 'string', description: 'Package to export' },
+                        targetDir: { type: 'string', description: 'Absolute local directory; a sub-folder per package is created' },
+                        recursive: { type: 'boolean', description: 'Include sub-packages (default true)', optional: true },
+                        objectTypes: { type: 'string', description: 'Comma-separated ADT object types to include (default: all exportable)', optional: true },
+                        maxObjects: { type: 'number', description: 'Maximum objects (default 500)', optional: true }
+                    },
+                    required: ['packageName', 'targetDir']
+                }
+            },
+            {
                 name: 'whereUsed',
                 description: 'Where-used list by object name: resolves the name with searchObject and returns the usage references (using object, its URL, kind of usage). No URL or source position needed.',
                 inputSchema: {
@@ -110,6 +129,8 @@ export class NavigationHandlers extends BaseHandler {
                 return this.handleObjectEnhancements(args);
             case 'packageTree':
                 return this.handlePackageTree(args);
+            case 'exportPackageSources':
+                return this.handleExportPackageSources(args);
             case 'whereUsed':
                 return this.handleWhereUsed(args);
             case 'cdsViewInfo':
@@ -277,6 +298,64 @@ export class NavigationHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(ErrorCode.InternalError, `Failed to read CDS view ${args.name}: ${this.formatAdtError(error)}`);
+        }
+    }
+
+    async handleExportPackageSources(args: any): Promise<any> {
+        const startTime = performance.now();
+        try {
+            let dir: string;
+            try { dir = resolveExportDir(String(args.targetDir || ''), process.env.MCP_EXPORT_ROOT); }
+            catch (e: any) { throw new McpError(ErrorCode.InvalidParams, e.message); }
+            const types = String(args.objectTypes || '').split(',').map((t: string) => t.trim()).filter(Boolean);
+            const walk = await walkPackage(this.adtclient as any, String(args.packageName), {
+                maxDepth: args.recursive === false ? 0 : 99, includeObjects: true,
+                objectTypes: types.length ? new Set(types) : undefined, maxObjects: Math.max(1, Number(args.maxObjects) || 500),
+            });
+            const written: Array<{ file: string; object: string; type: string; bytes: number }> = [];
+            const skipped: Array<{ object: string; type: string; reason: string }> = [];
+            const failed: Array<{ object: string; error: string }> = [];
+            let done = 0;
+            for (const obj of walk.objects) {
+                done++;
+                if (done % 10 === 0) reportProgress(`exported ${done}/${walk.objects.length} objects`, done, walk.objects.length);
+                const fileName = abapgitFileName(obj.name, obj.type);
+                if (!fileName) { skipped.push({ object: obj.name, type: obj.type, reason: 'type not exportable' }); continue; }
+                const pkgDir = path.join(dir, obj.package.toLowerCase().replace(/\//g, '#'));
+                fs.mkdirSync(pkgDir, { recursive: true });
+                try {
+                    const source = await this.adtclient.getObjectSource(`${obj.objectUrl}/source/main`);
+                    const file = path.join(pkgDir, fileName);
+                    fs.writeFileSync(file, source);
+                    written.push({ file, object: obj.name, type: obj.type, bytes: Buffer.byteLength(source) });
+                    if (obj.type === 'CLAS/OC') {
+                        for (const inc of CLASS_INCLUDES) {
+                            try {
+                                const text = await this.adtclient.getObjectSource(`${obj.objectUrl}/includes/${inc.adtInclude}`);
+                                if (text && text.trim()) {
+                                    const f = path.join(pkgDir, abapgitFileName(obj.name, obj.type, inc.include)!);
+                                    fs.writeFileSync(f, text);
+                                    written.push({ file: f, object: obj.name, type: `${obj.type}/${inc.adtInclude}`, bytes: Buffer.byteLength(text) });
+                                }
+                            } catch { /* include absent */ }
+                        }
+                    }
+                } catch (e: any) {
+                    failed.push({ object: obj.name, error: this.formatAdtError(e) });
+                }
+            }
+            const manifest = { package: String(args.packageName).toUpperCase(), exportedAt: new Date().toISOString(), packages: walk.packages, files: written.length, skipped, failed };
+            fs.writeFileSync(path.join(dir, 'EXPORT.json'), JSON.stringify(manifest, null, 2));
+            this.trackRequest(startTime, true);
+            return { content: [{ type: 'text', text: JSON.stringify({
+                status: failed.length && !written.length ? 'error' : 'success', targetDir: dir, packages: walk.packages, objects: walk.objects.length, objectsTruncated: walk.truncated,
+                filesWritten: written.length, bytes: written.reduce((n, w) => n + w.bytes, 0), exportableTypes: EXPORTABLE_TYPES,
+                skipped: skipped.slice(0, 50), failed: failed.slice(0, 20), files: written.slice(0, 200).map(w => path.relative(dir, w.file))
+            }) }] };
+        } catch (error: any) {
+            this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
+            throw new McpError(ErrorCode.InternalError, `Failed to export package sources: ${this.formatAdtError(error)}`);
         }
     }
 }
