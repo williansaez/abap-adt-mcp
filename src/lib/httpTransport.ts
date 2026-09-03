@@ -94,21 +94,26 @@ const json = (res: http.ServerResponse, status: number, body: unknown, headers: 
   res.writeHead(status, { 'Content-Type': 'application/json', ...headers }).end(JSON.stringify(body));
 };
 
+/**
+ * Constant-time bearer check on UTF-8 bytes: timingSafeEqual throws on
+ * unequal byte lengths, and a multibyte token with the same character count
+ * as the real one would otherwise crash the process from an unauthenticated
+ * request.
+ */
+export function bearerOk(authorization: string | undefined, expected: string): boolean {
+  const auth = authorization || '';
+  const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const providedBuf = Buffer.from(provided, 'utf8');
+  const expectedBuf = Buffer.from(expected, 'utf8');
+  return providedBuf.length > 0 && providedBuf.length === expectedBuf.length && crypto.timingSafeEqual(providedBuf, expectedBuf);
+}
+
 export async function startHttpServer(createServer: () => Server, opts: HttpOptions): Promise<HttpHandle> {
   const sessions = new Map<string, Session>();
   const startedAt = Date.now();
   const expected = opts.token;
 
-  const expectedBuf = Buffer.from(expected, 'utf8');
-  const tokenOk = (req: http.IncomingMessage) => {
-    const auth = req.headers.authorization || '';
-    const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-    // Compare UTF-8 byte buffers: timingSafeEqual throws on unequal byte
-    // lengths, and a multibyte token with the same character count would
-    // otherwise crash the process from an unauthenticated request.
-    const providedBuf = Buffer.from(provided, 'utf8');
-    return providedBuf.length > 0 && providedBuf.length === expectedBuf.length && crypto.timingSafeEqual(providedBuf, expectedBuf);
-  };
+  const tokenOk = (req: http.IncomingMessage) => bearerOk(req.headers.authorization, expected);
 
   const closeSession = async (id: string) => {
     const s = sessions.get(id);

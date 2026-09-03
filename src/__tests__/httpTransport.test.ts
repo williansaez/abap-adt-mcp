@@ -1,5 +1,5 @@
 import http from 'http';
-import { originAllowed, hostAllowed, readHttpOptions } from '../lib/httpTransport';
+import { originAllowed, hostAllowed, readHttpOptions, bearerOk } from '../lib/httpTransport';
 
 process.env.SAP_SYSTEMS = JSON.stringify({ DEV: { url: 'https://example.invalid', authType: 'basic', user: 'u', password: 'p', client: '100' } });
 delete process.env.MCP_TOOLSETS;
@@ -30,6 +30,15 @@ async function mcpPost(base: string, body: any, headers: Record<string, string> 
 const init = (id = 1) => ({ jsonrpc: '2.0', id, method: 'initialize', params: { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 't', version: '0' } } });
 
 describe('http options and guards', () => {
+  it('compares bearer tokens on UTF-8 bytes without throwing on multibyte input', () => {
+    expect(bearerOk('Bearer t0ken', 't0ken')).toBe(true);
+    expect(bearerOk('Bearer tôken', 't0ken')).toBe(false); // same character count, different byte length
+    expect(bearerOk('Bearer t0kén', 't0kén')).toBe(true);
+    expect(bearerOk('Bearer ', 't0ken')).toBe(false);
+    expect(bearerOk(undefined, 't0ken')).toBe(false);
+    expect(bearerOk('Basic dXNlcg==', 'user')).toBe(false);
+  });
+
   it('validates the port and reads limits', () => {
     expect(() => readHttpOptions({ MCP_HTTP_PORT: '80' } as any, '1')).toThrow(/between 1024/);
     expect(readHttpOptions({ MCP_HTTP_PORT: '0' } as any, '1').port).toBe(0);
@@ -58,27 +67,6 @@ describe('http transport end to end', () => {
     base = `http://127.0.0.1:${handle.port}`;
   });
   afterAll(async () => { await handle.close(); });
-
-  it('refuses a wrong token of equal character length but different byte length without crashing', async () => {
-    const server = new AbapAdtServer();
-    const handle = await server.startHttp(env());
-    try {
-      const base = `http://127.0.0.1:${handle.port}`;
-      // 5 characters like the real token, 6 UTF-8 bytes. Sent with the raw
-      // http module: Node 18's fetch refuses non-ASCII header values itself.
-      const wrong = 'tôken';
-      const status = await new Promise<number>((resolve, reject) => {
-        const req = http.request(`${base}/mcp`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${wrong}` } }, (res) => { res.resume(); resolve(res.statusCode || 0); });
-        req.on('error', reject);
-        req.end(JSON.stringify(init()));
-      });
-      expect(status).toBe(401);
-      const ok = await fetch(`${base}/health`);
-      expect(ok.status).toBe(200);
-    } finally {
-      await handle.close();
-    }
-  });
 
   it('serves /health without a token and refuses /mcp without one', async () => {
     const h = await (await fetch(`${base}/health`)).json();
