@@ -109,10 +109,14 @@ function readBody(req: http.IncomingMessage, limit: number): Promise<string> {
 /** Answer a refused body: 413 when it was too large, 400 for malformed JSON. The connection is closed so the sender stops. */
 function tooLargeOrBadJson(req: http.IncomingMessage, res: http.ServerResponse, e: unknown): void {
   const tooLarge = e instanceof BodyTooLarge;
+  // Destroy only once the response has been flushed: tearing the socket down
+  // immediately loses the answer for clients that read it after the write
+  // (Node 18's fetch among them), which turns a clean 413 into a dropped
+  // connection.
+  res.once('finish', () => req.destroy());
   json(res, tooLarge ? 413 : 400,
     { error: tooLarge ? (e as BodyTooLarge).message : `Invalid JSON body: ${(e as Error)?.message}` },
     { Connection: 'close' });
-  req.destroy();
 }
 
 const json = (res: http.ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}) => {
