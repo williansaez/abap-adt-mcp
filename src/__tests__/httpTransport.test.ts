@@ -155,7 +155,10 @@ describe('request body limits', () => {
     } finally {
       await handle.close();
     }
-  });
+  // Building a server constructs every handler and the whole tool catalogue,
+  // and this case starts one and runs three round trips; on Node 18 that can
+  // pass the 5 s default.
+  }, 20000);
 
   it('refuses an oversized body on the session-opening request too', async () => {
     const server = new AbapAdtServer();
@@ -168,5 +171,5 @@ describe('request body limits', () => {
     } finally {
       await handle.close();
     }
-  });
+  }, 20000);
 });
