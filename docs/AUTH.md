@@ -20,7 +20,7 @@ Configure destinations in **`systems.json`** at the repo root (gitignored — se
 }
 ```
 
-Entries default to `authType: "sso"` (override per entry). Resolution order:
+Secrets can be referenced instead of stored: any string may contain `${env:VAR}` (resolved at startup; a missing variable fails with its name, never its value). Keep the file at mode `0600`: a group/world-readable file is warned about, and refused when it holds inline passwords. Entries default to `authType: "sso"` (override per entry). Resolution order:
 `SAP_SYSTEMS` → `SAP_SYSTEMS_FILE` → `systems.json` → single implicit destination from
 the flat `SAP_URL`/`SAP_CLIENT`/… variables (back-compat). With more than one system,
 `destination` is required on each call; with exactly one (or `SAP_DEFAULT_DESTINATION`

@@ -25,6 +25,7 @@ import { TOOL_ROUTES, HandlerKey, toolAnnotations, resolveToolsets, ToolsetSelec
 import { buildSystemProfile, SystemProfile } from './lib/systemProfile.js';
 import { evaluatePolicy, objectUrlOf, summarizePolicy } from './lib/policy.js';
 import { clearLedger } from './lib/lockLedger.js';
+import { AuditLog, summarizeArgs } from './lib/audit.js';
 import { AuthHandlers } from './handlers/AuthHandlers.js';
 import { TransportHandlers } from './handlers/TransportHandlers.js';
 import { ObjectHandlers } from './handlers/ObjectHandlers.js';
@@ -110,6 +111,8 @@ interface HandlerSet {
 }
 
 /** A live, per-destination connection: its client, handlers and login state. */
+type AuditRecordLike = { errorKind?: string; gate?: string; message?: string };
+
 interface Destination {
   system: SystemConfig;
   adtClient: ADTClient;
@@ -134,6 +137,7 @@ export class AbapAdtServer extends Server {
   private toolToHandlerKey = new Map<string, keyof HandlerSet>();
   private schemaHandlers: HandlerSet;
   private toolsets: ToolsetSelection;
+  private audit = new AuditLog(process.env.MCP_AUDIT_FILE, redactSecrets);
 
   constructor() {
     super(
@@ -447,112 +451,136 @@ export class AbapAdtServer extends Server {
     this.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: this.getToolCatalog() }));
 
     this.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const name = request.params.name;
+      const rawArgs: any = request.params.arguments || {};
+      const requestId = this.audit.nextId();
+      const startedAt = Date.now();
+      let retried = false;
+      const audited = (outcome: 'ok' | 'error' | 'denied' | 'unavailable', extra: Partial<AuditRecordLike> = {}) => {
+        if (!this.audit.enabled) return;
+        this.audit.write({
+          requestId, tool: name, destination: rawArgs.destination || this.defaultDest,
+          durationMs: Date.now() - startedAt, outcome, retried: retried || undefined,
+          args: summarizeArgs(rawArgs, redactSecrets), ...extra,
+        });
+      };
       try {
-        const name = request.params.name;
-        const rawArgs: any = request.params.arguments || {};
-
-        if (name === 'listSystems') {
-          const systems = await Promise.all([...this.systems.values()].map(async (s) => {
-            const dest = this.pool.get(s.name);
-            const profile = dest?.profile ? await dest.profile.catch(() => undefined) : undefined;
-            return {
-              destination: s.name, url: s.url, client: s.client, authType: s.authType,
-              ...(s.policy ? { policy: summarizePolicy(s.policy) } : {}),
-              ...(profile ? { platform: profile.platform, unavailableToolsets: profile.unavailableToolsets } : {}),
-            };
-          }));
-          return this.serializeResult({ systems, default: this.defaultDest, activeToolsets: this.toolsets.active });
-        }
-        if (name === 'healthcheck') {
-          return this.serializeResult({
-            status: 'healthy',
-            version: PACKAGE_VERSION,
-            destinations: [...this.systems.keys()],
-            default: this.defaultDest,
-            activeToolsets: this.toolsets.active,
-            tools: this.getToolCatalog().length,
-          });
-        }
-
-        // Resolve destination.
-        const destination = rawArgs.destination || this.defaultDest;
-        if (!destination) {
-          throw new McpError(ErrorCode.InvalidParams,
-            `Missing "destination". Configured systems: ${[...this.systems.keys()].join(', ')}`);
-        }
-        if (!this.systems.has(destination)) {
-          throw new McpError(ErrorCode.InvalidParams,
-            `Unknown destination "${destination}". Configured: ${[...this.systems.keys()].join(', ')}`);
-        }
-
-        const dest = this.getDestination(destination);
-        const { destination: _d, ...args } = rawArgs;
-
-        // Server-side policy gate, before any authentication or SAP call.
-        if (dest.system.policy) {
-          const decision = await evaluatePolicy(dest.system.policy, name, args, {
-            resolvePackage: async (objectUrl) => this.resolvePackage(destination, objectUrl),
-          });
-          if (!decision.allowed) {
-            throw new McpError(ErrorCode.InvalidRequest,
-              `Policy: ${name} blocked on destination ${destination} (${decision.gate}): ${decision.reason}. Configured in systems.json policy; retrying will not help.`);
-          }
-        }
-
-        // Explicit login for SSO destinations.
-        if (name === 'login' && dest.system.authType === 'sso') {
-          await this.ensureLogin(destination, true);
-          return this.serializeResult({ status: `logged in to ${destination} via browser SSO` });
-        }
-        // Otherwise ensure the SSO session exists before the call.
-        if (name !== 'logout') {
-          await this.ensureLogin(destination, false);
-        }
-
-        if (name === 'systemProfile') {
-          return this.serializeResult(await this.getProfile(destination, args.refresh === true));
-        }
-
-        const handlerKey = this.toolToHandlerKey.get(name);
-        if (!handlerKey) {
-          throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
-        }
-        if (!this.toolsets.enabledTools.has(name)) {
-          const ts = this.toolsets.toolsetOf.get(name);
-          throw new McpError(ErrorCode.MethodNotFound,
-            `Tool ${name} belongs to toolset "${ts}", which is not enabled (active: ${this.toolsets.active.join(', ')}). Start the server with MCP_TOOLSETS including "${ts}" (or MCP_TOOLSETS=all).`);
-        }
-        // Once a profile exists for the destination, refuse tools whose ADT
-        // collection the backend does not expose, before touching SAP.
-        if (dest.profile) {
-          const profile = await dest.profile;
-          if (profile.unavailableTools.includes(name)) {
-            const ts = this.toolsets.toolsetOf.get(name);
-            throw new McpError(ErrorCode.InvalidRequest,
-              `Tool ${name} is not available on destination ${destination} (${profile.platform === 'cloud' ? 'S/4HANA Cloud' : 'this system'} does not expose the ADT ${ts} collection; see systemProfile). Pick another approach: dumps/dumpDetails instead of the debugger, ATC instead of traces.`);
-          }
-        }
-        let result: any;
-        const run = dest.queue.then(async () => dest.handlers[handlerKey].handle(name, args));
-        dest.queue = run.catch(() => undefined);
-        try {
-          result = await run;
-        } catch (error) {
-          // A session that expired between calls means SAP never executed this
-          // request: re-authenticate and retry exactly once. Any lockHandle from
-          // the old session is gone; the retry then fails with a staleLockHandle
-          // hint, which is the honest outcome.
-          const cls = classifyAdtError(error);
-          if (name === 'logout' || (cls.kind !== 'sessionExpired' && cls.kind !== 'csrf')) throw error;
-          console.error(`[abap-adt-mcp] session for ${destination} expired during ${name} (${cls.kind}); re-authenticating and retrying once`);
-          await this.reauthenticate(destination);
-          result = await dest.handlers[handlerKey].handle(name, args);
-        }
-        return this.serializeResult(result);
+        const response = await this.dispatch(name, rawArgs, () => { retried = true; });
+        audited('ok');
+        return response;
       } catch (error) {
+        const cls = classifyAdtError(error);
+        const message = redactSecrets(String((error as any)?.message || error)).slice(0, 300);
+        const gate = message.match(/^(?:MCP error -?\d+: )?Policy: \w+ blocked on destination [^ ]+ \((\w+)\)/)?.[1];
+        audited(cls.kind === 'policyDenied' ? 'denied' : (/is not available on destination/.test(message) ? 'unavailable' : 'error'),
+          { errorKind: cls.kind === 'unknown' ? undefined : cls.kind, gate, message });
         return this.handleError(error);
       }
     });
+  }
+
+  /** Run one tool call end to end (destination, policy, login, toolset and platform gates, handler, re-auth retry). */
+  private async dispatch(name: string, rawArgs: any, onRetry: () => void): Promise<any> {
+
+    if (name === 'listSystems') {
+      const systems = await Promise.all([...this.systems.values()].map(async (s) => {
+        const dest = this.pool.get(s.name);
+        const profile = dest?.profile ? await dest.profile.catch(() => undefined) : undefined;
+        return {
+          destination: s.name, url: s.url, client: s.client, authType: s.authType,
+          ...(s.policy ? { policy: summarizePolicy(s.policy) } : {}),
+          ...(profile ? { platform: profile.platform, unavailableToolsets: profile.unavailableToolsets } : {}),
+        };
+      }));
+      return this.serializeResult({ systems, default: this.defaultDest, activeToolsets: this.toolsets.active });
+    }
+    if (name === 'healthcheck') {
+      return this.serializeResult({
+        status: 'healthy',
+        version: PACKAGE_VERSION,
+        destinations: [...this.systems.keys()],
+        default: this.defaultDest,
+        activeToolsets: this.toolsets.active,
+        tools: this.getToolCatalog().length,
+      });
+    }
+
+    // Resolve destination.
+    const destination = rawArgs.destination || this.defaultDest;
+    if (!destination) {
+      throw new McpError(ErrorCode.InvalidParams,
+        `Missing "destination". Configured systems: ${[...this.systems.keys()].join(', ')}`);
+    }
+    if (!this.systems.has(destination)) {
+      throw new McpError(ErrorCode.InvalidParams,
+        `Unknown destination "${destination}". Configured: ${[...this.systems.keys()].join(', ')}`);
+    }
+
+    const dest = this.getDestination(destination);
+    const { destination: _d, ...args } = rawArgs;
+
+    // Server-side policy gate, before any authentication or SAP call.
+    if (dest.system.policy) {
+      const decision = await evaluatePolicy(dest.system.policy, name, args, {
+        resolvePackage: async (objectUrl) => this.resolvePackage(destination, objectUrl),
+      });
+      if (!decision.allowed) {
+        throw new McpError(ErrorCode.InvalidRequest,
+          `Policy: ${name} blocked on destination ${destination} (${decision.gate}): ${decision.reason}. Configured in systems.json policy; retrying will not help.`);
+      }
+    }
+
+    // Explicit login for SSO destinations.
+    if (name === 'login' && dest.system.authType === 'sso') {
+      await this.ensureLogin(destination, true);
+      return this.serializeResult({ status: `logged in to ${destination} via browser SSO` });
+    }
+    // Otherwise ensure the SSO session exists before the call.
+    if (name !== 'logout') {
+      await this.ensureLogin(destination, false);
+    }
+
+    if (name === 'systemProfile') {
+      return this.serializeResult(await this.getProfile(destination, args.refresh === true));
+    }
+
+    const handlerKey = this.toolToHandlerKey.get(name);
+    if (!handlerKey) {
+      throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
+    }
+    if (!this.toolsets.enabledTools.has(name)) {
+      const ts = this.toolsets.toolsetOf.get(name);
+      throw new McpError(ErrorCode.MethodNotFound,
+        `Tool ${name} belongs to toolset "${ts}", which is not enabled (active: ${this.toolsets.active.join(', ')}). Start the server with MCP_TOOLSETS including "${ts}" (or MCP_TOOLSETS=all).`);
+    }
+    // Once a profile exists for the destination, refuse tools whose ADT
+    // collection the backend does not expose, before touching SAP.
+    if (dest.profile) {
+      const profile = await dest.profile;
+      if (profile.unavailableTools.includes(name)) {
+        const ts = this.toolsets.toolsetOf.get(name);
+        throw new McpError(ErrorCode.InvalidRequest,
+          `Tool ${name} is not available on destination ${destination} (${profile.platform === 'cloud' ? 'S/4HANA Cloud' : 'this system'} does not expose the ADT ${ts} collection; see systemProfile). Pick another approach: dumps/dumpDetails instead of the debugger, ATC instead of traces.`);
+      }
+    }
+    let result: any;
+    const run = dest.queue.then(async () => dest.handlers[handlerKey].handle(name, args));
+    dest.queue = run.catch(() => undefined);
+    try {
+      result = await run;
+    } catch (error) {
+      // A session that expired between calls means SAP never executed this
+      // request: re-authenticate and retry exactly once. Any lockHandle from
+      // the old session is gone; the retry then fails with a staleLockHandle
+      // hint, which is the honest outcome.
+      const cls = classifyAdtError(error);
+      if (name === 'logout' || (cls.kind !== 'sessionExpired' && cls.kind !== 'csrf')) throw error;
+      console.error(`[abap-adt-mcp] session for ${destination} expired during ${name} (${cls.kind}); re-authenticating and retrying once`);
+      onRetry();
+      await this.reauthenticate(destination);
+      result = await dest.handlers[handlerKey].handle(name, args);
+    }
+    return this.serializeResult(result);
   }
 
   async run() {

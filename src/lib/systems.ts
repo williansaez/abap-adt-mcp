@@ -43,6 +43,70 @@ export interface SystemConfig {
   policy?: SystemPolicy;
 }
 
+/**
+ * Replace ${env:VAR} (and ${VAR}) references in every string of the raw
+ * configuration with the environment value; a missing variable is an error
+ * that names the variable but never its value.
+ */
+export function resolveEnvRefs<T>(value: T, env: NodeJS.ProcessEnv, where = 'systems'): T {
+  if (typeof value === 'string') {
+    return value.replace(/\$\{(?:env:)?([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, name) => {
+      const v = env[name];
+      if (v === undefined) throw new Error(`${where}: environment variable ${name} referenced by \${env:${name}} is not set`);
+      return v;
+    }) as unknown as T;
+  }
+  if (Array.isArray(value)) return value.map((v, i) => resolveEnvRefs(v, env, `${where}[${i}]`)) as unknown as T;
+  if (value && typeof value === 'object') {
+    const out: any = {};
+    for (const [k, v] of Object.entries(value as any)) out[k] = resolveEnvRefs(v, env, `${where}.${k}`);
+    return out;
+  }
+  return value;
+}
+
+/** Fail early on configurations that would only break at the first call. */
+export function validateSystem(cfg: SystemConfig): void {
+  try {
+    const u = new URL(cfg.url);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('protocol');
+  } catch {
+    throw new Error(`System "${cfg.name}": url "${cfg.url}" is not a valid http(s) URL`);
+  }
+  if (cfg.client !== undefined && !/^\d{3}$/.test(cfg.client)) {
+    throw new Error(`System "${cfg.name}": client must be a 3-digit number, got "${cfg.client}"`);
+  }
+  if (cfg.authType === 'basic' && (!cfg.user || !cfg.password)) {
+    throw new Error(`System "${cfg.name}": authType=basic requires user and password (use \${env:VAR} to keep them out of the file)`);
+  }
+}
+
+/** True when the raw config carries inline secrets (not env references). */
+export function hasInlineSecrets(raw: any): boolean {
+  const isRef = (v: unknown) => typeof v === 'string' && /^\$\{(?:env:)?[A-Za-z_][A-Za-z0-9_]*\}$/.test(v);
+  for (const entry of Object.values(raw || {})) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e: any = entry;
+    for (const v of [e.password, e.gitPassword, e.oauth?.clientSecret]) {
+      if (typeof v === 'string' && v.length > 0 && !isRef(v)) return true;
+    }
+  }
+  return false;
+}
+
+/** Warn on group/world-readable config files; refuse them when they hold inline secrets. */
+export function checkConfigFileMode(filePath: string, raw: any): void {
+  if (process.platform === 'win32') return;
+  let mode: number;
+  try { mode = fs.statSync(filePath).mode & 0o777; } catch { return; }
+  if ((mode & 0o077) === 0) return;
+  const msg = `[abap-adt-mcp] ${filePath} is readable by other users (mode ${mode.toString(8)}); run: chmod 600 ${filePath}`;
+  if (hasInlineSecrets(raw)) {
+    throw new Error(`${msg}. Refusing to start with inline passwords in a shared-readable file (or reference them as \${env:VAR}).`);
+  }
+  console.error(`${msg}`);
+}
+
 function coerceAuthType(v: any, fallback: AuthType): AuthType {
   const s = String(v || '').toLowerCase();
   if (s === 'sso' || s === 'browser') return 'sso';
@@ -86,12 +150,15 @@ function fromRawEntry(name: string, raw: any, defaultAuth: AuthType): SystemConf
   return cfg;
 }
 
-function parseMap(obj: Record<string, any>, defaultAuth: AuthType): Map<string, SystemConfig> {
+function parseMap(obj: Record<string, any>, defaultAuth: AuthType, env: NodeJS.ProcessEnv): Map<string, SystemConfig> {
   const map = new Map<string, SystemConfig>();
   for (const [name, raw] of Object.entries(obj)) {
     if (name.startsWith('_')) continue; // comment/metadata keys like "_comment"
-    map.set(name, fromRawEntry(name, raw, defaultAuth));
+    const cfg = fromRawEntry(name, resolveEnvRefs(raw, env, `systems.${name}`), defaultAuth);
+    validateSystem(cfg);
+    map.set(name, cfg);
   }
+  if (map.size === 0) throw new Error('No ABAP systems configured: the systems map is empty');
   return map;
 }
 
@@ -117,13 +184,19 @@ function readSystemsRaw(env: NodeJS.ProcessEnv): Map<string, SystemConfig> {
     } catch (e: any) {
       throw new Error(`SAP_SYSTEMS is not valid JSON: ${e.message}`);
     }
-    return parseMap(obj, defaultAuth);
+    return parseMap(obj, defaultAuth, env);
   }
 
   const filePath = env.SAP_SYSTEMS_FILE || path.resolve(__dirname, '../../systems.json');
   if (fs.existsSync(filePath)) {
-    const obj = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    return parseMap(obj, defaultAuth);
+    let obj: any;
+    try {
+      obj = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch (e: any) {
+      throw new Error(`${filePath} is not valid JSON: ${e.message}`);
+    }
+    checkConfigFileMode(filePath, obj);
+    return parseMap(obj, defaultAuth, env);
   }
 
   // Back-compat: a single implicit destination from the flat env vars.

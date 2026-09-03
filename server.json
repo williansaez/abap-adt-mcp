@@ -55,6 +55,11 @@
           "isSecret": true
         },
         {
+          "name": "MCP_AUDIT_FILE",
+          "description": "Path of a JSONL audit trail: one record per tool call (tool, destination, duration, outcome ok/error/denied/unavailable, policy gate, redacted argument summary)",
+          "isRequired": false
+        },
+        {
           "name": "MCP_READ_ONLY",
           "description": "Set to 1 to make every destination read-only (server-side; only read-only annotated tools plus login/logout run). Per-destination policies live in systems.json",
           "isRequired": false
