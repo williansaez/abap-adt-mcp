@@ -19,7 +19,8 @@
     "start": "node ./dist/index.js",
     "dev": "npx @modelcontextprotocol/inspector ./dist/index.js",
     "prepublishOnly": "npm run build",
-    "tools:docs": "npm run build && node scripts/gen-tools-docs.js"
+    "tools:docs": "npm run build && node scripts/gen-tools-docs.js",
+    "docs:check": "node scripts/check-docs-hygiene.js"
   },
   "keywords": [
     "abap",

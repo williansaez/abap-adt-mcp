@@ -10,3 +10,4 @@ package-lock.json
 systems.json
 
 .claude/settings.local.json
+.docs-forbidden-names
