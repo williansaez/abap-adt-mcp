@@ -4,6 +4,7 @@ import type { ToolDefinition } from '../types/tools.js';
 import { session_types } from 'abap-adt-api';
 import { withLock } from '../lib/lockLedger.js';
 import { hardTruncateJson } from '../lib/responseSizing.js';
+import { runClassFresh } from '../lib/runFresh.js';
 
 /** Build an IF_OO_ADT_CLASSRUN class around a snippet, or accept a full class. */
 export function buildSnippetClass(className: string, code: string): { source: string; wrapped: boolean } {
@@ -104,7 +105,7 @@ export class SnippetHandlers extends BaseHandler {
             }
             steps.push('activated');
 
-            const output = await this.adtclient.runClass(className);
+            const output = await runClassFresh(this.adtclient, className);
             steps.push('ran');
             const cleanupError = await cleanup();
             this.trackRequest(startTime, true);

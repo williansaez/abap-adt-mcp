@@ -492,7 +492,8 @@ export class CodeAnalysisHandlers extends BaseHandler {
     async handleRunClass(args: any): Promise<any> {
         const startTime = performance.now();
         try {
-            const result = await this.adtclient.runClass(args.className);
+            const { runClassFresh } = await import('../lib/runFresh.js');
+            const result = await runClassFresh(this.adtclient, args.className);
             this.trackRequest(startTime, true);
             return {
                 content: [
