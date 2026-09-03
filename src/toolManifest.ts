@@ -92,7 +92,7 @@ export const READ_ONLY_TOOLS = new Set([
   'annotationDefinitions', 'ddicElement', 'ddicRepositoryAccess', 'packageSearchHelp',
   'getDomainProperties', 'getDataElementProperties', 'typeHierarchy', 'objectStructureElements', 'objectEnhancements',
   'getTextElements', 'atcDocumentation', 'changePackagePreview', 'sourceTextSearch', 'grepPackage', 'apiReleaseState',
-  'packageTree', 'whereUsed', 'cdsViewInfo', 'objectDiff', 'atcSummary',
+  'packageTree', 'whereUsed', 'cdsViewInfo', 'objectDiff',
   'bindingDetails', 'fetchServiceDetails', 'tableContents', 'runQuery', 'feeds', 'dumps', 'dumpDetails',
   // debug reads
   'debuggerListeners', 'debuggerStackTrace', 'debuggerVariables', 'debuggerChildVariables',
@@ -121,7 +121,8 @@ export function toolAnnotations(name: string) {
     readOnlyHint: readOnly,
     destructiveHint: DESTRUCTIVE_TOOLS.has(name),
     idempotentHint: readOnly,
-    openWorldHint: false,
+    // apiReleaseState downloads the SAP cloudification repository from GitHub.
+    openWorldHint: name === 'apiReleaseState',
   };
 }
 

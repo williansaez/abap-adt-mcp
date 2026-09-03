@@ -53,11 +53,20 @@ describe('exportPackageSources', () => {
     expect(abapgitFileName('ZTAB', 'TABL/DT')).toBeUndefined();
     expect(() => resolveExportDir('relative/dir', undefined)).toThrow(/absolute/);
     expect(() => resolveExportDir('/tmp/x', '/srv/exports')).toThrow(/MCP_EXPORT_ROOT/);
-    expect(resolveExportDir('/srv/exports/a', '/srv/exports')).toBe('/srv/exports/a');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'export-root-'));
+    expect(resolveExportDir(path.join(root, 'a'), root)).toBe(path.join(fs.realpathSync(root), 'a'));
+    // A symlink inside the root pointing outside it is refused on the real path.
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'export-outside-'));
+    fs.symlinkSync(outside, path.join(root, 'link'));
+    expect(() => resolveExportDir(path.join(root, 'link', 'b'), root)).toThrow(/symlink/);
+    // Without a root the default under the home directory applies.
+    expect(() => resolveExportDir('/tmp/x', undefined)).toThrow(/export root/);
   });
 
   it('writes sources and class includes in abapGit layout with a manifest', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'export-'));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'export-'));
+    process.env.MCP_EXPORT_ROOT = root;
+    const dir = path.join(root, 'out');
     const client: any = {
       nodeContents: jest.fn(async (_t: string, name: string) => ({ nodes: name === 'ZPKG' ? [
         { OBJECT_TYPE: 'CLAS/OC', OBJECT_NAME: 'ZCL_A', OBJECT_URI: '/sap/bc/adt/oo/classes/zcl_a' },
@@ -82,5 +91,14 @@ describe('exportPackageSources', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'EXPORT.json'), 'utf8'));
     expect(manifest).toMatchObject({ package: 'ZPKG', files: 3, packages: ['ZPKG'] });
     await expect(h.handle('exportPackageSources', { packageName: 'ZPKG', targetDir: 'nope' })).rejects.toThrow(/absolute/);
+    // Existing files are left alone unless overwrite=true.
+    fs.writeFileSync(path.join(dir, 'zpkg', 'zi_x.ddls.asddls'), 'LOCAL EDIT');
+    const again = parse(await h.handle('exportPackageSources', { packageName: 'zpkg', targetDir: dir }));
+    expect(again.skipped.some((s: any) => /exists/.test(s.reason))).toBe(true);
+    expect(fs.readFileSync(path.join(dir, 'zpkg', 'zi_x.ddls.asddls'), 'utf8')).toBe('LOCAL EDIT');
+    const forced = parse(await h.handle('exportPackageSources', { packageName: 'zpkg', targetDir: dir, overwrite: true }));
+    expect(forced.filesWritten).toBe(3);
+    expect(fs.readFileSync(path.join(dir, 'zpkg', 'zi_x.ddls.asddls'), 'utf8')).toContain('define view entity');
+    delete process.env.MCP_EXPORT_ROOT;
   });
 });

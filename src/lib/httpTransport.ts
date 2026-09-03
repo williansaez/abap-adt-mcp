@@ -99,10 +99,15 @@ export async function startHttpServer(createServer: () => Server, opts: HttpOpti
   const startedAt = Date.now();
   const expected = opts.token;
 
+  const expectedBuf = Buffer.from(expected, 'utf8');
   const tokenOk = (req: http.IncomingMessage) => {
     const auth = req.headers.authorization || '';
     const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-    return provided.length === expected.length && provided.length > 0 && crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+    // Compare UTF-8 byte buffers: timingSafeEqual throws on unequal byte
+    // lengths, and a multibyte token with the same character count would
+    // otherwise crash the process from an unauthenticated request.
+    const providedBuf = Buffer.from(provided, 'utf8');
+    return providedBuf.length > 0 && providedBuf.length === expectedBuf.length && crypto.timingSafeEqual(providedBuf, expectedBuf);
   };
 
   const closeSession = async (id: string) => {
@@ -123,7 +128,14 @@ export async function startHttpServer(createServer: () => Server, opts: HttpOpti
   const sweeper = setInterval(() => { void sweep(); }, Math.min(opts.sessionTtlMs, 60_000));
   sweeper.unref();
 
-  const httpServer = http.createServer(async (req, res) => {
+  const httpServer = http.createServer((req, res) => {
+    handle(req, res).catch((error) => {
+      console.error('[abap-adt-mcp] HTTP handler error:', error);
+      try { if (!res.headersSent) json(res, 500, { error: 'Internal error' }); else res.end(); } catch { /* socket gone */ }
+    });
+  });
+
+  const handle = async (req: http.IncomingMessage, res: http.ServerResponse) => {
     const url = req.url || '';
     if (req.method === 'GET' && url === '/health') {
       json(res, 200, { status: 'ok', version: opts.version, sessions: sessions.size, maxSessions: opts.maxSessions, uptimeSeconds: Math.round((Date.now() - startedAt) / 1000) });
@@ -170,7 +182,7 @@ export async function startHttpServer(createServer: () => Server, opts: HttpOpti
       console.error('[abap-adt-mcp] HTTP request error:', error);
       if (!res.headersSent) json(res, 500, { error: 'Internal error' });
     }
-  });
+  };
 
   await new Promise<void>((resolve, reject) => {
     httpServer.once('error', reject);

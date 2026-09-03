@@ -59,6 +59,21 @@ describe('http transport end to end', () => {
   });
   afterAll(async () => { await handle.close(); });
 
+  it('refuses a wrong token of equal character length but different byte length without crashing', async () => {
+    const server = new AbapAdtServer();
+    const handle = await server.startHttp(env());
+    try {
+      const base = `http://127.0.0.1:${handle.port}`;
+      const wrong = 'tôken'; // 5 characters like the real token, 6 bytes
+      const r = await fetch(`${base}/mcp`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${wrong}` }, body: JSON.stringify(init()) });
+      expect(r.status).toBe(401);
+      const ok = await fetch(`${base}/health`);
+      expect(ok.status).toBe(200);
+    } finally {
+      await handle.close();
+    }
+  });
+
   it('serves /health without a token and refuses /mcp without one', async () => {
     const h = await (await fetch(`${base}/health`)).json();
     expect(h).toMatchObject({ status: 'ok', sessions: 0, maxSessions: 2 });

@@ -61,10 +61,10 @@ export class CloudHandlers extends BaseHandler {
             }
             let scanned: string[] | undefined;
             if (args.source || args.sourceUrl) {
-                let source = args.source ? String(args.source) : (sourceCache.get(String(args.sourceUrl)) ?? '');
+                let source = args.source ? String(args.source) : (sourceCache.get(this.adtclient, String(args.sourceUrl)) ?? '');
                 if (!source && args.sourceUrl) {
                     source = await this.adtclient.getObjectSource(String(args.sourceUrl));
-                    sourceCache.set(String(args.sourceUrl), source);
+                    sourceCache.set(this.adtclient, String(args.sourceUrl), source);
                 }
                 scanned = candidatesFromSource(source);
                 for (const n of scanned) refs.push({ name: n });
@@ -88,12 +88,14 @@ export class CloudHandlers extends BaseHandler {
             }
             const adt = args.objectUrl ? await this.adtRelease(String(args.objectUrl)) : undefined;
             this.trackRequest(startTime, true);
-            const notReady = verdicts.filter(v => !v.cloudReady && v.state !== 'customer');
+            const notReady = verdicts.filter(v => !v.cloudReady && v.state !== 'customer' && v.state !== 'unknown');
+            const unknown = verdicts.filter(v => v.state === 'unknown');
             const text = shrinkToFit(verdicts.length, (count, capped) => ({
                 status: 'success',
                 edition,
                 repository: { loadedAt: index.loadedAt, releasedEntries: index.counts.released, classificationEntries: index.counts.classifications },
-                summary: { checked: verdicts.length, cloudReady: verdicts.filter(v => v.cloudReady).length, notCloudReady: notReady.length, customerObjects: verdicts.filter(v => v.state === 'customer').length },
+                summary: { checked: verdicts.length, cloudReady: verdicts.filter(v => v.cloudReady).length, notCloudReady: notReady.length, unknown: unknown.length, customerObjects: verdicts.filter(v => v.state === 'customer').length },
+                ...(unknown.length ? { unknown: unknown.slice(0, 50).map(v => v.name), unknownNote: 'Not in the SAP cloudification repository: verify in the system before treating as blockers.' } : {}),
                 blockers: notReady.slice(0, 50).map(v => ({ name: v.name, type: v.type, state: v.state, successors: v.successors })),
                 results: verdicts.slice(0, count),
                 ...(scanned ? { scannedIdentifiers: scanned.length } : {}),

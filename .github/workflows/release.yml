@@ -25,7 +25,16 @@ jobs:
           node -e "const p=require('./package.json').version,s=require('./server.json');if(p!=='$TAG'||s.version!==p||s.packages[0].version!==p){console.error('version mismatch: tag=$TAG package=' + p + ' server.json=' + s.version);process.exit(1)}"
       - run: npm ci
       - run: npm run build
+      - name: Type-check tests
+        run: npx tsc --noEmit -p tsconfig.test.json
       - run: npm test -- --coverage=false
+      - name: Tool catalog docs are up to date
+        run: |
+          node scripts/gen-tools-docs.js
+          git diff --exit-code -- docs/TOOLS.md docs/tools.snapshot.json README.md skills/abap-adt-mcp-setup/SKILL.md .claude-plugin/plugin.json
+      - name: Package contains no compiled tests
+        run: |
+          npm pack --dry-run --json | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const f=JSON.parse(d)[0].files.map(x=>x.path);if(f.some(p=>p.includes('__tests__'))){console.error('compiled tests in package');process.exit(1)}})"
       - name: Publish to npm (provenance)
         run: npm publish --provenance --access public
         env:

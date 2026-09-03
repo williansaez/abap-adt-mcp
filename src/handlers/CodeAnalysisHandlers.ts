@@ -283,7 +283,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
         let code = args?.code;
         let usedCachedSource = false;
         if (code === undefined || code === null || code === '') {
-            const cached = sourceCache.get(args.url);
+            const cached = sourceCache.get(this.adtclient, args.url);
             if (cached === undefined) {
                 throw new McpError(
                     ErrorCode.InvalidParams,
@@ -493,19 +493,14 @@ export class CodeAnalysisHandlers extends BaseHandler {
         const startTime = performance.now();
         try {
             const { runClassFresh } = await import('../lib/runFresh.js');
-            const result = await runClassFresh(this.adtclient, args.className);
+            const run = await runClassFresh(this.adtclient, args.className);
             this.trackRequest(startTime, true);
-            return {
-                content: [
-                    {
-                        type: 'text',
-                        text: JSON.stringify({
-                            status: 'success',
-                            result
-                        })
-                    }
-                ]
-            };
+            const payload: any = { status: 'success', result: run.output, runMode: run.mode };
+            if (run.locksInvalidated.length) {
+                payload.locksInvalidated = run.locksInvalidated;
+                payload.note = 'Running with a fresh program load on an SSO destination resets the stateful ADT session; the explicit locks listed were released first. Re-lock before writing again.';
+            }
+            return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
             throw new McpError(

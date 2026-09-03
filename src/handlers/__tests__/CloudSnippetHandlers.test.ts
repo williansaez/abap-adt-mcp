@@ -20,7 +20,7 @@ describe('apiReleaseState', () => {
   it('checks names against the repository and summarizes blockers', async () => {
     const { handler } = make();
     const res = parse(await handler.handle('apiReleaseState', { names: 'cl_abap_char_utilities, TABL:MARA, CL_GUI_ALV_GRID, ZCL_MINE', refresh: true }));
-    expect(res.summary).toEqual({ checked: 4, cloudReady: 2, notCloudReady: 2, customerObjects: 1 });
+    expect(res.summary).toEqual({ checked: 4, cloudReady: 2, notCloudReady: 2, unknown: 0, customerObjects: 1 });
     expect(res.blockers.map((b: any) => b.name)).toEqual(['MARA', 'CL_GUI_ALV_GRID']);
     expect(res.blockers[0].successors).toEqual([{ name: 'I_PRODUCT', type: 'DDLS' }]);
   });
@@ -65,7 +65,13 @@ describe('runSnippet', () => {
     expect(f.wrapped).toBe(false);
     expect(f.source).toContain('CLASS zcl_t DEFINITION');
     expect(f.source).toContain('CLASS zcl_t IMPLEMENTATION');
-    expect(snippetClassName('abc-12')).toBe('ZCL_MCP_SNIP_ABC120');
+    expect(snippetClassName('abc-12')).toBe('ZCL_MCP_SNIP_0ABC12');
+    expect(snippetClassName()).toMatch(/^ZCL_MCP_SNIP_[0-9A-F]{6}$/);
+    expect(snippetClassName()).not.toBe(snippetClassName());
+    // Self references inside a full class are renamed too, so the class compiles under the temporary name.
+    const self = buildSnippetClass('ZCL_T', 'CLASS zcl_orig DEFINITION PUBLIC FINAL CREATE PUBLIC.\n  PUBLIC SECTION. CLASS-METHODS go. ENDCLASS.\nCLASS zcl_orig IMPLEMENTATION.\n  METHOD go. DATA(o) = NEW zcl_orig( ). zcl_orig=>go( ). ENDMETHOD.\nENDCLASS.');
+    expect(self.source).not.toMatch(/zcl_orig/i);
+    expect(self.source).toContain('NEW zcl_t( )');
   });
 
   it('creates, writes, activates, runs and deletes the temporary class', async () => {

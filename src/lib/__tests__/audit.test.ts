@@ -35,4 +35,14 @@ describe('audit log', () => {
     expect(off.enabled).toBe(false);
     expect(() => off.write({ requestId: 1, tool: 'x', durationMs: 0, outcome: 'ok' })).not.toThrow();
   });
+
+  it('redacts nested values and never throws on odd arguments', () => {
+    const redact = (v: string) => v.replace(/secret/gi, '[X]');
+    const out = summarizeArgs({ nested: { password: 'p', note: 'my secret' }, list: ['secret', 1], fn: () => 1 }, redact) as any;
+    expect(out.nested).toEqual({ password: '[REDACTED]', note: 'my [X]' });
+    expect(out.list).toEqual(['[X]', 1]);
+    const cyclic: any = { a: 1 }; cyclic.self = cyclic;
+    expect(() => summarizeArgs(cyclic, redact)).not.toThrow();
+    expect((summarizeArgs(cyclic, redact) as any)._summary).toBe('[unserializable arguments]');
+  });
 });

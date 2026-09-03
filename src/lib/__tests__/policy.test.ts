@@ -101,4 +101,21 @@ describe('systems.json policy parsing', () => {
     expect(ro.get('QAS')!.policy).toEqual({ readOnly: true });
     expect(ro.get('DEV')!.policy).toMatchObject({ readOnly: true, allowedPackages: ['Z*'] });
   });
+
+  it('covers activatePackage, activateObjects, createObject parentPath, refactorings and unresolvable writes under allowedPackages', async () => {
+    const policy = { allowedPackages: ['Z*'] };
+    const c = ctx({ '/sap/bc/adt/oo/classes/zcl_ok': 'ZOK', '/sap/bc/adt/oo/classes/ycl_no': 'YNO' });
+    expect((await evaluatePolicy(policy, 'activatePackage', { packageName: 'ZFIN' }, c)).allowed).toBe(true);
+    expect((await evaluatePolicy(policy, 'activatePackage', { packageName: 'YFIN' }, c)).allowed).toBe(false);
+    expect((await evaluatePolicy(policy, 'activateObjects', { objects: JSON.stringify([{ 'adtcore:uri': '/sap/bc/adt/oo/classes/zcl_ok' }]) }, c)).allowed).toBe(true);
+    expect((await evaluatePolicy(policy, 'activateObjects', { objects: [{ uri: '/sap/bc/adt/oo/classes/ycl_no' }] }, c))).toMatchObject({ allowed: false, gate: 'allowedPackages' });
+    expect((await evaluatePolicy(policy, 'activateObjects', { objects: [{ uri: '/sap/bc/adt/oo/classes/unknown' }] }, c)).allowed).toBe(false);
+    expect((await evaluatePolicy(policy, 'createObject', { parentPath: '/sap/bc/adt/packages/zfin' }, c)).allowed).toBe(true);
+    expect((await evaluatePolicy(policy, 'createObject', { parentPath: '/sap/bc/adt/packages/yfin' }, c)).allowed).toBe(false);
+    expect((await evaluatePolicy(policy, 'renameExecute', { refactoring: { adtObjectUri: { uri: '/sap/bc/adt/oo/classes/zcl_ok/source/main' } } }, c)).allowed).toBe(true);
+    expect((await evaluatePolicy(policy, 'extractMethodExecute', { refactoring: JSON.stringify({ affectedObjects: [{ uri: '/sap/bc/adt/oo/classes/ycl_no' }] }) }, c)).allowed).toBe(false);
+    expect((await evaluatePolicy(policy, 'gitPullRepo', { repoId: 'x' }, c))).toMatchObject({ allowed: false, gate: 'allowedPackages' });
+    expect((await evaluatePolicy({ deniedTables: ['PA*'] }, 'runSnippet', { code: 'SELECT * FROM pa0002 INTO TABLE @DATA(lt).' }, c))).toMatchObject({ allowed: false, gate: 'deniedTables' });
+    expect((await evaluatePolicy({ readOnly: true }, 'exportPackageSources', { packageName: 'ZX', targetDir: '/tmp' }, c)).allowed).toBe(true);
+  });
 });

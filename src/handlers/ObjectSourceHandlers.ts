@@ -5,7 +5,7 @@ import { session_types } from "abap-adt-api";
 import { sourceCache } from '../lib/sourceCache';
 import { withLock, objectNameFromUrl } from '../lib/lockLedger';
 import { objectUrlOf } from '../lib/policy';
-import { listMethods, findMethod, replaceMethod, classUrlOf, includeSourceUrl } from '../lib/methodSource';
+import { listMethods, findMethods, findMethod, replaceMethod, classUrlOf, includeSourceUrl } from '../lib/methodSource';
 import { SAFE_OUTPUT_CHARS, shrinkToFit } from '../lib/responseSizing';
 
 function buildPagedSourcePayload(lines: string[], totalLines: number, startLine: number, initialMaxLines: number, requestedPaging: boolean): string {
@@ -31,6 +31,12 @@ function buildPagedSourcePayload(lines: string[], totalLines: number, startLine:
   });
 }
 
+/** Method names, qualified with their class only when the include holds several implementations. */
+function methodLabels(blocks: Array<{ name: string; className?: string }>): string[] {
+  const classes = new Set(blocks.map(b => b.className).filter(Boolean));
+  return blocks.map(b => (classes.size > 1 && b.className ? `${b.className}=>${b.name}` : b.name));
+}
+
 export class ObjectSourceHandlers extends BaseHandler {
   getTools(): ToolDefinition[] {
     return [
@@ -44,7 +50,7 @@ export class ObjectSourceHandlers extends BaseHandler {
             version: {
               type: 'string',
               enum: ['active', 'inactive', 'workingArea'],
-              description: 'Which version to read: active (default) or inactive (the not-yet-activated version after setObjectSource/editObjectSource). Read inactive to verify what you wrote before activating.',
+              description: 'Omit to read what ADT serves by default: the inactive (not yet activated) version when one exists, otherwise the active one. Pass active to force the activated version, or inactive to require the unactivated one (fails when there is none). Read inactive to verify what you wrote before activating.',
               optional: true
             },
             startLine: {
@@ -78,7 +84,7 @@ export class ObjectSourceHandlers extends BaseHandler {
       },
       {
         name: 'editObjectSource',
-        description: 'Applies a targeted edit to an ABAP object without sending the full source. Always re-fetches the current source from SAP first, so the edit lands on the latest remote version. Two modes: (a) replacements: a JSON array of {oldText, newText} where each oldText must occur exactly once in the current source (0 or several matches fail with the candidate lines, so re-read and refine); this is robust to line-number drift after earlier edits. (b) line range: replace lines [startLine, endLine] (inclusive, 1-based) with newText; endLine = startLine - 1 inserts; empty newText deletes; pass expectedText (exact current content of the range, joined with \\n) to fail fast on stale reads. Requires the lockHandle from lock; write back is a full setObjectSource.',
+        description: 'Applies a targeted edit to an ABAP object without sending the full source. Always re-fetches the current source from SAP first, so the edit lands on the latest remote version. Two modes: (a) replacements: a JSON array of {oldText, newText} where each oldText must occur exactly once in the current source (0 or several matches fail with the candidate lines, so re-read and refine); this is robust to line-number drift after earlier edits. (b) line range: replace lines [startLine, endLine] (inclusive, 1-based) with newText; endLine = startLine - 1 inserts; empty newText deletes; pass expectedText (exact current content of the range, joined with \\n) to fail fast on stale reads. Locks and unlocks automatically (or reuses a lockHandle you pass); the write back is a full setObjectSource of the edited source, optionally activated with activate=true.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -123,6 +129,7 @@ export class ObjectSourceHandlers extends BaseHandler {
           properties: {
             classUrl: { type: 'string', description: 'Class name (ZCL_DEMO) or class URL (/sap/bc/adt/oo/classes/zcl_demo)' },
             methodName: { type: 'string', description: 'Method name, e.g. GET_DATA or IF_OO_ADT_CLASSRUN~MAIN' },
+            className: { type: 'string', description: 'Enclosing class when the include holds several implementations with the same method name (local classes in implementations, test classes in testclasses). Required when the method name is ambiguous.', optional: true },
             include: { type: 'string', enum: ['main', 'implementations', 'testclasses', 'definitions', 'macros'], description: 'Class include to read (default main)', optional: true }
           },
           required: ['classUrl', 'methodName']
@@ -136,6 +143,7 @@ export class ObjectSourceHandlers extends BaseHandler {
           properties: {
             classUrl: { type: 'string', description: 'Class name or class URL' },
             methodName: { type: 'string', description: 'Method to replace' },
+            className: { type: 'string', description: 'Enclosing class when the include holds several implementations with the same method name (local classes in implementations, test classes in testclasses). Required when the method name is ambiguous.', optional: true },
             source: { type: 'string', description: 'New METHOD … ENDMETHOD block, or just the body statements' },
             include: { type: 'string', enum: ['main', 'implementations', 'testclasses', 'definitions', 'macros'], description: 'Class include holding the method (default main)', optional: true },
             lockHandle: { type: 'string', description: 'Optional lock handle when you hold the lock yourself', optional: true },
@@ -172,7 +180,7 @@ export class ObjectSourceHandlers extends BaseHandler {
       const fullSource = await this.adtclient.getObjectSource(args.objectSourceUrl, args.version ? { version: args.version } : undefined);
       // Remember the source so a later syntaxCheckCode on the same URL can reuse
       // it without the caller re-sending it (issue #2).
-      sourceCache.set(args.objectSourceUrl, fullSource);
+      sourceCache.set(this.adtclient, args.objectSourceUrl, fullSource);
       this.trackRequest(startTime, true);
 
       const lines = fullSource.split('\n');
@@ -238,7 +246,7 @@ export class ObjectSourceHandlers extends BaseHandler {
       });
       // Cache the just-written source so a follow-up syntaxCheckCode can reuse it
       // without the caller re-sending it (issue #2).
-      sourceCache.set(args.objectSourceUrl, args.source);
+      sourceCache.set(this.adtclient, args.objectSourceUrl, args.source);
       const activation = await this.maybeActivate(args);
       this.trackRequest(startTime, true);
       return {
@@ -317,7 +325,7 @@ export class ObjectSourceHandlers extends BaseHandler {
         await this.adtclient.setObjectSource(args.objectSourceUrl, newSource, handle, args.transport);
         return true;
       });
-      sourceCache.set(args.objectSourceUrl, newSource);
+      sourceCache.set(this.adtclient, args.objectSourceUrl, newSource);
       const activation = await this.maybeActivate(args);
       this.trackRequest(startTime, true);
 
@@ -422,7 +430,7 @@ export class ObjectSourceHandlers extends BaseHandler {
       await this.adtclient.setObjectSource(args.objectSourceUrl, working, handle, args.transport);
       return true;
     });
-    sourceCache.set(args.objectSourceUrl, working);
+    sourceCache.set(this.adtclient, args.objectSourceUrl, working);
     const activation = await this.maybeActivate(args);
     this.trackRequest(startTime, true);
     return {
@@ -450,14 +458,18 @@ export class ObjectSourceHandlers extends BaseHandler {
       const classUrl = classUrlOf(args.classUrl);
       const sourceUrl = includeSourceUrl(classUrl, args.include);
       const source = await this.adtclient.getObjectSource(sourceUrl);
-      sourceCache.set(sourceUrl, source);
-      const block = findMethod(source, String(args.methodName));
+      sourceCache.set(this.adtclient, sourceUrl, source);
+      const candidates = findMethods(source, String(args.methodName), args.className);
       this.trackRequest(startTime, true);
-      if (!block) {
-        const names = listMethods(source).map(b => b.name);
-        return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', classUrl, include: args.include || 'main', methodName: String(args.methodName).toUpperCase(), found: false, methodsInInclude: names, hint: names.length ? 'Pick one of methodsInInclude, or try include=implementations/testclasses for local and test classes.' : 'No METHOD blocks in this include; try another include.' }) }], isError: true };
+      if (candidates.length === 0) {
+        const names = methodLabels(listMethods(source));
+        return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', classUrl, include: args.include || 'main', methodName: String(args.methodName).toUpperCase(), className: args.className, found: false, methodsInInclude: names, hint: names.length ? 'Pick one of methodsInInclude (class=>method), or try include=implementations/testclasses for local and test classes.' : 'No METHOD blocks in this include; try another include.' }) }], isError: true };
       }
-      return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', classUrl, sourceUrl, include: args.include || 'main', method: block.name, startLine: block.startLine, endLine: block.endLine, lines: block.endLine - block.startLine + 1, amdp: block.amdp, source: block.text }) }] };
+      if (candidates.length > 1) {
+        return { content: [{ type: 'text', text: JSON.stringify({ status: 'error', classUrl, include: args.include || 'main', methodName: String(args.methodName).toUpperCase(), ambiguous: true, candidates: candidates.map(b => ({ className: b.className, startLine: b.startLine, endLine: b.endLine })), hint: 'Several implementations carry this method name; pass className to pick one.' }) }], isError: true };
+      }
+      const block = candidates[0];
+      return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', classUrl, sourceUrl, include: args.include || 'main', method: block.name, className: block.className, startLine: block.startLine, endLine: block.endLine, lines: block.endLine - block.startLine + 1, amdp: block.amdp, source: block.text }) }] };
     } catch (error: any) {
       this.trackRequest(startTime, false);
       throw new McpError(ErrorCode.InternalError, `Failed to get method source: ${this.formatAdtError(error)}`);
@@ -470,20 +482,24 @@ export class ObjectSourceHandlers extends BaseHandler {
       const classUrl = classUrlOf(args.classUrl);
       const sourceUrl = includeSourceUrl(classUrl, args.include);
       const current = await this.adtclient.getObjectSource(sourceUrl);
-      const block = findMethod(current, String(args.methodName));
-      if (!block) {
-        const names = listMethods(current).map(b => b.name);
-        throw new McpError(ErrorCode.InvalidRequest, `Method ${String(args.methodName).toUpperCase()} not found in ${args.include || 'main'} of ${classUrl}. Methods present: ${names.join(', ') || 'none'}`);
+      const candidates = findMethods(current, String(args.methodName), args.className);
+      if (candidates.length === 0) {
+        const names = methodLabels(listMethods(current));
+        throw new McpError(ErrorCode.InvalidRequest, `Method ${String(args.methodName).toUpperCase()}${args.className ? ` of ${String(args.className).toUpperCase()}` : ''} not found in ${args.include || 'main'} of ${classUrl}. Methods present: ${names.join(', ') || 'none'}`);
       }
+      if (candidates.length > 1) {
+        throw new McpError(ErrorCode.InvalidRequest, `Method ${String(args.methodName).toUpperCase()} is implemented ${candidates.length} times in ${args.include || 'main'} of ${classUrl} (${candidates.map(b => `${b.className || '?'} lines ${b.startLine}-${b.endLine}`).join('; ')}). Pass className to pick one; nothing was written.`);
+      }
+      const block = candidates[0];
       const { source: newSource, wrapped } = replaceMethod(current, block, String(args.source));
       this.adtclient.stateful = session_types.stateful;
       const written = await withLock(this.adtclient, sourceUrl, args.lockHandle, async (handle) => {
         await this.adtclient.setObjectSource(sourceUrl, newSource, handle, args.transport);
         return true;
       });
-      sourceCache.set(sourceUrl, newSource);
+      sourceCache.set(this.adtclient, sourceUrl, newSource);
       const activation = await this.maybeActivate({ objectSourceUrl: sourceUrl, activate: args.activate });
-      const after = findMethod(newSource, String(args.methodName));
+      const after = findMethod(newSource, String(args.methodName), block.className);
       this.trackRequest(startTime, true);
       return { content: [{ type: 'text', text: JSON.stringify({
         status: 'success', updated: true, classUrl, sourceUrl, method: block.name,

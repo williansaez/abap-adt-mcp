@@ -105,7 +105,8 @@ export class RevisionHandlers extends BaseHandler {
             const sorted = [...revs].sort((a: any, b: any) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
             const to = this.pickRevision(sorted, args.toRevision, 0, 'newer');
             const from = this.pickRevision(sorted, args.fromRevision, 1, 'older');
-            const [older, newer] = await Promise.all([this.adtclient.getObjectSource(from.uri), this.adtclient.getObjectSource(to.uri)]);
+            const older = await this.adtclient.getObjectSource(from.uri);
+            const newer = await this.adtclient.getObjectSource(to.uri);
             const context = Math.max(0, Number(args.contextLines ?? 3));
             const name = String(args.objectUrl).split('/').filter(Boolean).pop() || 'object';
             const patch = createTwoFilesPatch(`${name} (${from.version || from.date})`, `${name} (${to.version || to.date})`, older, newer, undefined, undefined, { context });

@@ -24,7 +24,7 @@
         },
         {
           "name": "SAP_SYSTEMS",
-          "description": "Inline JSON map of destinations (same shape as SAP_SYSTEMS_FILE). Contains credentials — prefer SAP_SYSTEMS_FILE",
+          "description": "Inline JSON map of destinations (same shape as SAP_SYSTEMS_FILE). Contains credentials \u2014 prefer SAP_SYSTEMS_FILE",
           "isRequired": false,
           "isSecret": true
         },
@@ -133,6 +133,52 @@
         {
           "name": "SAP_LANGUAGE",
           "description": "Legacy single-system mode: logon language, e.g. EN",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_BROWSER_PATH",
+          "description": "SSO destinations: path to a Chromium/Chrome/Edge binary for the browser login (auto-detected when unset)",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_BROWSER_PROFILE_DIR",
+          "description": "SSO destinations: directory of the persistent browser profile that keeps the identity-provider session (default ~/.abap-adt-mcp/sso/<host>)",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_TLS_INSECURE",
+          "description": "Legacy single-system mode: set to 1 to skip TLS certificate verification for that system only (sandboxes with self-signed certificates)",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_OAUTH_TOKEN_URL",
+          "description": "Legacy single-system mode with SAP_AUTH_TYPE=oauth: OAuth2 token endpoint (client_credentials)",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_OAUTH_CLIENT_ID",
+          "description": "Legacy single-system mode with SAP_AUTH_TYPE=oauth: OAuth2 client id",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_OAUTH_CLIENT_SECRET",
+          "description": "Legacy single-system mode with SAP_AUTH_TYPE=oauth: OAuth2 client secret",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "SAP_OAUTH_SCOPE",
+          "description": "Legacy single-system mode with SAP_AUTH_TYPE=oauth: optional OAuth2 scope",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_PROFILE_GATE",
+          "description": "Platform gate for toolsets the destination does not expose (debugger, traces, abapGit, ...): enforce (default, refuse before calling SAP), warn (log only) or off",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_SOURCE_CACHE_TTL_SECONDS",
+          "description": "Lifetime of the per-session source cache used by grepPackage, cdsViewInfo and syntaxCheckCode (default 300; 0 keeps entries until logout)",
           "isRequired": false
         }
       ]

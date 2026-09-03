@@ -35,7 +35,7 @@ Follow this sequence with the abap-adt-mcp tools:
 5. createObject(objtype, name, parentName="${a.package}", description, parentPath="/sap/bc/adt/packages/${a.package.toLowerCase()}", responsible on cloud, transport).
 6. syntaxCheckCode on the intended source, then setObjectSource(objectSourceUrl="<object url>/source/main", source, activate=true, transport). Read the activation field; fix and rewrite on errors.
 7. createTestInclude for classes, write the tests with setObjectSource on the testclasses include, then unitTestRun(url="<object url>").
-8. createAtcRun on the object and clear priority 1 and 2 findings (atcQuickfixProposals / atcApplyQuickfix where deterministic).
+8. createAtcRun on the object (pass the project's check variant, e.g. ABAP_CLOUD_DEVELOPMENT_DEFAULT on cloud, or omit for the system default) and clear priority 1 and 2 findings (atcQuickfixProposals / atcApplyQuickfix where deterministic).
 Report the object URL, transport, activation and test results.`,
   },
   {
@@ -70,7 +70,7 @@ Stop and ask before deleteObject, transportRelease or forceUnlock.`,
 
 1. transportDetails(transportNumber="${a.transport}") for the object list, owner, tasks and status.
 2. transportUnifiedDiff(transportNumber="${a.transport}") for the per-object diffs; use objectDiff(objectUrl) for objects with several revisions.
-3. For each changed object: what changed, risk (data model, authorization, performance, released-API use via apiReleaseState on cloud), and whether unit tests exist (unitTestRun) and ATC is clean (createAtcRun with the transport as mainUrl, then atcWorklists).
+3. For each changed object: what changed, risk (data model, authorization, performance, released-API use via apiReleaseState on cloud), and whether unit tests exist (unitTestRun) and ATC is clean (createAtcRun with the transport as mainUrl and the project's check variant, then atcWorklists).
 4. Produce a review with: summary, per-object findings, blockers, and a go/no-go recommendation. Never release the transport yourself (transportRelease needs explicit approval).`,
   },
   {

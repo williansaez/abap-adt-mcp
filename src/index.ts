@@ -17,7 +17,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { ADTClient, session_types } from "abap-adt-api";
 import path from 'path';
-import { makeBearerFetcher } from './lib/oauth.js';
+import { makeBearerFetcher, BearerFetcher } from './lib/oauth.js';
+import https from 'https';
 import { CookieHttpClient } from './lib/cookieHttpClient.js';
 import { browserLogin } from './lib/browserLogin.js';
 import { readSystems, defaultDestination, SystemConfig } from './lib/systems.js';
@@ -25,7 +26,9 @@ import { classifyAdtError } from './lib/adtErrorHints.js';
 import { TOOL_ROUTES, HandlerKey, toolAnnotations, resolveToolsets, ToolsetSelection, TOOLSETS } from './toolManifest.js';
 import { buildSystemProfile, SystemProfile } from './lib/systemProfile.js';
 import { evaluatePolicy, objectUrlOf, summarizePolicy } from './lib/policy.js';
-import { clearLedger } from './lib/lockLedger.js';
+import { clearLedger, releaseAll } from './lib/lockLedger.js';
+import { sourceCache } from './lib/sourceCache.js';
+import { TOOLSET_FEATURE } from './lib/systemProfile.js';
 import { AuditLog, summarizeArgs } from './lib/audit.js';
 import { buildHttpsAgent, describeTls } from './lib/tls.js';
 import { listPrompts, getPrompt } from './prompts.js';
@@ -121,14 +124,21 @@ interface Destination {
   system: SystemConfig;
   adtClient: ADTClient;
   cookieClient?: CookieHttpClient;
+  bearerFetcher?: BearerFetcher;
+  httpsAgent?: https.Agent;
   handlers: HandlerSet;
   loggedIn: boolean;
+  /** In-flight SSO login, shared by concurrent callers so only one browser opens. */
+  loginInFlight?: Promise<void>;
   profile?: Promise<SystemProfile>;
   /** objectUrl -> package (DEVCLASS), filled lazily for allowedPackages checks. */
   packageCache: Map<string, string>;
   /** Serializes tool calls per destination: one stateful ADT session is not concurrency-safe. */
   queue: Promise<unknown>;
 }
+
+/** Tools after which the objectUrl -> package memo of a destination is stale. */
+const PACKAGE_CACHE_INVALIDATORS = new Set(['changePackageExecute', 'deleteObject', 'createObject', 'renameExecute', 'gitPullRepo', 'rapGenGenerate']);
 
 /** Human-readable tool title from its camelCase name (getObjectSource -> Get Object Source). */
 function titleFromName(name: string): string {
@@ -142,7 +152,7 @@ function titleFromName(name: string): string {
 const PARAM_EXAMPLES: Record<string, any[]> = {
   objectUrl: ['/sap/bc/adt/oo/classes/zcl_order_service', '/sap/bc/adt/programs/programs/zreport', '/sap/bc/adt/ddic/ddl/sources/zi_product'],
   objectSourceUrl: ['/sap/bc/adt/oo/classes/zcl_order_service/source/main', '/sap/bc/adt/programs/programs/zreport/source/main'],
-  objSourceUrl: ['/sap/bc/adt/oo/classes/zcl_order_service', '/sap/bc/adt/packages/zfin'],
+  objSourceUrl: ['/sap/bc/adt/oo/classes/zcl_order_service', '/sap/bc/adt/programs/programs/zreport'],
   classUrl: ['ZCL_ORDER_SERVICE', '/sap/bc/adt/oo/classes/zcl_order_service'],
   domainUrl: ['/sap/bc/adt/ddic/domains/zdom_status'],
   dataElementUrl: ['/sap/bc/adt/ddic/dataelements/zde_status'],
@@ -156,7 +166,6 @@ const PARAM_EXAMPLES: Record<string, any[]> = {
   methodName: ['GET_DATA', 'IF_OO_ADT_CLASSRUN~MAIN'],
   ddicEntityName: ['T000', 'I_PRODUCT'],
   sqlQuery: ["SELECT matnr, mtart FROM mara WHERE mtart = 'FERT'"],
-  url: ['/sap/bc/adt/oo/classes/zcl_order_service'],
 };
 
 // Compile-time check: every handler key in the manifest exists in HandlerSet.
@@ -191,7 +200,7 @@ export class AbapAdtServer extends Server {
           '',
           'Finding code: sourceTextSearch (server index) or grepPackage (client grep with context) locate usages of tables, messages, methods or literals; read whole sources only for the hits.',
           '',
-          'Errors carry kind/hint/nextTools: follow the hint instead of retrying blindly. systemProfile(destination) tells which toolsets the backend supports (S/4HANA Cloud lacks some); dumps/dumpDetails are the root-cause path where the debugger is unavailable.',
+          'Errors carry kind/hint/nextTools: follow the hint instead of retrying blindly. systemProfile(destination) tells which toolsets the backend supports (S/4HANA Cloud lacks some); dumps/dumpDetails are the root-cause path when the debugger toolset is unavailable on a destination.',
         ].join('\n'),
       }
     );
@@ -229,11 +238,12 @@ export class AbapAdtServer extends Server {
 
   // --- connection / destination management -------------------------------
 
-  private makeClient(sys: SystemConfig): { adtClient: ADTClient; cookieClient?: CookieHttpClient } {
+  private makeClient(sys: SystemConfig): { adtClient: ADTClient; cookieClient?: CookieHttpClient; bearerFetcher?: BearerFetcher; httpsAgent?: https.Agent } {
     const client = sys.client || '';
     const language = sys.language || '';
     let adtClient: ADTClient;
     let cookieClient: CookieHttpClient | undefined;
+    let bearerFetcher: BearerFetcher | undefined;
 
     const agent = buildHttpsAgent(sys.tls, sys.insecureTls);
     const options = agent ? { httpsAgent: agent } : undefined;
@@ -241,12 +251,13 @@ export class AbapAdtServer extends Server {
       cookieClient = new CookieHttpClient(sys.url, [], !!sys.insecureTls, client || undefined, agent);
       adtClient = new ADTClient(cookieClient as any, sys.user || 'sso', '', client, language);
     } else if (sys.authType === 'oauth') {
-      adtClient = new ADTClient(sys.url, sys.oauth!.clientId || 'oauth', makeBearerFetcher(sys.oauth!), client, language, options);
+      bearerFetcher = makeBearerFetcher(sys.oauth!);
+      adtClient = new ADTClient(sys.url, sys.oauth!.clientId || 'oauth', bearerFetcher, client, language, options);
     } else {
       adtClient = new ADTClient(sys.url, sys.user || '', sys.password || '', client, language, options);
     }
     adtClient.stateful = session_types.stateful;
-    return { adtClient, cookieClient };
+    return { adtClient, cookieClient, bearerFetcher, httpsAgent: agent };
   }
 
   private buildHandlers(adtClient: ADTClient, system?: SystemConfig): HandlerSet {
@@ -289,8 +300,8 @@ export class AbapAdtServer extends Server {
     let dest = this.pool.get(name);
     if (!dest) {
       const system = this.systems.get(name)!;
-      const { adtClient, cookieClient } = this.makeClient(system);
-      dest = { system, adtClient, cookieClient, handlers: this.buildHandlers(adtClient, system), loggedIn: false, packageCache: new Map(), queue: Promise.resolve() };
+      const { adtClient, cookieClient, bearerFetcher, httpsAgent } = this.makeClient(system);
+      dest = { system, adtClient, cookieClient, bearerFetcher, httpsAgent, handlers: this.buildHandlers(adtClient, system), loggedIn: false, packageCache: new Map(), queue: Promise.resolve() };
       this.pool.set(name, dest);
     }
     return dest;
@@ -302,11 +313,37 @@ export class AbapAdtServer extends Server {
     const dest = this.getDestination(name);
     if (dest.system.authType !== 'sso') return;
     if (dest.loggedIn && !force) return;
-    reportProgress(`opening the browser for SSO login to ${name}; complete the login if a window appears`);
-    const cookies = await browserLogin(dest.system.url, dest.system.client);
-    dest.cookieClient!.setCookies(cookies);
-    await dest.adtClient.login();
-    dest.loggedIn = true;
+    if (dest.loginInFlight && !force) return dest.loginInFlight;
+    dest.loginInFlight = (async () => {
+      reportProgress(`opening the browser for SSO login to ${name}; complete the login if a window appears`);
+      const cookies = await browserLogin(dest.system.url, dest.system.client);
+      dest.cookieClient!.setCookies(cookies);
+      await dest.adtClient.login();
+      dest.loggedIn = true;
+    })().finally(() => { dest.loginInFlight = undefined; });
+    return dest.loginInFlight;
+  }
+
+  /**
+   * Release everything this server instance holds on SAP: explicit locks in
+   * the ledgers, the stateful sessions and the keep-alive sockets. Called on
+   * SIGINT/SIGTERM for stdio and when an HTTP MCP session closes or expires.
+   */
+  async close(): Promise<void> {
+    for (const [name, dest] of this.pool) {
+      try {
+        const { released, failed } = await releaseAll(dest.adtClient);
+        if (released.length || failed.length) console.error(`[abap-adt-mcp] ${name}: released ${released.length} lock(s) on close${failed.length ? `, ${failed.length} failed` : ''}`);
+      } catch (e: any) { console.error(`[abap-adt-mcp] ${name}: releasing locks on close failed: ${e?.message || e}`); }
+      sourceCache.clear(dest.adtClient);
+      if (dest.adtClient.loggedin) {
+        try { await dest.adtClient.dropSession(); } catch { /* best effort */ }
+      }
+      dest.httpsAgent?.destroy();
+      dest.loggedIn = false;
+    }
+    this.pool.clear();
+    await super.close();
   }
 
   // --- serialization helpers (unchanged) ---------------------------------
@@ -364,11 +401,13 @@ export class AbapAdtServer extends Server {
     } else {
       try { await dest.adtClient.dropSession(); } catch { /* best effort */ }
       if (dest.system.authType === 'oauth') {
+        dest.bearerFetcher?.invalidate();
         (dest.adtClient.httpClient as any).bearer = undefined;
       }
       await dest.adtClient.login();
     }
     dest.adtClient.stateful = session_types.stateful;
+    sourceCache.clear(dest.adtClient);
     // Handles from the dead session are invalid: forget them rather than reuse them.
     clearLedger(dest.adtClient);
   }
@@ -582,68 +621,91 @@ export class AbapAdtServer extends Server {
     const dest = this.getDestination(destination);
     const { destination: _d, ...args } = rawArgs;
 
-    // Server-side policy gate, before any authentication or SAP call.
-    if (dest.system.policy) {
-      const decision = await evaluatePolicy(dest.system.policy, name, args, {
-        resolvePackage: async (objectUrl) => this.resolvePackage(destination, objectUrl),
-      });
-      if (!decision.allowed) {
-        throw new McpError(ErrorCode.InvalidRequest,
-          `Policy: ${name} blocked on destination ${destination} (${decision.gate}): ${decision.reason}. Configured in systems.json policy; retrying will not help.`);
-      }
-    }
-
-    // Explicit login for SSO destinations.
-    if (name === 'login' && dest.system.authType === 'sso') {
-      await this.ensureLogin(destination, true);
-      return this.serializeResult({ status: `logged in to ${destination} via browser SSO` });
-    }
-    // Otherwise ensure the SSO session exists before the call.
-    if (name !== 'logout') {
-      await this.ensureLogin(destination, false);
-    }
-
-    if (name === 'systemProfile') {
-      return this.serializeResult(await this.getProfile(destination, args.refresh === true));
-    }
-
-    const handlerKey = this.toolToHandlerKey.get(name);
-    if (!handlerKey) {
+    // Checks that need no SAP round trip come first and are protocol errors.
+    const handlerKey = name === 'systemProfile' ? undefined : this.toolToHandlerKey.get(name);
+    if (!handlerKey && name !== 'systemProfile') {
       throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`);
     }
-    if (!this.toolsets.enabledTools.has(name)) {
+    if (handlerKey && !this.toolsets.enabledTools.has(name)) {
       const ts = this.toolsets.toolsetOf.get(name);
       throw new McpError(ErrorCode.MethodNotFound,
         `Tool ${name} belongs to toolset "${ts}", which is not enabled (active: ${this.toolsets.active.join(', ')}). Start the server with MCP_TOOLSETS including "${ts}" (or MCP_TOOLSETS=all).`);
     }
-    // Once a profile exists for the destination, refuse tools whose ADT
-    // collection the backend does not expose, before touching SAP.
-    if (dest.profile) {
-      const profile = await dest.profile;
-      if (profile.unavailableTools.includes(name)) {
-        const ts = this.toolsets.toolsetOf.get(name);
-        throw new McpError(ErrorCode.InvalidRequest,
-          `Tool ${name} is not available on destination ${destination} (${profile.platform === 'cloud' ? 'S/4HANA Cloud' : 'this system'} does not expose the ADT ${ts} collection; see systemProfile). Pick another approach: dumps/dumpDetails instead of the debugger, ATC instead of traces.`);
+
+    // Everything from here on may talk to SAP through the destination's single
+    // stateful session, so it runs inside the per-destination queue: policy
+    // resolution (transportInfo), login, profile discovery, the handler and
+    // the re-authentication retry never interleave with another call.
+    const work = async (): Promise<any> => {
+      // Server-side policy gate, before any authentication or SAP call.
+      if (dest.system.policy) {
+        const decision = await evaluatePolicy(dest.system.policy, name, args, {
+          resolvePackage: async (objectUrl) => this.resolvePackage(destination, objectUrl),
+        });
+        if (!decision.allowed) {
+          throw new McpError(ErrorCode.InvalidRequest,
+            `Policy: ${name} blocked on destination ${destination} (${decision.gate}): ${decision.reason}. Configured in systems.json policy; retrying will not help.`);
+        }
       }
-    }
-    let result: any;
-    const run = dest.queue.then(async () => dest.handlers[handlerKey].handle(name, args));
+
+      // Explicit login for SSO destinations.
+      if (name === 'login' && dest.system.authType === 'sso') {
+        await this.ensureLogin(destination, true);
+        return { status: `logged in to ${destination} via browser SSO` };
+      }
+      // Otherwise ensure the SSO session exists before the call.
+      if (name !== 'logout') {
+        await this.ensureLogin(destination, false);
+      }
+
+      if (name === 'systemProfile') {
+        return this.getProfile(destination, args.refresh === true);
+      }
+
+      // Platform gate: tools whose ADT collection the backend does not expose
+      // are refused before touching SAP. The profile is built on the first
+      // call of a gated toolset (debugger, traces, git, ...) so the outcome
+      // does not depend on whether systemProfile was called earlier.
+      // MCP_PROFILE_GATE=enforce (default) | warn | off.
+      const gateMode = (process.env.MCP_PROFILE_GATE || 'enforce').toLowerCase();
+      const ts = this.toolsets.toolsetOf.get(name);
+      if (gateMode !== 'off' && ts && TOOLSET_FEATURE[ts] && !dest.profile) {
+        try { await this.getProfile(destination); } catch (e: any) {
+          console.error(`[abap-adt-mcp] ${destination}: could not build the system profile (${e?.message || e}); ${name} runs unchecked`);
+        }
+      }
+      if (gateMode !== 'off' && dest.profile) {
+        const profile = await dest.profile.catch(() => undefined);
+        if (profile?.unavailableTools.includes(name)) {
+          const msg = `Tool ${name} is not available on destination ${destination} (${profile.platform === 'cloud' ? 'S/4HANA Cloud' : 'this system'} does not expose the ADT ${ts} collection; see systemProfile). Pick another approach: dumps/dumpDetails instead of the debugger, ATC instead of traces.`;
+          if (gateMode === 'warn') console.error(`[abap-adt-mcp] ${msg}`);
+          else throw new McpError(ErrorCode.InvalidRequest, msg);
+        }
+      }
+
+      let result: any;
+      try {
+        result = await dest.handlers[handlerKey!].handle(name, args);
+      } catch (error) {
+        // A session that expired between calls means SAP never executed this
+        // request: re-authenticate and retry exactly once. Any lockHandle from
+        // the old session is gone; the retry then fails with a staleLockHandle
+        // hint, which is the honest outcome.
+        const cls = classifyAdtError(error);
+        if (name === 'logout' || (cls.kind !== 'sessionExpired' && cls.kind !== 'csrf')) throw error;
+        console.error(`[abap-adt-mcp] session for ${destination} expired during ${name} (${cls.kind}); re-authenticating and retrying once`);
+        onRetry();
+        await this.reauthenticate(destination);
+        result = await dest.handlers[handlerKey!].handle(name, args);
+      }
+      // Objects moved, renamed, created or deleted: the objectUrl -> package
+      // memo used by allowedPackages must not answer from before the change.
+      if (PACKAGE_CACHE_INVALIDATORS.has(name)) dest.packageCache.clear();
+      return result;
+    };
+    const run = dest.queue.then(work);
     dest.queue = run.catch(() => undefined);
-    try {
-      result = await run;
-    } catch (error) {
-      // A session that expired between calls means SAP never executed this
-      // request: re-authenticate and retry exactly once. Any lockHandle from
-      // the old session is gone; the retry then fails with a staleLockHandle
-      // hint, which is the honest outcome.
-      const cls = classifyAdtError(error);
-      if (name === 'logout' || (cls.kind !== 'sessionExpired' && cls.kind !== 'csrf')) throw error;
-      console.error(`[abap-adt-mcp] session for ${destination} expired during ${name} (${cls.kind}); re-authenticating and retrying once`);
-      onRetry();
-      await this.reauthenticate(destination);
-      result = await dest.handlers[handlerKey].handle(name, args);
-    }
-    return this.serializeResult(result);
+    return this.serializeResult(await run);
   }
 
   async run() {
@@ -656,8 +718,13 @@ export class AbapAdtServer extends Server {
       console.error(`MCP ABAP ADT API server running on stdio — ${this.systems.size} destination(s): ${[...this.systems.keys()].join(', ')}`);
     }
 
-    process.on('SIGINT', async () => { await this.close(); process.exit(0); });
-    process.on('SIGTERM', async () => { await this.close(); process.exit(0); });
+    const shutdown = async (signal: string) => {
+      console.error(`[abap-adt-mcp] ${signal}: releasing locks and sessions`);
+      await Promise.race([this.close().catch(() => undefined), new Promise((r) => setTimeout(r, 5000))]);
+      process.exit(0);
+    };
+    process.on('SIGINT', () => { void shutdown('SIGINT'); });
+    process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
     this.onerror = (error) => { console.error('[MCP Error]', error); };
   }
 
@@ -681,6 +748,8 @@ export class AbapAdtServer extends Server {
     }
     if (!['127.0.0.1', 'localhost', '::1'].includes(opts.host)) {
       console.error(`[abap-adt-mcp] WARNING: HTTP transport bound to ${opts.host}, reachable beyond this machine. Keep the bearer token secret, restrict MCP_HTTP_ALLOWED_ORIGINS/HOSTS and put TLS in front.`);
+      const sso = [...this.systems.values()].filter(s => s.authType === 'sso').map(s => s.name);
+      if (sso.length) console.error(`[abap-adt-mcp] WARNING: destination(s) ${sso.join(', ')} use browser SSO: every remote caller shares the browser login of the user running this server. Prefer basic/oauth destinations for a shared HTTP server.`);
     }
     // Every MCP session gets its own server instance: separate SAP sessions,
     // lock ledgers and caches per caller.
@@ -695,7 +764,13 @@ export class AbapAdtServer extends Server {
 
 // Start only when executed directly (tests and tooling import the class).
 if (require.main === module) {
-  const server = new AbapAdtServer();
+  let server: AbapAdtServer;
+  try {
+    server = new AbapAdtServer();
+  } catch (error: any) {
+    console.error(`[abap-adt-mcp] Fatal: ${error?.message || error}`);
+    process.exit(1);
+  }
   server.run().catch((error) => {
     console.error('Fatal error running server:', error);
     process.exit(1);

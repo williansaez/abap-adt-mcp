@@ -81,7 +81,8 @@ export class NavigationHandlers extends BaseHandler {
                     type: 'object',
                     properties: {
                         packageName: { type: 'string', description: 'Package to export' },
-                        targetDir: { type: 'string', description: 'Absolute local directory; a sub-folder per package is created' },
+                        targetDir: { type: 'string', description: 'Absolute local directory inside the export root (MCP_EXPORT_ROOT, default ~/.abap-adt-mcp/exports); a sub-folder per package is created' },
+                        overwrite: { type: 'boolean', description: 'Overwrite files that already exist (default false: existing files are reported and left untouched)', optional: true },
                         recursive: { type: 'boolean', description: 'Include sub-packages (default true)', optional: true },
                         objectTypes: { type: 'string', description: 'Comma-separated ADT object types to include (default: all exportable)', optional: true },
                         maxObjects: { type: 'number', description: 'Maximum objects (default 500)', optional: true }
@@ -149,7 +150,7 @@ export class NavigationHandlers extends BaseHandler {
         try {
             const source = typeof args.source === 'string' && args.source.length > 0
                 ? args.source
-                : (sourceCache.get(args.objectSourceUrl) ?? await this.adtclient.getObjectSource(args.objectSourceUrl));
+                : (sourceCache.get(this.adtclient, args.objectSourceUrl) ?? await this.adtclient.getObjectSource(args.objectSourceUrl));
             const nodes = await this.adtclient.typeHierarchy(
                 args.objectSourceUrl, source, Number(args.line), Number(args.offset), args.superTypes === true
             );
@@ -279,8 +280,8 @@ export class NavigationHandlers extends BaseHandler {
             if (args.includeSource !== false) {
                 const sourceUrl = `/sap/bc/adt/ddic/ddl/sources/${encodeURIComponent(name.toLowerCase())}/source/main`;
                 try {
-                    source = sourceCache.get(sourceUrl) ?? await this.adtclient.getObjectSource(sourceUrl);
-                    sourceCache.set(sourceUrl, source);
+                    source = sourceCache.get(this.adtclient, sourceUrl) ?? await this.adtclient.getObjectSource(sourceUrl);
+                    sourceCache.set(this.adtclient, sourceUrl, source);
                 } catch (e: any) {
                     sourceError = this.formatAdtError(e);
                 }
@@ -309,7 +310,7 @@ export class NavigationHandlers extends BaseHandler {
             catch (e: any) { throw new McpError(ErrorCode.InvalidParams, e.message); }
             const types = String(args.objectTypes || '').split(',').map((t: string) => t.trim()).filter(Boolean);
             const walk = await walkPackage(this.adtclient as any, String(args.packageName), {
-                maxDepth: args.recursive === false ? 0 : 99, includeObjects: true,
+                maxDepth: args.recursive === false ? 0 : 99, includeObjects: true, expandFunctionGroups: true,
                 objectTypes: types.length ? new Set(types) : undefined, maxObjects: Math.max(1, Number(args.maxObjects) || 500),
             });
             const written: Array<{ file: string; object: string; type: string; bytes: number }> = [];
@@ -319,13 +320,15 @@ export class NavigationHandlers extends BaseHandler {
             for (const obj of walk.objects) {
                 done++;
                 if (done % 10 === 0) reportProgress(`exported ${done}/${walk.objects.length} objects`, done, walk.objects.length);
-                const fileName = abapgitFileName(obj.name, obj.type);
+                if (obj.type === 'FUGR/F') continue; // exported through its function modules and includes
+                const fileName = abapgitFileName(obj.name, obj.type, undefined, obj.functionGroup);
                 if (!fileName) { skipped.push({ object: obj.name, type: obj.type, reason: 'type not exportable' }); continue; }
                 const pkgDir = path.join(dir, obj.package.toLowerCase().replace(/\//g, '#'));
                 fs.mkdirSync(pkgDir, { recursive: true });
                 try {
-                    const source = await this.adtclient.getObjectSource(`${obj.objectUrl}/source/main`);
                     const file = path.join(pkgDir, fileName);
+                    if (fs.existsSync(file) && args.overwrite !== true) { skipped.push({ object: obj.name, type: obj.type, reason: `exists: ${path.relative(dir, file)} (pass overwrite=true)` }); continue; }
+                    const source = await this.adtclient.getObjectSource(`${obj.objectUrl}/source/main`);
                     fs.writeFileSync(file, source);
                     written.push({ file, object: obj.name, type: obj.type, bytes: Buffer.byteLength(source) });
                     if (obj.type === 'CLAS/OC') {
@@ -334,6 +337,7 @@ export class NavigationHandlers extends BaseHandler {
                                 const text = await this.adtclient.getObjectSource(`${obj.objectUrl}/includes/${inc.adtInclude}`);
                                 if (text && text.trim()) {
                                     const f = path.join(pkgDir, abapgitFileName(obj.name, obj.type, inc.include)!);
+                                    if (fs.existsSync(f) && args.overwrite !== true) continue;
                                     fs.writeFileSync(f, text);
                                     written.push({ file: f, object: obj.name, type: `${obj.type}/${inc.adtInclude}`, bytes: Buffer.byteLength(text) });
                                 }
