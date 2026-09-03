@@ -77,3 +77,53 @@ Driven by two real development sessions on the 0.3.1 build (docs/FIELD-NOTES.md)
 - Descriptions corrected from the reports: `syntaxCheckCode` needs an object context, `classIncludes` URLs are used as is, `setObjectSource` on message classes rewrites the whole class, `runSnippet` needs S_DEVELOP (development systems only), `tableContents` versus `runQuery`, `getObjectSource` paging; the `locked` hint distinguishes the server's own locks from foreign sessions; server instructions add `objectDiff` and the DDIC property tools.
 - New docs/FIELD-NOTES.md; README links it.
 
+## [1.0.0] - 2026-09-03 - Documented, verified, stable
+
+First stable release. No breaking change against 0.3.3: the version marks that
+the tool surface, the configuration and the guard rails are settled and
+documented, and that the project is ready to be depended on.
+
+### Documentation
+- Ten documents, written by a three-layer agent team (writers, reviewers,
+  readers) and then fact-checked claim by claim against the code as a final
+  gate: 2022 claims checked, 91 problems corrected, 22 cross-document
+  contradictions resolved. [README.md](README.md) covers setup, what to ask the
+  model, the workflows and safety; [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
+  every option, policy gate and host snippet; [docs/WORKFLOWS.md](docs/WORKFLOWS.md)
+  fourteen end-to-end flows with exact tool sequences;
+  [docs/CLOUD.md](docs/CLOUD.md), [docs/HOSTS.md](docs/HOSTS.md),
+  [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) and
+  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) go deeper per audience;
+  [SECURITY.md](SECURITY.md) and [CONTRIBUTING.md](CONTRIBUTING.md) sit at the
+  repository root.
+- [docs/TOOLS.md](docs/TOOLS.md) is generated with a full section per tool:
+  complete description, a parameter table with types and examples, annotations,
+  and curated notes (when to use it, what comes back, pitfalls, related tools)
+  kept in `docs/tool-notes.json` so they survive regeneration.
+
+### Security
+- Every HTTP request body is bounded, not only the one that opens a session; an
+  authenticated caller could previously stream an unbounded body. Oversized
+  bodies are refused with 413 and the limit is configurable through
+  `MCP_HTTP_MAX_BODY_BYTES`.
+- All stderr diagnostics pass through redaction, which now covers `token`,
+  `apiKey`, `passphrase` and `secret` besides `password`. `SECURITY.md`
+  documented this behaviour before the code implemented it.
+- `npm run docs:check`, also run by CI, fails the build on customer
+  identifiers (tenant hostnames, transport numbers, SAP user ids, application
+  server hostnames, system ids in ADT urls, customer names from a git-ignored
+  list), em-dashes, unresolved links, and environment variables the code reads
+  without declaring in `server.json`. Commit messages are checked as well as
+  files.
+
+### Fixed
+- `MCP_CACHE_DIR` is declared in `server.json`; the code read it silently.
+- The `sourceTextSearch` fallback aggregated `scanned`, a field `grepPackage`
+  never emits, so the count always read zero. It now sums `objectsScanned`.
+
+### Note on history
+The git history was rewritten to remove customer identifiers that had been
+committed by mistake in earlier releases. Commit hashes before 2026-09-03 no
+longer match the ones referenced by the npm provenance attestations of 0.3.2
+and 0.3.3; those packages remain valid and signed.
+
