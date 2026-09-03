@@ -64,9 +64,15 @@ describe('http transport end to end', () => {
     const handle = await server.startHttp(env());
     try {
       const base = `http://127.0.0.1:${handle.port}`;
-      const wrong = 'tôken'; // 5 characters like the real token, 6 bytes
-      const r = await fetch(`${base}/mcp`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${wrong}` }, body: JSON.stringify(init()) });
-      expect(r.status).toBe(401);
+      // 5 characters like the real token, 6 UTF-8 bytes. Sent with the raw
+      // http module: Node 18's fetch refuses non-ASCII header values itself.
+      const wrong = 'tôken';
+      const status = await new Promise<number>((resolve, reject) => {
+        const req = http.request(`${base}/mcp`, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', Authorization: `Bearer ${wrong}` } }, (res) => { res.resume(); resolve(res.statusCode || 0); });
+        req.on('error', reject);
+        req.end(JSON.stringify(init()));
+      });
+      expect(status).toBe(401);
       const ok = await fetch(`${base}/health`);
       expect(ok.status).toBe(200);
     } finally {
