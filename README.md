@@ -40,19 +40,27 @@ Create a `systems.json` (see [systems.example.json](systems.example.json)) with 
 }
 ```
 
-Then register the server in your MCP client (Claude Desktop, Claude Code, Cline, ...):
+Then register the server in your MCP client (Claude Desktop, Claude Code, Cline, ...). The package is on npm as [`abap-adt-mcp`](https://www.npmjs.com/package/abap-adt-mcp), so `npx` is enough:
 
 ```json
 {
   "mcpServers": {
     "abap-adt-mcp": {
-      "command": "node",
-      "args": ["PATH_TO/abap-adt-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "abap-adt-mcp"],
       "env": { "SAP_SYSTEMS_FILE": "PATH_TO/systems.json" }
     }
   }
 }
 ```
+
+Claude Code users can add it in one line:
+
+```bash
+claude mcp add abap-adt-mcp -e SAP_SYSTEMS_FILE=PATH_TO/systems.json -- npx -y abap-adt-mcp
+```
+
+A container image is published as `ghcr.io/williansaez/abap-adt-mcp` (tags `latest` and `vX.Y.Z`); mount `systems.json` and pass `SAP_SYSTEMS_FILE`, or set `SAP_SYSTEMS` inline. Browser SSO destinations need a local browser, so run those from npm, not from the container. To run from a clone instead, see [Build from source](#build-from-source) and point `command` at `node PATH_TO/abap-adt-mcp/dist/index.js`.
 
 Configuration sources, in order of precedence: `SAP_SYSTEMS` (inline JSON in an env var), `SAP_SYSTEMS_FILE` (path to a JSON file — recommended for anything containing passwords; keep it mode `0600`), a `systems.json` next to the install, or the legacy single-system `SAP_URL`/`SAP_USER`/`SAP_PASSWORD`/`SAP_CLIENT`/`SAP_LANGUAGE` variables. Per-destination `gitUser`/`gitPassword` entries supply abapGit credentials so they never pass through the model. Full schema and auth details in [docs/AUTH.md](docs/AUTH.md).
 
