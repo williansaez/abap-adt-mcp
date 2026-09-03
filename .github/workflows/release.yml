@@ -35,10 +35,15 @@ jobs:
       - name: Package contains no compiled tests
         run: |
           npm pack --dry-run --json | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const f=JSON.parse(d)[0].files.map(x=>x.path);if(f.some(p=>p.includes('__tests__'))){console.error('compiled tests in package');process.exit(1)}})"
-      - name: Publish to npm (provenance)
+      # Trusted publishing: npm exchanges the GitHub OIDC token (id-token: write)
+      # for a short-lived publish credential, so no NPM_TOKEN secret is needed and
+      # provenance is attached automatically. Requires npm >= 11.5.1 and the
+      # trusted publisher configured on npmjs.com (package Settings -> Trusted
+      # Publisher: GitHub Actions, williansaez/abap-adt-mcp, workflow release.yml).
+      - name: Use an npm CLI that supports trusted publishing
+        run: npm install -g npm@^11.5.1 && npm --version
+      - name: Publish to npm (trusted publishing, provenance)
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:

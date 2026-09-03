@@ -35,3 +35,7 @@ The earlier plan based on SAP's official documentation (`docs/IMPROVEMENTS.md`) 
 ## Review round (2026-09-03)
 
 Three independent reviews (technical, conceptual, release readiness) of everything above produced 40 findings; all were fixed in the same round except the ones listed here as conscious exclusions: `outputSchema` (see item 22), historic ATC results (item 24), `debugSession` (item 25), and `gitPullRepo`/`rapGenGenerate`/service binding publish under `allowedPackages` (refused rather than guessed, documented in docs/AUTH.md). The CHANGELOG entry for 0.3.2 lists the fixes.
+
+## Releasing
+
+Bump the version in `package.json`, `package-lock.json`, `server.json` and `.claude-plugin/plugin.json` (CI checks they agree), add the CHANGELOG entry, then `git tag vX.Y.Z && git push --tags`. The release workflow publishes to npm through trusted publishing (GitHub OIDC, no token secret; the trusted publisher is configured on npmjs.com for `williansaez/abap-adt-mcp`, workflow `release.yml`) and pushes the image to GHCR. Afterwards run `mcp-publisher publish` from the repository root to update the MCP registry, and create the GitHub release from the CHANGELOG section.
