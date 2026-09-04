@@ -59,7 +59,10 @@ export class CookieHttpClient {
       transformResponse: [(d) => d],
       // Let the library decide what a >=400 status means (it throws itself).
       validateStatus: () => true,
-      httpsAgent: agent ?? (allowUnauthorized ? new https.Agent({ rejectUnauthorized: false }) : undefined),
+      // The caller passes the destination's agent; the fallback keeps the same
+      // rule for any other construction, so no path here leaves the decision to
+      // the environment.
+      httpsAgent: agent ?? new https.Agent({ keepAlive: true, rejectUnauthorized: !allowUnauthorized }),
     });
   }
 

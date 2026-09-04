@@ -36,11 +36,35 @@ export function loadPemMaterial(value: string | undefined, what: string): string
   }
 }
 
-/** https.Agent for a destination, or undefined when nothing TLS-specific is configured. */
-export function buildHttpsAgent(tls: TlsConfig | undefined, insecureTls: boolean | undefined): https.Agent | undefined {
-  if (!tls && !insecureTls) return undefined;
-  const options: https.AgentOptions = { keepAlive: true };
-  if (insecureTls) options.rejectUnauthorized = false;
+/**
+ * NODE_TLS_REJECT_UNAUTHORIZED=0 turns certificate verification off for every
+ * outbound connection of the process: the ADT calls, the OAuth token request and
+ * the cloudification repository download alike. It is a global, silent bypass
+ * that a destination never asked for, and a warning on stderr is not enough when
+ * the server speaks over stdio and nobody reads stderr. Remove it before
+ * anything connects, so the default is always "verify". Turning verification off
+ * stays possible with "insecureTls", which says on which destination.
+ *
+ * Node acts on the literal string "0" only; any other value already verifies, so
+ * only that one is worth removing. Returns whether a bypass was removed, for the
+ * caller to report.
+ */
+export function enforceTlsVerification(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.NODE_TLS_REJECT_UNAUTHORIZED !== '0') return false;
+  delete env.NODE_TLS_REJECT_UNAUTHORIZED;
+  return true;
+}
+
+/**
+ * https.Agent for a destination, always. A destination that configured nothing
+ * still gets an agent that says rejectUnauthorized: true, rather than falling
+ * back to Node's global default: an explicit value wins over
+ * NODE_TLS_REJECT_UNAUTHORIZED, so the decision to verify travels with the
+ * destination instead of depending on the environment the server happens to run
+ * in. Turning verification off is then a choice that has to name a destination.
+ */
+export function buildHttpsAgent(tls: TlsConfig | undefined, insecureTls: boolean | undefined): https.Agent {
+  const options: https.AgentOptions = { keepAlive: true, rejectUnauthorized: !insecureTls };
   if (tls) {
     const ca = loadPemMaterial(tls.ca, 'ca');
     const cert = loadPemMaterial(tls.cert, 'cert');

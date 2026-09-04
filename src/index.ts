@@ -31,7 +31,7 @@ import { sourceCache } from './lib/sourceCache.js';
 import { normalizeArgs } from './lib/argAliases.js';
 import { TOOLSET_FEATURE } from './lib/systemProfile.js';
 import { AuditLog, summarizeArgs } from './lib/audit.js';
-import { buildHttpsAgent, describeTls } from './lib/tls.js';
+import { buildHttpsAgent, describeTls, enforceTlsVerification } from './lib/tls.js';
 import { listPrompts, getPrompt } from './prompts.js';
 import { createReporter, withProgress, withHeartbeat, reportProgress, ProgressReporter } from './lib/progress.js';
 import { AuthHandlers } from './handlers/AuthHandlers.js';
@@ -70,6 +70,13 @@ import { SnippetHandlers } from './handlers/SnippetHandlers.js';
 const PACKAGE_VERSION: string = require("../package.json").version;
 
 config({ path: path.resolve(__dirname, '../.env') });
+
+/**
+ * Before anything opens a connection: certificate verification is the default and
+ * cannot be switched off for the whole process. Reported once from the
+ * constructor, where stderr is already redacted.
+ */
+const tlsBypassRemoved = enforceTlsVerification();
 
 /**
  * Strip credential material from error text before it reaches the model/host.
@@ -137,7 +144,7 @@ interface Destination {
   adtClient: ADTClient;
   cookieClient?: CookieHttpClient;
   bearerFetcher?: BearerFetcher;
-  httpsAgent?: https.Agent;
+  httpsAgent: https.Agent;
   handlers: HandlerSet;
   loggedIn: boolean;
   /** In-flight SSO login, shared by concurrent callers so only one browser opens. */
@@ -224,8 +231,8 @@ export class AbapAdtServer extends Server {
     // Surface TLS-verification bypasses loudly: they silently apply to every request.
     if (!AbapAdtServer.warnedOnce) {
     AbapAdtServer.warnedOnce = true;
-    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
-      console.error('[abap-adt-mcp] WARNING: NODE_TLS_REJECT_UNAUTHORIZED=0 disables TLS certificate verification for ALL destinations. Prefer per-system "insecureTls" for individual on-prem systems with self-signed certificates.');
+    if (tlsBypassRemoved) {
+      console.error('[abap-adt-mcp] WARNING: NODE_TLS_REJECT_UNAUTHORIZED=0 was ignored. It disables TLS certificate verification for every connection of this process, including destinations that never asked for it, the OAuth token request and the cloudification repository download. Set "insecureTls": true on the one destination that needs it.');
     }
     const insecure = [...this.systems.entries()].filter(([, s]) => s.insecureTls).map(([name]) => name);
     if (insecure.length > 0) {
@@ -251,7 +258,7 @@ export class AbapAdtServer extends Server {
 
   // --- connection / destination management -------------------------------
 
-  private makeClient(sys: SystemConfig): { adtClient: ADTClient; cookieClient?: CookieHttpClient; bearerFetcher?: BearerFetcher; httpsAgent?: https.Agent } {
+  private makeClient(sys: SystemConfig): { adtClient: ADTClient; cookieClient?: CookieHttpClient; bearerFetcher?: BearerFetcher; httpsAgent: https.Agent } {
     const client = sys.client || '';
     const language = sys.language || '';
     let adtClient: ADTClient;
@@ -259,7 +266,7 @@ export class AbapAdtServer extends Server {
     let bearerFetcher: BearerFetcher | undefined;
 
     const agent = buildHttpsAgent(sys.tls, sys.insecureTls);
-    const options = agent ? { httpsAgent: agent } : undefined;
+    const options = { httpsAgent: agent };
     if (sys.authType === 'sso') {
       cookieClient = new CookieHttpClient(sys.url, [], !!sys.insecureTls, client || undefined, agent);
       adtClient = new ADTClient(cookieClient as any, sys.user || 'sso', '', client, language);
@@ -352,7 +359,7 @@ export class AbapAdtServer extends Server {
       if (dest.adtClient.loggedin) {
         try { await dest.adtClient.dropSession(); } catch { /* best effort */ }
       }
-      dest.httpsAgent?.destroy();
+      dest.httpsAgent.destroy();
       dest.loggedIn = false;
     }
     this.pool.clear();

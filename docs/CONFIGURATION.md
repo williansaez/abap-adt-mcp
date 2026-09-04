@@ -445,7 +445,7 @@ All variables declared in [server.json](../server.json), plus the two the server
 |---|---|---|
 | `MCP_READ_ONLY` | off | Adds `readOnly: true` to every destination's policy on top of the file; redundant and harmless where the file already says so, fixed for the life of the process (section 1). |
 | `SAP_ALLOW_REENTRANCE_TICKET` | off | Enables the `reentranceTicket` tool, which returns a live logon credential into the conversation; without it the tool answers `reentranceTicket is disabled ...` before calling SAP. |
-| `NODE_TLS_REJECT_UNAUTHORIZED` | unset | Not a server option: when it is `0` the server warns that verification is off for every destination. Use `tls.ca` (also for a self-signed certificate) or `insecureTls` per destination instead. |
+| `NODE_TLS_REJECT_UNAUTHORIZED` | unset | Not a server option, and it does not work here: `0` would disable certificate verification for every connection of the process, so the server deletes the variable at startup and reports that it was ignored. Use `tls.ca` (also for a self-signed certificate) or `insecureTls` on the destination that needs it. |
 
 **Toolsets and profile gate**
 

@@ -1,7 +1,7 @@
 {
   "name": "abap-adt-mcp",
   "description": "ABAP development through SAP ADT for AI agents: 173 tools over one or many SAP systems (S/4HANA Cloud and on-prem), with server-side policies, auto-locking writes, ATC, unit tests, transports, RAP, abapGit and ABAP Cloud readiness checks.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Willian Saez",
     "url": "https://github.com/williansaez/abap-adt-mcp"

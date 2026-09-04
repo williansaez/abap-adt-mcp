@@ -55,7 +55,7 @@ A configuration error ends the process with `[abap-adt-mcp] Fatal: <message>` on
 | `MCP_TOOLSETS names unknown toolset(s): debuger. Valid: core, source, ...; presets: all, focused` | Typo in `MCP_TOOLSETS` or `MCP_DISABLED_TOOLSETS` (`src/toolManifest.ts`). |
 | `MCP_HTTP_PORT must be between 1024 and 65535, got 80` | Privileged or invalid port (`src/lib/httpTransport.ts`). Raised when the HTTP transport starts, after the constructor, so this one prints as `Fatal error running server: ...`. |
 
-Non-fatal warnings cover `NODE_TLS_REJECT_UNAUTHORIZED=0`, `insecureTls` destinations and reduced `Active toolsets`; a good stdio start prints `MCP ABAP ADT API server running on stdio` and the destination names. An entry with `user` and `password` but no `authType: "basic"` passes validation, defaults to `sso` and opens a browser on the first call.
+Non-fatal warnings cover `NODE_TLS_REJECT_UNAUTHORIZED=0` (removed at startup, not honoured), `insecureTls` destinations and reduced `Active toolsets`; a good stdio start prints `MCP ABAP ADT API server running on stdio` and the destination names. An entry with `user` and `password` but no `authType: "basic"` passes validation, defaults to `sso` and opens a browser on the first call.
 
 ## Login problems by auth type
 
