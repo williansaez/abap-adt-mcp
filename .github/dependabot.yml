@@ -1,0 +1,32 @@
+# Dependabot keeps the dependency tree current. Security fixes arrive as their
+# own pull requests through the repository's automated security fixes; this file
+# covers ordinary version updates.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # One pull request per group keeps the noise down and makes the CI signal
+      # meaningful: a failing group is one thing to look at, not five.
+      types:
+        patterns: ['@types/*']
+      dev-tooling:
+        patterns: ['jest', 'ts-jest', 'typescript', '@typescript-eslint/*', 'eslint*']
+      production:
+        dependency-type: production
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+    labels: ['dependencies']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: 'ci(deps)'
+    labels: ['dependencies']
