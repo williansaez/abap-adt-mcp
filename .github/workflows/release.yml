@@ -13,7 +13,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # registry-url is required for trusted publishing (npm docs); the
       # placeholder NODE_AUTH_TOKEN setup-node writes is ignored by OIDC.
       - uses: actions/setup-node@v4
