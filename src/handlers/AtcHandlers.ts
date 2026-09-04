@@ -5,6 +5,7 @@ import { AtcProposal } from 'abap-adt-api';
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { shrinkToFit, SAFE_OUTPUT_CHARS } from '../lib/responseSizing.js';
 import { reportProgress } from '../lib/progress.js';
+import { htmlToText } from '../lib/htmlText.js';
 
 export class AtcHandlers extends BaseHandler {
     getTools(): ToolDefinition[] {
@@ -672,13 +673,7 @@ export class AtcHandlers extends BaseHandler {
             this.trackRequest(startTime, true);
             const body = String(response.body ?? '');
             // ATC docs come back as HTML; strip tags so the model gets readable text.
-            const text = body
-                .replace(/<style[\s\S]*?<\/style>/gi, '')
-                .replace(/<script[\s\S]*?<\/script>/gi, '')
-                .replace(/<br\s*\/?>|<\/p>|<\/h\d>|<\/li>|<\/tr>/gi, '\n')
-                .replace(/<[^>]+>/g, '')
-                .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
-                .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+            const text = htmlToText(body);
             const capped = text.length > SAFE_OUTPUT_CHARS - 500;
             return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', docUri: args.docUri, documentation: capped ? text.slice(0, SAFE_OUTPUT_CHARS - 500) : text, capped }) }] };
         } catch (error: any) {

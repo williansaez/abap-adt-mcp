@@ -1,5 +1,10 @@
 name: CI
 
+# The default GITHUB_TOKEN is writable. Nothing here writes to the repository:
+# the jobs check out, build, test and build an image without pushing it.
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]

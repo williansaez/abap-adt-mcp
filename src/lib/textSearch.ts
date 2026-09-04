@@ -1,3 +1,4 @@
+import { stripTags } from './htmlText.js';
 /**
  * Parsing and helpers for source text search: the ADT repository text search
  * endpoint (server-side index) and the client-side grep over package sources.
@@ -52,7 +53,7 @@ export function parseTextSearchResponse(xml: string): TextSearchMatch[] {
       const lineStr = attr(mm[2], 'line') || attr(mm[2], 'lineNumber');
       const inner = mm[3] || '';
       const snippetEl = inner.match(/<([\w.-]+:)?snippet\b[^>]*>([\s\S]*?)<\/\1?snippet>/i);
-      const snippet = decodeEntities((snippetEl ? snippetEl[2] : inner).replace(/<[^>]+>/g, '')).trim();
+      const snippet = decodeEntities(stripTags(snippetEl ? snippetEl[2] : inner)).trim();
       out.push({ ...base, line: lineStr ? parseInt(lineStr, 10) : undefined, snippet: snippet || undefined });
     }
     if (!any) out.push(base);

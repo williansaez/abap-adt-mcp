@@ -53,7 +53,7 @@ md += `\n`;
 // only merges them. Missing entries are fine.
 let notes = {};
 try { notes = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'docs', 'tool-notes.json'), 'utf8')); } catch { notes = {}; }
-const cell = (s) => String(s || '').replace(/\s+/g, ' ').replace(/\|/g, '\\|').trim();
+const cell = (s) => String(s || '').replace(/\s+/g, ' ').replace(/\\/g, '\\\\').replace(/\|/g, '\\|').trim();
 const anchor = (name) => name.toLowerCase();
 
 md += `## Summary by toolset\n\n`;
@@ -61,7 +61,7 @@ for (const ts of order) {
   const tools = byToolset[ts] || [];
   if (!tools.length) continue;
   md += `### ${TOOLSETS[ts].title} (${tools.length}) · toolset \`${ts}\`\n\n| Tool | What it does | Key parameters |\n|---|---|---|\n`;
-  for (const t of tools) md += `| ${icon(t)} [\`${t.name}\`](#${anchor(t.name)}) | ${short(t.description).replace(/\|/g, '\\|')} | ${params(t)} |\n`;
+  for (const t of tools) md += `| ${icon(t)} [\`${t.name}\`](#${anchor(t.name)}) | ${short(t.description).replace(/\\/g, '\\\\').replace(/\|/g, '\\|')} | ${params(t)} |\n`;
   md += `\n`;
 }
 

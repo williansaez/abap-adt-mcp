@@ -1,3 +1,4 @@
+import { stripTags } from './htmlText.js';
 /**
  * Helpers for the ADT short dump feed. The feed's `text` per dump is a large
  * HTML document (header table, analysis paragraphs, source extract, call
@@ -32,9 +33,8 @@ export interface DumpSummary {
   stack: DumpStackFrame[];
 }
 
-const decode = (s: string) => s
-  .replace(/<br\s*\/?>/gi, '\n')
-  .replace(/<[^>]+>/g, '')
+const decode = (s: string) => stripTags(s
+  .replace(/<br\s*\/?>/gi, '\n'))
   .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, '&')
   .replace(/[ \t]+\n/g, '\n').replace(/\n{2,}/g, '\n').trim();
 

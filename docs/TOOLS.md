@@ -518,8 +518,8 @@ Applies a targeted edit to an ABAP object without sending the full source. Alway
 | `replacements` | string | no | Mode (a): JSON array of {"oldText": "...", "newText": "..."}. Each oldText must match exactly one location in the current source (include enough surrounding lines to make it unique). Applied in order, atomically: if any entry fails, nothing is written. |  |
 | `startLine` | number | no | Mode (b): 1-based first line to replace (inclusive). |  |
 | `endLine` | number | no | Mode (b): 1-based last line to replace (inclusive). Use startLine - 1 to insert without replacing any existing line. |  |
-| `newText` | string | no | Mode (b): replacement text for the given line range (use \n for multiple lines). Use an empty string to delete the range. |  |
-| `expectedText` | string | no | Optional safety check: exact current text of lines [startLine, endLine] joined with \n. If it does not match what SAP currently has, the edit is rejected instead of applied. |  |
+| `newText` | string | no | Mode (b): replacement text for the given line range (use \\n for multiple lines). Use an empty string to delete the range. |  |
+| `expectedText` | string | no | Optional safety check: exact current text of lines [startLine, endLine] joined with \\n. If it does not match what SAP currently has, the edit is rejected instead of applied. |  |
 | `lockHandle` | string | no | Optional: lock handle from lock when you hold the lock yourself. Omit to let the server lock/unlock around this edit. |  |
 | `transport` | string | no | Transport number for objects in transportable packages (see resolveTransport) | `DEVK900123` |
 | `activate` | boolean | no | Activate the object after the edit (default false). The activation result is returned; check it for errors. |  |

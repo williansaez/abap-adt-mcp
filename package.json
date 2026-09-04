@@ -34,7 +34,7 @@
   "contributors": [
     "mario-andreschak (original mcp-abap-abap-adt-api)"
   ],
-  "description": "Multi-destination MCP server wrapping abap-adt-api for ABAP ADT development workflows against SAP systems (basic/SSO/OAuth auth, transports, ATC, RAP generation)",
+  "description": "ABAP development from Claude and other MCP hosts: read and write source, transports, unit tests, ATC, dumps, debugger. Multi-system, with server-side guard rails.",
   "license": "MIT",
   "publishConfig": {
     "access": "public"
