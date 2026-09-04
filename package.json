@@ -65,5 +65,12 @@
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
     "typescript": "^5.7.3"
+  },
+  "overrides": {
+    "fast-uri": "^3.1.6",
+    "ip-address": "^10.3.1",
+    "hono": "^4.12.34",
+    "@hono/node-server": "^1.19.15",
+    "qs": "^6.16.0"
   }
 }
