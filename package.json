@@ -55,7 +55,7 @@
     "abap-adt-api": "^8.4.3",
     "axios": "^1.20.0",
     "diff": "^9.0.0",
-    "dotenv": "^16.4.7",
+    "dotenv": "^16.6.1",
     "puppeteer-core": "^25.10.0"
   },
   "devDependencies": {
