@@ -458,4 +458,4 @@ Jest suites cover handlers, error hints, response sizing, toolsets and the catal
 
 ## License
 
-[MIT](LICENSE). Built on [abap-adt-api](https://github.com/marcellourbani/abap-adt-api) by Marcello Urbani. If the project saves you time, you can [buy the author a coffee](https://www.buymeacoffee.com/williansaez).
+[MIT](LICENSE). Built on [abap-adt-api](https://github.com/marcellourbani/abap-adt-api) by Marcello Urbani. If the project saves you time, you can [sponsor the author](https://github.com/sponsors/williansaez).
