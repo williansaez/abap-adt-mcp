@@ -14,12 +14,18 @@ export interface TlsConfig {
   key?: string;
   pfx?: string;
   passphrase?: string;
+  /**
+   * Name the certificate is verified against and sent as SNI, when it differs
+   * from the host in `url`: a system reached by IP address or short hostname
+   * whose certificate carries the fully qualified name. Verification stays on.
+   */
+  servername?: string;
 }
 
 export function parseTlsConfig(raw: any): TlsConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const pick = (k: string) => (typeof raw[k] === 'string' && raw[k].trim() ? String(raw[k]) : undefined);
-  const cfg: TlsConfig = { ca: pick('ca'), cert: pick('cert'), key: pick('key'), pfx: pick('pfx'), passphrase: pick('passphrase') };
+  const cfg: TlsConfig = { ca: pick('ca'), cert: pick('cert'), key: pick('key'), pfx: pick('pfx'), passphrase: pick('passphrase'), servername: pick('servername') };
   if (cfg.cert && !cfg.key && !cfg.pfx) throw new Error('tls.cert requires tls.key');
   if (cfg.key && !cfg.cert) throw new Error('tls.key requires tls.cert');
   return Object.values(cfg).some(v => v !== undefined) ? cfg : undefined;
@@ -75,6 +81,10 @@ export function buildHttpsAgent(tls: TlsConfig | undefined, insecureTls: boolean
     if (key) options.key = key;
     if (pfx) options.pfx = pfx;
     if (tls.passphrase) options.passphrase = tls.passphrase;
+    // servername answers "is this certificate for the name I asked for" when the
+    // url names an IP or a short host; ca answers "who signed it". Both stay
+    // verified; neither is a bypass.
+    if (tls.servername) options.servername = tls.servername;
   }
   return new https.Agent(options);
 }
@@ -83,6 +93,7 @@ export function describeTls(tls: TlsConfig | undefined, insecureTls: boolean | u
   const parts: string[] = [];
   if (tls?.ca) parts.push('custom CA');
   if (tls?.cert || tls?.pfx) parts.push('client certificate');
+  if (tls?.servername) parts.push(`servername ${tls.servername}`);
   if (insecureTls) parts.push('verification disabled');
   return parts.length ? parts.join(', ') : undefined;
 }

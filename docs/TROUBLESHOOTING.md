@@ -23,6 +23,7 @@ Rules are tried in this order and the first match wins; "Detected" lists the HTT
 
 | Kind | Detected | Hint as shipped | nextTools | What the agent should do |
 |---|---|---|---|---|
+| `tlsCertificate` | Node certificate error codes (`UNABLE_TO_VERIFY_LEAF_SIGNATURE`, `SELF_SIGNED_CERT_IN_CHAIN`, `DEPTH_ZERO_SELF_SIGNED_CERT`, `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`, `ERR_TLS_CERT_ALTNAME_INVALID`, `CERT_HAS_EXPIRED`) on the error or the wrapped axios error, or their message texts ("self-signed certificate", "unable to verify the first certificate", "Hostname/IP does not match certificate's altnames", "certificate has expired") | Built per case and named for the destination: unknown issuer gives the `openssl s_client` line with that destination's host and port and points at `tls.ca`; a name mismatch quotes the names Node reported and points at `tls.servername`; an expired certificate says that only renewal (STRUST) fixes it. `insecureTls` is mentioned last, as verification off for that destination. | `listSystems` | Fix the configuration, never retry. See [Certificate verification failures](#certificate-verification-failures). |
 | `policyDenied` | `code = POLICY_DENIED`, message starting `Policy:`, or "blocked by the destination policy" | The server policy for this destination refuses the call. Retrying will not help: pick another destination (listSystems shows each policy) or ask the owner to change the policy in systems.json. | `listSystems` | Stop; report the gate named in the message. |
 | `sessionExpired` | `code = SESSION_EXPIRED`, HTTP 401, or session-expired, login-page, identity-provider, SAML or logon-ticket wording | The SAP session expired or was never established. The server re-authenticates and retries once automatically; if this error still surfaces, call login for the destination and lock the object again before writing. | `login`, `lock` | The retry already happened; call `login`. On `basic` a persistent 401 is a wrong password. |
 | `csrf` | "csrf" with HTTP 403 or "token" | CSRF token rejected: the session was reset. Re-authenticate (login) and re-acquire any lockHandle before retrying writes. | `login`, `lock` | Same automatic retry; old lock handles are gone. |
@@ -56,6 +57,18 @@ A configuration error ends the process with `[abap-adt-mcp] Fatal: <message>` on
 | `MCP_HTTP_PORT must be between 1024 and 65535, got 80` | Privileged or invalid port (`src/lib/httpTransport.ts`). Raised when the HTTP transport starts, after the constructor, so this one prints as `Fatal error running server: ...`. |
 
 Non-fatal warnings cover `NODE_TLS_REJECT_UNAUTHORIZED=0` (removed at startup, not honoured), `insecureTls` destinations and reduced `Active toolsets`; a good stdio start prints `MCP ABAP ADT API server running on stdio` and the destination names. An entry with `user` and `password` but no `authType: "basic"` passes validation, defaults to `sso` and opens a browser on the first call.
+
+## Certificate verification failures
+
+A TLS handshake failure reaches the model as `kind: "tlsCertificate"` with a hint that already contains the fix for that destination; this section is the reasoning behind the three hints, for whoever edits `systems.json`.
+
+| Node reports | Question that failed | Fix |
+|---|---|---|
+| `self-signed certificate`, `self-signed certificate in certificate chain`, `unable to verify the first certificate`, `unable to get local issuer certificate` | Who signed it | `tls.ca` with the chain the hint's `openssl s_client` line exports; a self-signed certificate is its own CA ([docs/CONFIGURATION.md](CONFIGURATION.md#tlsca-corporate-ca-or-the-servers-own-self-signed-certificate)). |
+| `Hostname/IP does not match certificate's altnames: IP: 10.1.2.3 is not in the cert's list: DNS:sapdev.corp.example.com` | Is it for this name | `tls.servername` set to the `DNS:` name the message quotes ([docs/CONFIGURATION.md](CONFIGURATION.md#tlsservername-a-system-reached-by-ip-address-or-short-hostname)). The CA may be right already; this failure is about the name in `url`, not the issuer. |
+| `certificate has expired` | Is it still valid | Nothing on the client side. Basis renews the SSL server PSE in `STRUST`. |
+
+`insecureTls: true` connects in all three cases by not asking any of the questions; it is announced on stderr at every start and shown by `listSystems` as `verification disabled`. It belongs on a throwaway sandbox and nowhere else. `NODE_TLS_REJECT_UNAUTHORIZED=0` is removed at startup and does nothing here ([Startup failures](#startup-failures)).
 
 ## Login problems by auth type
 

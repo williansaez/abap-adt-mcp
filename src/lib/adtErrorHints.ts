@@ -6,7 +6,7 @@
  */
 
 export type AdtErrorKind =
-  | 'policyDenied' | 'sessionExpired' | 'csrf' | 'locked' | 'staleLockHandle' | 'transportRequired'
+  | 'policyDenied' | 'tlsCertificate' | 'sessionExpired' | 'csrf' | 'locked' | 'staleLockHandle' | 'transportRequired'
   | 'authorization' | 'notFound' | 'rateLimited' | 'ambiguous400' | 'serverError' | 'unknown';
 
 export interface AdtErrorClassification {
@@ -16,7 +16,13 @@ export interface AdtErrorClassification {
   nextTools?: string[];
 }
 
-const HINTS: Record<Exclude<AdtErrorKind, 'unknown'>, { hint: string; nextTools: string[] }> = {
+/** Where the failing call was going; lets a hint name the destination and fill in its host and port. */
+export interface AdtErrorContext {
+  destination?: string;
+  url?: string;
+}
+
+const HINTS: Record<Exclude<AdtErrorKind, 'unknown' | 'tlsCertificate'>, { hint: string; nextTools: string[] }> = {
   policyDenied: {
     hint: 'The server policy for this destination refuses the call. Retrying will not help: pick another destination (listSystems shows each policy) or ask the owner to change the policy in systems.json.',
     nextTools: ['listSystems'],
@@ -63,6 +69,58 @@ const HINTS: Record<Exclude<AdtErrorKind, 'unknown'>, { hint: string; nextTools:
   },
 };
 
+/**
+ * Node's certificate errors, by code and by the message text that survives when
+ * a handler rethrows only the formatted string. Three questions, three answers:
+ * who signed it (tls.ca), is it for this name (tls.servername), is it still
+ * valid (nobody on the client side). insecureTls comes last and is named for
+ * what it is.
+ */
+const TLS_ISSUER_CODES = new Set(['UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'SELF_SIGNED_CERT_IN_CHAIN', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'UNABLE_TO_GET_ISSUER_CERT', 'CERT_UNTRUSTED']);
+const TLS_ISSUER_TEXT = /unable to verify the first certificate|self[- ]signed certificate|unable to get (local )?issuer certificate|certificate is not trusted/i;
+const TLS_NAME_TEXT = /Hostname\/IP does not match certificate's altnames/i;
+const TLS_EXPIRED_TEXT = /certificate has expired/i;
+
+type TlsFailure = 'issuer' | 'name' | 'expired';
+
+function detectTlsFailure(code: string | undefined, text: string): TlsFailure | undefined {
+  if (code === 'ERR_TLS_CERT_ALTNAME_INVALID' || TLS_NAME_TEXT.test(text)) return 'name';
+  if (code === 'CERT_HAS_EXPIRED' || TLS_EXPIRED_TEXT.test(text)) return 'expired';
+  if ((code && TLS_ISSUER_CODES.has(code)) || TLS_ISSUER_TEXT.test(text)) return 'issuer';
+  return undefined;
+}
+
+function hostPort(url: string | undefined): { host: string; port: string } | undefined {
+  if (!url) return undefined;
+  try {
+    const u = new URL(url);
+    return { host: u.hostname, port: u.port || (u.protocol === 'http:' ? '80' : '443') };
+  } catch {
+    return undefined;
+  }
+}
+
+function tlsHint(failure: TlsFailure, text: string, ctx: AdtErrorContext | undefined): string {
+  const dest = ctx?.destination ? `destination ${ctx.destination}` : 'the destination';
+  const hp = hostPort(ctx?.url);
+  const where = hp ? `${hp.host}:${hp.port}` : '<host>:<port>';
+  const host = hp?.host ?? '<host>';
+  const escape = 'insecureTls: true turns verification off for that destination; acceptable on a throwaway sandbox, not on a system that holds real data.';
+  if (failure === 'name') {
+    const detail = text.match(/altnames:\s*(.+?)(?:\s*\||$)/i)?.[1]?.trim();
+    return `The certificate of ${dest} is not issued for the host in its url${detail ? ` (${detail})` : ''}. ` +
+      'Verification is otherwise fine: set "tls": { "servername": "<the DNS name the certificate carries>" } on that destination in systems.json, so a system reached by IP address or short hostname is checked against the name on its certificate. ' +
+      `If the issuer is also unknown, add tls.ca as well (docs/CONFIGURATION.md, "tls.servername"). ${escape}`;
+  }
+  if (failure === 'expired') {
+    return `The certificate presented by ${dest} (${where}) has expired. No client-side setting fixes this: the SAP system's certificate has to be renewed (STRUST, SSL server PSE). ` +
+      `Until then ${escape.charAt(0).toLowerCase()}${escape.slice(1)}`;
+  }
+  return `${dest.charAt(0).toUpperCase()}${dest.slice(1)} (${where}) presented a certificate whose issuer this server does not trust: a corporate CA or a self-signed certificate. ` +
+    `Export the chain and hand it to tls.ca: openssl s_client -connect ${where} -servername ${host} -showcerts </dev/null 2>/dev/null | openssl x509 -outform PEM > ~/.abap-adt-mcp/${host}.pem ; ` +
+    `then "tls": { "ca": "~/.abap-adt-mcp/${host}.pem" } on that destination in systems.json (docs/CONFIGURATION.md, "tls.ca"; a self-signed certificate is its own CA). ${escape}`;
+}
+
 function extractStatus(err: any, text: string): number | undefined {
   const candidates = [err?.status, err?.err, err?.response?.status, err?.parent?.status, err?.parent?.response?.status];
   for (const c of candidates) {
@@ -74,7 +132,7 @@ function extractStatus(err: any, text: string): number | undefined {
   return undefined;
 }
 
-export function classifyAdtError(input: unknown): AdtErrorClassification {
+export function classifyAdtError(input: unknown, context?: AdtErrorContext): AdtErrorClassification {
   const err: any = input && typeof input === 'object' ? input : {};
   const text = [
     typeof input === 'string' ? input : '',
@@ -85,6 +143,13 @@ export function classifyAdtError(input: unknown): AdtErrorClassification {
   const status = extractStatus(err, text);
   const lower = text.toLowerCase();
   const has = (re: RegExp) => re.test(text);
+
+  // Before anything status-based: a handshake failure never has an HTTP status,
+  // and the code may sit on the error or on the axios error it wraps.
+  const tlsFailure = detectTlsFailure(err.code ?? err.parent?.code ?? err.cause?.code, text);
+  if (tlsFailure) {
+    return { kind: 'tlsCertificate', status: undefined, hint: tlsHint(tlsFailure, text, context), nextTools: ['listSystems'] };
+  }
 
   let kind: AdtErrorKind = 'unknown';
   if (err.code === 'POLICY_DENIED' || /^(?:MCP error -?\d+: )?Policy:/i.test(text) || has(/blocked by the destination policy/i)) {
@@ -113,5 +178,5 @@ export function classifyAdtError(input: unknown): AdtErrorClassification {
   void lower;
 
   if (kind === 'unknown') return { kind, status };
-  return { kind, status, ...HINTS[kind] };
+  return { kind, status, ...HINTS[kind as Exclude<AdtErrorKind, 'unknown' | 'tlsCertificate'>] };
 }
