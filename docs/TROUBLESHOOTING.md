@@ -159,7 +159,7 @@ Request order and session model: [docs/CONFIGURATION.md](CONFIGURATION.md#reques
 
 ## Node version and puppeteer
 
-`package.json` declares `engines.node >= 18`; CI runs 18, 20 and 22. `puppeteer-core` is ESM-only and loaded through a dynamic import at the first SSO login, so a server without SSO destinations never touches it and an unsupported Node fails at login time, not at startup. `node --version` in the environment the host uses settles it (Claude Desktop starts the server with a minimal `PATH` and does not inherit your shell environment, see [docs/HOSTS.md](HOSTS.md#claude-desktop)). The browser login needs a display: on a headless server or in a container use `basic` or `oauth` destinations.
+`package.json` declares `engines.node >= 22.12.0`, the floor `puppeteer-core` 25 requires; CI runs 22 and 24. Node 18 and 20 are past end of life and no longer supported. `puppeteer-core` is ESM-only and loaded through a dynamic import at the first SSO login, so a server without SSO destinations never touches it and an unsupported Node fails at login time, not at startup. `node --version` in the environment the host uses settles it (Claude Desktop starts the server with a minimal `PATH` and does not inherit your shell environment, see [docs/HOSTS.md](HOSTS.md#claude-desktop)). The browser login needs a display: on a headless server or in a container use `basic` or `oauth` destinations.
 
 ## Where the logs are
 

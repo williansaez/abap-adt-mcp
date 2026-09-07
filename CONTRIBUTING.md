@@ -33,7 +33,7 @@ No CLA or DCO is required: opening a pull request is taken as agreement to licen
 
 ## Development setup
 
-The server runs on Node.js 18 or newer (`engines` in `package.json`); CI tests on 18, 20 and 22 and the container image is built from `node:22-alpine`, so develop on 22 and keep the code free of APIs that 18 lacks. There is no `.nvmrc`; `engines` is the only floor the repository states. `src/lib/browserLogin.ts` loads `puppeteer-core` through a real dynamic import (built with `new Function` so `tsc` cannot downlevel it to `require()`), which keeps the package out of every server start and pulls it in only when an SSO login runs.
+The server runs on Node.js 22.12 or newer (`engines` in `package.json`, the floor `puppeteer-core` 25 sets); CI tests on 22 and 24 and the container image is built from `node:22-alpine`, so develop on 22 and keep the code free of APIs that 22 lacks. There is no `.nvmrc`; `engines` is the only floor the repository states. `src/lib/browserLogin.ts` loads `puppeteer-core` through a real dynamic import (built with `new Function` so `tsc` cannot downlevel it to `require()`), which keeps the package out of every server start and pulls it in only when an SSO login runs.
 
 ```bash
 git clone https://github.com/williansaez/abap-adt-mcp.git

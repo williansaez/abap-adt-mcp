@@ -47,4 +47,4 @@ Useful environment variables: `MCP_TOOLSETS=focused` (114 development tools inst
 - `kind: "sessionExpired"` persisting: run `login` again; the SSO profile lives under `~/.abap-adt-mcp/sso/<host>`.
 - Tool refused with `policyDenied`: adjust the destination's `policy`.
 - Tool refused as unavailable: the system lacks that ADT collection (see `systemProfile`); when the debugger toolset is missing use `dumps`/`dumpDetails`. `MCP_PROFILE_GATE=warn` logs instead of refusing, `off` disables the gate.
-- Node 18+ required; Node 22 recommended.
+- Node 22.12+ required (22 or 24 LTS).
