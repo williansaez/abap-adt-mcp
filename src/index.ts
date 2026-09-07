@@ -69,7 +69,9 @@ import { SnippetHandlers } from './handlers/SnippetHandlers.js';
 // Single source of truth for the version announced to MCP hosts (dist/ sits one level below package.json).
 const PACKAGE_VERSION: string = require("../package.json").version;
 
-config({ path: path.resolve(__dirname, '../.env') });
+// quiet: dotenv 17 logs "injected env (N) from .env" to stdout by default, and
+// stdout is the JSON-RPC channel in stdio mode. One stray line breaks the host.
+config({ path: path.resolve(__dirname, '../.env'), quiet: true });
 
 /**
  * Before anything opens a connection: certificate verification is the default and
