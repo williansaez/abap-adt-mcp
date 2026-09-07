@@ -1,6 +1,11 @@
-# Dependabot keeps the dependency tree current. Security fixes arrive as their
-# own pull requests through the repository's automated security fixes; this file
-# covers ordinary version updates.
+# Dependabot keeps the dependency tree current. Two kinds of pull request come
+# out of this file: version updates on the schedule below, and security updates
+# whenever GitHub publishes an advisory with a fix (those ignore the schedule
+# but honour the groups marked `applies-to: security-updates`).
+#
+# Cooldown is the supply-chain guard: a freshly published version is not
+# proposed until it has been public for the number of days below. Compromised
+# releases are usually pulled within hours; waiting costs nothing here.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -9,6 +14,11 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
     groups:
       # One pull request per group keeps the noise down and makes the CI signal
       # meaningful: a failing group is one thing to look at, not five.
@@ -18,6 +28,20 @@ updates:
         patterns: ['jest', 'ts-jest', 'typescript', '@typescript-eslint/*', 'eslint*']
       production:
         dependency-type: production
+      # Security fixes are grouped too, so five transitive bumps published the
+      # same week arrive as one pull request instead of five (as #7 to #12 did).
+      security:
+        applies-to: security-updates
+        patterns: ['*']
+    ignore:
+      # Major versions of these two are deliberate decisions, not routine bumps:
+      # puppeteer-core majors raise the Node floor (25 required 22.12, see #16)
+      # and @types/node must track `engines.node`, not the newest Node. Both
+      # move by hand, together with `engines`, CI and the Dockerfile.
+      - dependency-name: puppeteer-core
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     commit-message:
       prefix: 'chore(deps)'
       prefix-development: 'chore(deps-dev)'
@@ -27,6 +51,28 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      # Actions move as a set: a runner that supports actions/checkout v7 runs
+      # actions/setup-node v7 as well, so one pull request, one CI run.
+      actions:
+        patterns: ['*']
     commit-message:
       prefix: 'ci(deps)'
+    labels: ['dependencies']
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    ignore:
+      # The base image stays on the Node line that `engines.node` names. Moving
+      # to node:24-alpine is a decision taken with the floor, not by a bot.
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
+    commit-message:
+      prefix: 'build(deps)'
     labels: ['dependencies']

@@ -34,7 +34,7 @@ abap-adt-mcp is a [Model Context Protocol](https://modelcontextprotocol.io) serv
 
 Three things before you start:
 
-- **Node.js 18 or newer** (22 recommended). Download the LTS installer from [nodejs.org](https://nodejs.org); it bundles `npm` and `npx`, which is all the host needs. No terminal is required to check: if Node is missing, the host's log says `spawn npx ENOENT` when it tries to start the server (see [step 2](#2-register-the-server-in-your-host)).
+- **Node.js 22.12 or newer** (22 or 24 LTS). Download the LTS installer from [nodejs.org](https://nodejs.org); it bundles `npm` and `npx`, which is all the host needs. No terminal is required to check: if Node is missing, the host's log says `spawn npx ENOENT` when it tries to start the server (see [step 2](#2-register-the-server-in-your-host)).
 - **Access to the SAP system.** On S/4HANA Cloud (public edition) there is nothing to configure on the SAP side for named users: your user needs the business role that allows Eclipse ADT on the tenant (`SAP_BR_DEVELOPER` in the standard delivery); if Eclipse ADT works for you, this server works too. On-prem, the `/sap/bc/adt` service must be active in transaction `SICF` (a Basis task) and your user needs the usual ADT development authorizations. Only unattended `oauth` clients need a Communication Arrangement, see [Authentication](#authentication).
 - **A Chromium browser** (Chrome, Edge or Brave) on the machine when you use browser SSO.
 
@@ -454,7 +454,7 @@ npm run build
 npm test
 ```
 
-Jest suites cover handlers, error hints, response sizing, toolsets and the catalog contract against `docs/tools.snapshot.json`; CI runs them on Node 18, 20 and 22, builds the container image and checks that it starts and lists tools. After changing a tool description or schema, run `npm run tools:docs` and commit the regenerated `docs/TOOLS.md`, snapshot and README counts, or CI flags them as stale. Releases are tag-driven: npm through trusted publishing (GitHub OIDC, provenance attached) plus the GHCR image. Fork, branch, open a pull request. Session reports for [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) are welcome, without customer names, tenants or transport numbers.
+Jest suites cover handlers, error hints, response sizing, toolsets and the catalog contract against `docs/tools.snapshot.json`; CI runs them on Node 22 and 24, builds the container image and checks that it starts and lists tools. After changing a tool description or schema, run `npm run tools:docs` and commit the regenerated `docs/TOOLS.md`, snapshot and README counts, or CI flags them as stale. Releases are tag-driven: npm through trusted publishing (GitHub OIDC, provenance attached) plus the GHCR image. Fork, branch, open a pull request. Session reports for [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) are welcome, without customer names, tenants or transport numbers.
 
 ## License
 

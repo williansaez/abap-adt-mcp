@@ -9,10 +9,10 @@
  * required; when the session expires the login is simply run again.
  */
 
-// puppeteer-core is ESM-only. A static import compiles to require(), which
-// Node 18/20 refuse for ESM packages and which would break every server start
-// (SSO or not). Load it lazily, through a real dynamic import that tsc cannot
-// downlevel to require().
+// puppeteer-core is ESM-only and, at 37 MB, the largest branch of the install.
+// A static import would load it on every server start, SSO or not, and tsc
+// would compile it to require(). Load it lazily, through a real dynamic import
+// that tsc cannot downlevel, so only an SSO login pays for it.
 type Puppeteer = typeof import('puppeteer-core');
 const dynamicImport = new Function('specifier', 'return import(specifier)') as (s: string) => Promise<any>;
 let puppeteerModule: Promise<Puppeteer> | undefined;
@@ -102,7 +102,7 @@ export async function browserLogin(
   try {
     const pages = await browser.pages();
     const page = pages[0] || (await browser.newPage());
-    const cdp = await page.target().createCDPSession();
+    const cdp = await page.createCDPSession();
     // The discovery doc downloads once authenticated; suppress the file save.
     await cdp.send('Page.setDownloadBehavior', { behavior: 'deny' }).catch(() => {});
 
