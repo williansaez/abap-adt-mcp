@@ -33,7 +33,7 @@ jobs:
       - name: Tool catalog docs are up to date
         run: |
           node scripts/gen-tools-docs.js
-          git diff --exit-code -- docs/TOOLS.md docs/tools.snapshot.json README.md skills/abap-adt-mcp-setup/SKILL.md .claude-plugin/plugin.json
+          git diff --exit-code -- docs/TOOLS.md docs/tools.snapshot.json README.md README.pt-BR.md README.de.md skills/abap-adt-mcp-setup/SKILL.md .claude-plugin/plugin.json
       - name: Package contains no compiled tests
         run: |
           npm pack --dry-run --json | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const f=JSON.parse(d)[0].files.map(x=>x.path);if(f.some(p=>p.includes('__tests__'))){console.error('compiled tests in package');process.exit(1)}})"

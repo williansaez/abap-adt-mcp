@@ -121,14 +121,28 @@ fs.writeFileSync(path.join(docsDir, 'tools.snapshot.json'), JSON.stringify(snaps
 const focusedCount = catalog.filter(t => TOOLSET_PRESETS.focused.includes(selection.toolsetOf.get(t.name) || 'core')).length;
 const rootDir = path.join(__dirname, '..');
 const rewrite = (file, fn) => { const p = path.join(rootDir, file); const before = fs.readFileSync(p, 'utf8'); const after = fn(before); if (after !== before) fs.writeFileSync(p, after); };
-rewrite('README.md', (s) => {
-  s = s.replace(/exposes \*\*\d+ tools\*\*/, `exposes **${catalog.length} tools**`);
-  s = s.replace(/## Tool catalog \(all \d+ tools, by toolset\)/, `## Tool catalog (all ${catalog.length} tools, by toolset)`);
-  s = s.replace(/`focused` = \d+ development tools/, `\`focused\` = ${focusedCount} development tools`);
-  const rows = order.map(ts => `| \`${ts}\` · ${TOOLSETS[ts].title} (${(byToolset[ts] || []).length}) | ${TOOLSET_PRESETS.focused.includes(ts) ? 'yes' : 'no'} | ${(byToolset[ts] || []).map(t => '`' + t.name + '`').join(', ')} |`).join('\n');
-  return s.replace(/(\| Toolset \| In `focused` \| Tools \|\n\|---\|---\|---\|\n)(?:\|[^\n]*\n)+/, `$1${rows}\n`);
-});
+// The translated READMEs carry the same counts and the same table; only the
+// phrases around the numbers, the table header and the yes/no words differ.
+// The toolset titles stay in English: they are the server's own labels.
+const README_VARIANTS = [
+  { file: 'README.md', intro: [/exposes \*\*\d+ tools\*\*/, n => `exposes **${n} tools**`], heading: [/## Tool catalog \(all \d+ tools, by toolset\)/, n => `## Tool catalog (all ${n} tools, by toolset)`], focused: [/`focused` = \d+ development tools/, n => `\`focused\` = ${n} development tools`], header: '| Toolset | In `focused` | Tools |', yes: 'yes', no: 'no' },
+  { file: 'README.pt-BR.md', intro: [/expõe \*\*\d+ ferramentas\*\*/, n => `expõe **${n} ferramentas**`], heading: [/## Catálogo de ferramentas \(todas as \d+ ferramentas, por toolset\)/, n => `## Catálogo de ferramentas (todas as ${n} ferramentas, por toolset)`], focused: [/`focused` = \d+ ferramentas de desenvolvimento/, n => `\`focused\` = ${n} ferramentas de desenvolvimento`], header: '| Toolset | Em `focused` | Ferramentas |', yes: 'sim', no: 'não' },
+  { file: 'README.de.md', intro: [/stellt \*\*\d+ Tools\*\* bereit/, n => `stellt **${n} Tools** bereit`], heading: [/## Tool-Katalog \(alle \d+ Tools, nach Toolset\)/, n => `## Tool-Katalog (alle ${n} Tools, nach Toolset)`], focused: [/`focused` = \d+ Entwicklungs-Tools/, n => `\`focused\` = ${n} Entwicklungs-Tools`], header: '| Toolset | In `focused` | Tools |', yes: 'ja', no: 'nein' },
+];
+const escapeRe = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+for (const v of README_VARIANTS) {
+  if (!fs.existsSync(path.join(rootDir, v.file))) continue;
+  rewrite(v.file, (s) => {
+    s = s.replace(v.intro[0], v.intro[1](catalog.length));
+    s = s.replace(v.heading[0], v.heading[1](catalog.length));
+    s = s.replace(v.focused[0], v.focused[1](focusedCount));
+    const rows = order.map(ts => `| \`${ts}\` · ${TOOLSETS[ts].title} (${(byToolset[ts] || []).length}) | ${TOOLSET_PRESETS.focused.includes(ts) ? v.yes : v.no} | ${(byToolset[ts] || []).map(t => '`' + t.name + '`').join(', ')} |`).join('\n');
+    const table = new RegExp(`(${escapeRe(v.header)}\\n\\|---\\|---\\|---\\|\\n)(?:\\|[^\\n]*\\n)+`);
+    if (!table.test(s)) throw new Error(`${v.file}: toolset table header not found: ${v.header}`);
+    return s.replace(table, `$1${rows}\n`);
+  });
+}
 rewrite('skills/abap-adt-mcp-setup/SKILL.md', (s) => s.replace(/`MCP_TOOLSETS=focused` \(\d+ development tools instead of \d+\)/, `\`MCP_TOOLSETS=focused\` (${focusedCount} development tools instead of ${catalog.length})`));
 rewrite('.claude-plugin/plugin.json', (s) => s.replace(/: \d+ tools over/, `: ${catalog.length} tools over`));
-console.log(`README, setup skill and plugin manifest synced (${catalog.length} tools, focused ${focusedCount})`);
+console.log(`README (three languages), setup skill and plugin manifest synced (${catalog.length} tools, focused ${focusedCount})`);
 console.log(`docs/TOOLS.md and docs/tools.snapshot.json written: ${catalog.length} tools, ${order.length} toolsets (server tools: ${SERVER_TOOLS.join(', ')})`);
