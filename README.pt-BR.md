@@ -229,7 +229,14 @@ O Claude Desktop os oferece no menu de anexos (sinal de mais) da conversa, sob o
 
 **Fixar a versão.** `npx -y abap-adt-mcp` busca a versão mais nova a cada início. Para uma implantação controlada, fixe-a (`npx -y abap-adt-mcp@2.0.0`, ou a tag de contêiner `vX.Y.Z`) e verifique a atestação de proveniência que o trusted publishing anexa com `npm audit signatures` em um diretório onde o pacote esteja instalado.
 
-**Manifesto de plugin do Claude Code.** `.claude-plugin/plugin.json` declara o servidor como `npx -y abap-adt-mcp` com `SAP_SYSTEMS_FILE=${HOME}/.abap-adt-mcp/systems.json`; as duas skills ficam em `skills/` ao lado, onde hosts que instalam plugins a partir de um repositório as encontram. As skills sozinhas são instaladas, no momento em que isto foi escrito, com `npx skills add williansaez/abap-adt-mcp` (um instalador de terceiros, não parte deste repositório) ou copiando os dois diretórios para `~/.claude/skills/`.
+**Plugin do Claude Code.** O repositório é o seu próprio marketplace de plugins (`.claude-plugin/marketplace.json` ao lado de `plugin.json`), então dois comandos no Claude Code registram o servidor e carregam as duas skills, sem `claude mcp add`:
+
+```text
+/plugin marketplace add williansaez/abap-adt-mcp
+/plugin install abap-adt-mcp@abap-adt-mcp
+```
+
+O manifesto inicia o servidor como `npx -y abap-adt-mcp` com `SAP_SYSTEMS_FILE=${HOME}/.abap-adt-mcp/systems.json` e sem `MCP_TOOLSETS`, portanto publica todas as 173 ferramentas; o `systems.json` do passo 1 continua sendo você quem escreve. As skills sozinhas são instaladas, no momento em que isto foi escrito, com `npx skills add williansaez/abap-adt-mcp` (um instalador de terceiros, não parte deste repositório) ou copiando os dois diretórios de `skills/` para `~/.claude/skills/`.
 
 **Contêiner.** As imagens são construídas a partir de `node:22-alpine`, rodam como o usuário sem privilégios `node` (uid 1000) e são publicadas no GHCR a cada release (tags `latest` e `vX.Y.Z`). Monte o seu `systems.json` como somente leitura e repasse os segredos referenciados:
 
@@ -442,7 +449,7 @@ O ADT MCP Server da SAP vem com o ADT para VS Code e Eclipse e publica sob a cha
 
 ## Skills e plugin
 
-Duas skills de agente vêm em `skills/`: `abap-adt-mcp` ensina o modelo a desenvolver ABAP com estas ferramentas (início de sessão, busca de código, o fluxo de mudança, prontidão para cloud, erros, segurança) e `abap-adt-mcp-setup` guia pela instalação, configuração e um primeiro health check. Elas chegam ao host pelo manifesto de plugin, pelo instalador de terceiros `npx skills add williansaez/abap-adt-mcp`, ou copiando os dois diretórios para `~/.claude/skills/`; um registro `npx` simples do servidor não instala skill nenhuma, e os fluxos essenciais ainda chegam pelo campo `instructions` do servidor e pelos [prompts embutidos](#prompts-embutidos).
+Duas skills de agente vêm em `skills/`: `abap-adt-mcp` ensina o modelo a desenvolver ABAP com estas ferramentas (início de sessão, busca de código, o fluxo de mudança, prontidão para cloud, erros, segurança) e `abap-adt-mcp-setup` guia pela instalação, configuração e um primeiro health check. Elas chegam ao host pelo plugin do Claude Code (`/plugin marketplace add williansaez/abap-adt-mcp` e depois `/plugin install abap-adt-mcp@abap-adt-mcp`, que também registra o servidor), pelo instalador de terceiros `npx skills add williansaez/abap-adt-mcp`, ou copiando os dois diretórios para `~/.claude/skills/`; um registro `npx` simples do servidor não instala skill nenhuma, e os fluxos essenciais ainda chegam pelo campo `instructions` do servidor e pelos [prompts embutidos](#prompts-embutidos).
 
 Este README também existe em [inglês](README.md) e [alemão](README.de.md); a versão em inglês é a referência e as contagens geradas são sincronizadas nas três. O que sessões reais ensinaram ao servidor está em [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md), o plano de testes ao vivo em [docs/TESTPLAN.md](docs/TESTPLAN.md), o roteiro em [docs/ROADMAP.md](docs/ROADMAP.md) e os releases em [CHANGELOG.md](CHANGELOG.md).
 
