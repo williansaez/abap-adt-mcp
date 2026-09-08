@@ -86,12 +86,12 @@ One object per destination; the key is the name you will use in `destination` an
 | `user`, `password` | string | with `basic` | Both required for `basic`; silently dropped for the other modes (an SSO client is labelled `sso`, an OAuth client with its `clientId`). Use `${env:VAR}` for `password`. |
 | `oauth` | object | with `oauth` | `tokenUrl`, `clientId`, `clientSecret` required, `scope` optional. Client-credentials grant: `clientId:clientSecret` go to the token endpoint as HTTP Basic authentication, `scope` in the form body when set. The token is cached until 60 seconds before `expires_in` (3600 seconds when the endpoint omits it), concurrent calls share one token request, and the cache is dropped after a 401 so the retry fetches a fresh one. The token request uses Node's global `fetch`: it is not covered by the destination's `tls` block or by `insecureTls`, and it ignores `HTTPS_PROXY`. |
 | `insecureTls` | boolean | no | Disables certificate verification for this destination's ADT calls only. Announced on stderr at every start: `WARNING: TLS certificate verification disabled (insecureTls) for destination(s): NAME`. Use `tls.ca` instead whenever the certificate's names match the host (next section). |
-| `tls` | object | no | `ca`, `cert`, `key`, `pfx`, `passphrase`. `cert` and `key` go together; `pfx` (PKCS#12) is the alternative, with `passphrase`. The resulting `https.Agent` (keep-alive) is used for basic, OAuth and SSO API calls; the browser window of an SSO login uses its own trust store. |
+| `tls` | object | no | `ca`, `cert`, `key`, `pfx`, `passphrase`, `servername`. `servername` is the name the certificate is verified against (and sent as SNI) when `url` names an IP address or a short hostname; verification stays on (next section). `cert` and `key` go together; `pfx` (PKCS#12) is the alternative, with `passphrase`. The resulting `https.Agent` (keep-alive) is used for basic, OAuth and SSO API calls; the browser window of an SSO login uses its own trust store. |
 | `gitUser`, `gitPassword` | string | no | abapGit remote credentials. Backfilled into `gitExternalRepoInfo`, `gitCreateRepo`, `gitPullRepo`, `stageRepo`, `pushRepo`, `checkRepo`, `remoteRepoInfo` and `switchRepoBranch` when the call omits `user`/`password`, so the token never has to pass through the model. Explicit arguments win. |
 | `default` | boolean | no | Marks the entry used when `destination` is omitted. `SAP_DEFAULT_DESTINATION` overrides it. |
 | `policy` | object | no | Server-side guard rails, see [section 3](#3-policy-in-depth). A destination without `policy` is fully writable within the SAP user's authorizations. |
 
-`listSystems` reports each entry as `destination`, `url`, `client`, `authType`, the policy summary, a short `tls` description (`custom CA`, `client certificate`, `verification disabled`) and, once a profile has been built, `platform` and `unavailableToolsets`. Credentials and certificate material are never reported.
+`listSystems` reports each entry as `destination`, `url`, `client`, `authType`, the policy summary, a short `tls` description (`custom CA`, `client certificate`, `servername NAME`, `verification disabled`) and, once a profile has been built, `platform` and `unavailableToolsets`. Credentials and certificate material are never reported.
 
 ### `tls.ca`: corporate CA or the server's own self-signed certificate
 
@@ -101,7 +101,7 @@ One object per destination; the key is the name you will use in `destination` an
 |---|---|
 | A certificate issued by a corporate CA | The corporate root, or root plus intermediates, as one PEM bundle (`/etc/ssl/corp-ca.pem`). |
 | A self-signed certificate whose Subject or Subject Alternative Name matches the host in `url` | The certificate itself, as PEM. |
-| A self-signed certificate whose names do not match `url` (an IP address, a default `sap-host.local` name) | `tls.ca` cannot help, because hostname verification would still fail. Either fix `url` to the name in the certificate, have Basis reissue it with the right SAN, or use `insecureTls: true` for that sandbox. |
+| A certificate whose names do not match `url` (the system is reached by IP address or short hostname, the certificate carries `sap.example.com`) | `tls.ca` alone still fails, on the name rather than the issuer: add `tls.servername` with the name the certificate carries (next section). `insecureTls` is not needed for this case. |
 
 Two ways to obtain the PEM of an on-prem system. From your workstation, `openssl s_client` prints the certificate chain the server sends; the first block is the server certificate (for a corporate-issued one, keep every block instead and hand them all to `tls.ca`):
 
@@ -127,6 +127,27 @@ The second command shows the names the certificate carries and its expiry; the h
 ```
 
 When the certificate is renewed the file must be replaced; the symptom is the same handshake error as before it was configured. `listSystems` shows `tls: "custom CA"` for such an entry, never the material.
+
+### `tls.servername`: a system reached by IP address or short hostname
+
+Certificate verification asks two questions. `tls.ca` answers "who signed this certificate". The second, "is this certificate for the name I asked for", is answered by comparing the host in `url` with the names the certificate carries. An old landscape often fails only that second question: the system is reached as `https://10.1.2.3:44300` or `https://sapdev:44300`, the certificate says `sapdev.corp.example.com`, and the handshake ends with `ERR_TLS_CERT_ALTNAME_INVALID` even when the CA is right. Until now the only way through was `insecureTls`, which turns both questions off.
+
+`tls.servername` sets the name Node verifies the certificate against and sends as SNI, independently of the host in `url`. Verification stays on: the issuer is still checked (`tls.ca` if needed), the expiry is still checked, and no warning is printed.
+
+```json
+{
+  "ECC": {
+    "url": "https://10.1.2.3:44300",
+    "client": "100",
+    "authType": "basic",
+    "user": "DEVELOPER",
+    "password": "${env:ECC_PASSWORD}",
+    "tls": { "ca": "/etc/ssl/corp-ca.pem", "servername": "sapdev.corp.example.com" }
+  }
+}
+```
+
+The name to use is one of those printed by the `openssl x509 ... -ext subjectAltName` line above, or by the error itself: `Hostname/IP does not match certificate's altnames: IP: 10.1.2.3 is not in the cert's list: DNS:sapdev.corp.example.com`. The same agent serves basic, OAuth and SSO API calls, so an `sso` destination behaves identically; the browser window of the SSO login is not affected (it uses its own trust store and the `url` as typed). `listSystems` shows `tls: "custom CA, servername sapdev.corp.example.com"` for such an entry.
 
 ### On-prem, basic auth, corporate CA and Z-only writes
 

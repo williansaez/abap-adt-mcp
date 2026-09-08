@@ -388,11 +388,12 @@ export class AbapAdtServer extends Server {
     }
   }
 
-  private handleError(error: unknown) {
+  private handleError(error: unknown, destination?: string) {
     if (!(error instanceof Error)) {
       error = new Error(String(error));
     }
-    const cls = classifyAdtError(error);
+    const sys = destination ? this.systems.get(destination) : undefined;
+    const cls = classifyAdtError(error, { destination, url: sys?.url });
     const extra = cls.kind === 'unknown' ? {} : { kind: cls.kind, httpStatus: cls.status, hint: cls.hint, nextTools: cls.nextTools };
     if (error instanceof McpError) {
       return {
@@ -597,7 +598,7 @@ export class AbapAdtServer extends Server {
         const gate = message.match(/^(?:MCP error -?\d+: )?Policy: \w+ blocked on destination [^ ]+ \((\w+)\)/)?.[1];
         audited(cls.kind === 'policyDenied' ? 'denied' : (/is not available on destination/.test(message) ? 'unavailable' : 'error'),
           { errorKind: cls.kind === 'unknown' ? undefined : cls.kind, gate, message });
-        return this.handleError(error);
+        return this.handleError(error, rawArgs.destination || this.defaultDest);
       }
     });
   }

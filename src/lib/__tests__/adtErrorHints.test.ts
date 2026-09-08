@@ -34,4 +34,58 @@ describe('classifyAdtError', () => {
     expect(classifyAdtError({ message: 'something odd' })).toEqual({ kind: 'unknown', status: undefined });
     expect(classifyAdtError(undefined).kind).toBe('unknown');
   });
+
+  describe('certificate failures', () => {
+    const ctx = { destination: 'ECC', url: 'https://10.1.2.3:44300' };
+
+    it('recognises an untrusted issuer by code and by the message a handler rethrows', () => {
+      for (const code of ['UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'SELF_SIGNED_CERT_IN_CHAIN', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY']) {
+        const cls = classifyAdtError({ code, message: 'x' }, ctx);
+        expect(cls.kind).toBe('tlsCertificate');
+        expect(cls.hint).toContain('openssl s_client -connect 10.1.2.3:44300 -servername 10.1.2.3');
+        expect(cls.hint).toContain('tls.ca');
+        expect(cls.hint).toContain('Destination ECC');
+        expect(cls.nextTools).toEqual(['listSystems']);
+      }
+      // Text only, the way an McpError carries it after formatting.
+      expect(classifyAdtError('Failed to get object source: self-signed certificate; if the root CA is installed locally, try running Node.js with --use-system-ca').kind).toBe('tlsCertificate');
+      expect(classifyAdtError('Login failed: unable to verify the first certificate').kind).toBe('tlsCertificate');
+      // The code may sit on the wrapped axios error.
+      expect(classifyAdtError({ message: 'Request failed', parent: { code: 'SELF_SIGNED_CERT_IN_CHAIN' } }).kind).toBe('tlsCertificate');
+    });
+
+    it('answers a name mismatch with tls.servername and quotes the names Node reported', () => {
+      const msg = "Hostname/IP does not match certificate's altnames: IP: 10.1.2.3 is not in the cert's list: DNS:sap.example.com";
+      const cls = classifyAdtError({ code: 'ERR_TLS_CERT_ALTNAME_INVALID', message: msg }, ctx);
+      expect(cls.kind).toBe('tlsCertificate');
+      expect(cls.hint).toContain('"servername"');
+      expect(cls.hint).toContain("IP: 10.1.2.3 is not in the cert's list: DNS:sap.example.com");
+      expect(cls.hint).not.toContain('openssl');
+      expect(classifyAdtError(msg).hint).toContain('servername');
+    });
+
+    it('says plainly that an expired certificate has no client-side fix', () => {
+      const cls = classifyAdtError({ code: 'CERT_HAS_EXPIRED', message: 'certificate has expired' }, ctx);
+      expect(cls.kind).toBe('tlsCertificate');
+      expect(cls.hint).toContain('has expired');
+      expect(cls.hint).toContain('STRUST');
+      expect(cls.hint).not.toContain('tls.ca');
+    });
+
+    it('mentions insecureTls last and names what it does', () => {
+      const hint = classifyAdtError({ code: 'DEPTH_ZERO_SELF_SIGNED_CERT', message: 'self-signed certificate' }, ctx).hint!;
+      expect(hint.indexOf('tls.ca')).toBeLessThan(hint.indexOf('insecureTls'));
+      expect(hint).toMatch(/insecureTls: true turns verification off/);
+    });
+
+    it('still helps without a destination context, with placeholders instead of a host', () => {
+      const cls = classifyAdtError({ code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', message: 'unable to verify the first certificate' });
+      expect(cls.hint).toContain('<host>:<port>');
+      expect(cls.hint).toContain('The destination');
+    });
+
+    it('wins over status-based rules: a handshake failure has no HTTP status', () => {
+      expect(classifyAdtError({ code: 'CERT_HAS_EXPIRED', message: 'certificate has expired | status code 401' }).kind).toBe('tlsCertificate');
+    });
+  });
 });
