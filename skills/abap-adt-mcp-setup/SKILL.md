@@ -11,16 +11,19 @@ Create `~/.abap-adt-mcp/systems.json` (mode 0600) with one entry per destination
 ```json
 {
   "DEV": { "url": "https://myXXXXXX.s4hana.cloud.sap", "client": "080", "authType": "sso", "default": true,
-           "policy": { "allowedPackages": ["Z*", "$*"] } },
+           "policy": { "allowedPackages": ["Z*"] } },
   "PRD": { "url": "https://myYYYYYY.s4hana.cloud.sap", "client": "100", "authType": "sso",
            "policy": { "readOnly": true, "deniedTables": ["PA*", "HR*"], "allowFreeSql": false } },
   "ECC": { "url": "https://sap.example.com:44300", "client": "100", "authType": "basic",
-           "user": "DEVELOPER", "password": "***", "insecureTls": true }
+           "user": "DEVELOPER", "password": "${env:ECC_PASSWORD}",
+           "policy": { "allowedPackages": ["Z*", "$*"] }, "tls": { "ca": "/etc/ssl/corp-ca.pem" } }
 }
 ```
 
 - `authType`: `sso` opens a browser once per host and keeps a persistent profile (S/4HANA Cloud with IAS); `basic` for on-prem users; `oauth` with `oauth.tokenUrl/clientId/clientSecret` for a communication arrangement.
-- `policy` is enforced by the server before any SAP call: `readOnly`, `deniedTools`, `allowFreeSql`, `deniedTables`, `allowedPackages`, `allowedTransports` (globs). `MCP_READ_ONLY=1` makes everything read-only.
+- `policy` is enforced by the server before any SAP call: `readOnly`, `deniedTools`, `allowFreeSql`, `deniedTables`, `allowedPackages`, `allowedTransports` (globs). `MCP_READ_ONLY=1` makes everything read-only. `$*` (local packages) belongs on on-prem entries only: the tested S/4HANA Public Cloud tenant refuses `$TMP`.
+- Secrets: never inline. `${env:VAR}` works in every string and a missing variable fails at startup by name. A file readable by others is refused when it holds an inline password.
+- TLS stays on. `tls.ca` adds a corporate or self-signed CA; `tls.servername` names the certificate when the system is reached by IP address or short hostname; `tls.cert`/`tls.key` or `tls.pfx` for client certificates. `insecureTls: true` is the last resort, per destination, announced at startup. `NODE_TLS_REJECT_UNAUTHORIZED=0` is ignored by the server.
 
 ## 2. Register the server in the host
 Server key `abap-adt-mcp` (keep this key: public ABAP skills route by it).
@@ -44,6 +47,7 @@ Useful environment variables: `MCP_TOOLSETS=focused` (114 development tools inst
 5. `searchObject(query="CL_ABAP_CHAR_UTILITIES")` then `getObjectSource` on the result: proves read access.
 
 ## 4. Troubleshooting
+- `kind: "tlsCertificate"`: the hint names the fix for that destination (`tls.ca` for an unknown issuer, `tls.servername` for a name mismatch, renewal for an expired certificate).
 - `kind: "sessionExpired"` persisting: run `login` again; the SSO profile lives under `~/.abap-adt-mcp/sso/<host>`.
 - Tool refused with `policyDenied`: adjust the destination's `policy`.
 - Tool refused as unavailable: the system lacks that ADT collection (see `systemProfile`); when the debugger toolset is missing use `dumps`/`dumpDetails`. `MCP_PROFILE_GATE=warn` logs instead of refusing, `off` disables the gate.

@@ -1,0 +1,19 @@
+{
+  "name": "abap-adt-mcp",
+  "owner": {
+    "name": "Willian Saez",
+    "url": "https://github.com/williansaez"
+  },
+  "metadata": {
+    "description": "ABAP development through SAP ADT for AI agents: the abap-adt-mcp MCP server and its two skills."
+  },
+  "plugins": [
+    {
+      "name": "abap-adt-mcp",
+      "source": "./",
+      "description": "ABAP development through SAP ADT for AI agents: 173 tools over one or many SAP systems, with server-side policies, ATC, unit tests, transports and ABAP Cloud readiness checks.",
+      "category": "development",
+      "keywords": ["sap", "abap", "adt", "mcp", "s4hana", "clean-core"]
+    }
+  ]
+}
