@@ -668,7 +668,7 @@ docker run -d --name abap-adt-mcp \
   -e ECC_PASSWORD \
   -e MCP_HTTP_PORT=2236 -e MCP_HTTP_HOST=0.0.0.0 -e MCP_HTTP_TOKEN="$(openssl rand -hex 32)" \
   -p 127.0.0.1:2236:2236 \
-  ghcr.io/williansaez/abap-adt-mcp:v0.3.3
+  ghcr.io/williansaez/abap-adt-mcp:v2.0.0
 ```
 
 `MCP_HTTP_HOST=0.0.0.0` is needed because the default loopback bind is unreachable through the published port; `-p 127.0.0.1:2236:2236` keeps the port off the network, and the reverse proxy of the previous section points at `127.0.0.1:2236` as before. Without `MCP_HTTP_PORT` the container speaks stdio (`docker run -i`), which is how a desktop host would start it.
@@ -719,7 +719,7 @@ The server key `abap-adt-mcp` is the prefix of every tool name in Claude Code (`
   "mcpServers": {
     "abap-adt-mcp": {
       "command": "npx",
-      "args": ["-y", "abap-adt-mcp@0.3.3"],
+      "args": ["-y", "abap-adt-mcp@2.0.0"],
       "env": {
         "SAP_SYSTEMS_FILE": "/Users/me/.abap-adt-mcp/systems.json",
         "MCP_TOOLSETS": "focused",
@@ -746,7 +746,7 @@ If the host cannot find `npx` (`spawn npx ENOENT` in its log), put the absolute 
 export ECC_PASSWORD="$(security find-generic-password -s abap-adt-mcp-ECC -w)"
 export SAP_SYSTEMS_FILE="$HOME/.abap-adt-mcp/systems.json"
 export MCP_TOOLSETS=focused
-exec npx -y abap-adt-mcp@0.3.3
+exec npx -y abap-adt-mcp@2.0.0
 ```
 
 `sso` entries need none of this, which is one more reason they are the default for S/4HANA Cloud.
@@ -784,7 +784,7 @@ Or a project `.mcp.json` with the same `mcpServers` object as above. The reposit
                "-v", "/Users/me/.abap-adt-mcp/systems.json:/config/systems.json:ro",
                "-e", "SAP_SYSTEMS_FILE=/config/systems.json",
                "-e", "ECC_PASSWORD",
-               "ghcr.io/williansaez/abap-adt-mcp:v0.3.3"],
+               "ghcr.io/williansaez/abap-adt-mcp:v2.0.0"],
       "env": { "ECC_PASSWORD": "..." }
     }
   }

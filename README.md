@@ -210,7 +210,7 @@ Claude Desktop offers them from the chat's attachment (plus) menu under the serv
 
 ## Other ways to install
 
-**Pin the version.** `npx -y abap-adt-mcp` fetches the newest release at every start. For a controlled rollout pin it (`npx -y abap-adt-mcp@0.3.3`, or the `vX.Y.Z` container tag) and verify the provenance attestation that trusted publishing attaches with `npm audit signatures` in a directory where the package is installed.
+**Pin the version.** `npx -y abap-adt-mcp` fetches the newest release at every start. For a controlled rollout pin it (`npx -y abap-adt-mcp@2.0.0`, or the `vX.Y.Z` container tag) and verify the provenance attestation that trusted publishing attaches with `npm audit signatures` in a directory where the package is installed.
 
 **Claude Code plugin manifest.** `.claude-plugin/plugin.json` declares the server as `npx -y abap-adt-mcp` with `SAP_SYSTEMS_FILE=${HOME}/.abap-adt-mcp/systems.json`; the two skills live in `skills/` next to it, where hosts that install plugins from a repository pick them up. The skills alone install, at the time of writing, with `npx skills add williansaez/abap-adt-mcp` (a third-party installer, not part of this repository) or by copying the two directories into `~/.claude/skills/`.
 
