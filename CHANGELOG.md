@@ -135,7 +135,7 @@ Security and reliability of the TLS decision. Verification was already the defau
 - Consequence of the always-present agent: each destination owns its connection pool, with `keepAlive: true`, destroyed with the destination. On Node 18, whose global agent does not keep connections alive, this removes a TLS handshake per request.
 - Documentation corrected wherever it described the variable as merely discouraged: README, SECURITY.md, docs/CONFIGURATION.md, docs/TROUBLESHOOTING.md, docs/ARCHITECTURE.md. SECURITY.md no longer offers it as a way to reach an OAuth token endpoint behind a corporate CA; `NODE_EXTRA_CA_CERTS` is the mechanism for that.
 
-## [2.0.0] - Unreleased - Node 22 floor, puppeteer-core 25
+## [2.0.0] - 2026-09-08 - Node 22 floor, puppeteer-core 25, Dependabot cooldown, TLS by name
 Breaking: the minimum Node version rises from 18 to 22.12.0. Node 18 and 20 are past end of life and receive no security fixes; a server holding SAP credentials should not run on them.
 - `puppeteer-core` ^25 (from ^24). Its `@puppeteer/browsers` 3 replaces `extract-zip` with `modern-tar`, which removes the last open Dependabot alert (GHSA-jmr9-qjv8-65gv, CVSS 8.1, no patched version exists; issue #16) from the dependency tree instead of arguing about reachability. The vulnerable path (unpacking a downloaded browser archive) was never taken here: the server drives a browser already installed on the machine. `npm audit` reports zero vulnerabilities and the lock file loses 615 lines.
 - `engines.node` is `>=22.12.0`, the floor `puppeteer-core` 25 sets. CI runs on Node 22 and 24. The container image was already `node:22-alpine`.

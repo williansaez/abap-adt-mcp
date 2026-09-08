@@ -6,10 +6,10 @@ abap-adt-mcp gives a language model authenticated access to SAP systems through 
 
 | Version | Supported |
 |---|---|
-| 0.3.3 (latest release) | Yes |
-| 0.3.2 and earlier, including 0.1.x | No |
+| 2.0.0 (latest release) | Yes |
+| 1.0.1 and earlier, including 0.x | No |
 
-Only the newest release receives fixes; a fix ships as a new patch release and nothing is backported. `healthcheck` and `GET /health` report the running version. `npx -y abap-adt-mcp` installs whatever npm resolves as the newest release rather than a pinned one; a pinned install (`abap-adt-mcp@0.3.3` or the `vX.Y.Z` container tag) needs a deliberate bump to pick up a fix, so watch the releases and [CHANGELOG.md](CHANGELOG.md).
+Only the newest release receives fixes; a fix ships as a new patch release and nothing is backported. `healthcheck` and `GET /health` report the running version. `npx -y abap-adt-mcp` installs whatever npm resolves as the newest release rather than a pinned one; a pinned install (`abap-adt-mcp@2.0.0` or the `vX.Y.Z` container tag) needs a deliberate bump to pick up a fix, so watch the releases and [CHANGELOG.md](CHANGELOG.md).
 
 ## Reporting a vulnerability
 
