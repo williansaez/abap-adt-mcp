@@ -1,30 +1,38 @@
 name: Release
 
+# Final release tags only (v2.0.1, not v2.0.1-rc1 or v2): anything the pattern
+# lets through becomes npm "latest" and the GHCR ":latest" image, which every
+# plugin host and unpinned npx registration runs at its next start.
 on:
   push:
-    tags: ['v*']
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
 
 permissions:
   contents: read
-  id-token: write   # npm provenance
-  packages: write   # GHCR
 
 jobs:
-  publish:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      # registry-url is required for trusted publishing (npm docs); the
-      # placeholder NODE_AUTH_TOKEN setup-node writes is ignored by OIDC.
+        with:
+          fetch-depth: 0
+      - name: Tag commit is on main
+        # A tag pushed from a branch or a stale checkout must not publish; the
+        # 2.0.0 release failed once because the tag pointed at a pre-release
+        # commit, and a tag that points beside main would have succeeded.
+        run: |
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "tag $GITHUB_REF_NAME ($GITHUB_SHA) is not an ancestor of origin/main" >&2
+            exit 1
+          }
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
           cache: npm
-      - name: Tag matches package.json and server.json
-        run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          node -e "const p=require('./package.json').version,s=require('./server.json');if(p!=='$TAG'||s.version!==p||s.packages[0].version!==p){console.error('version mismatch: tag=$TAG package=' + p + ' server.json=' + s.version);process.exit(1)}"
+      - name: Tag matches every version file
+        run: node scripts/check-versions.js "$GITHUB_REF_NAME"
       - run: npm ci
       - run: npm run build
       - name: Type-check tests
@@ -34,9 +42,29 @@ jobs:
         run: |
           node scripts/gen-tools-docs.js
           git diff --exit-code -- docs/TOOLS.md docs/tools.snapshot.json README.md README.pt-BR.md README.de.md skills/abap-adt-mcp-setup/SKILL.md .claude-plugin/plugin.json
+      - name: Documentation hygiene
+        run: npm run docs:check
       - name: Package contains no compiled tests
         run: |
           npm pack --dry-run --json | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{const f=JSON.parse(d)[0].files.map(x=>x.path);if(f.some(p=>p.includes('__tests__'))){console.error('compiled tests in package');process.exit(1)}})"
+
+  npm:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # npm provenance
+    steps:
+      - uses: actions/checkout@v7
+      # registry-url is required for trusted publishing (npm docs); the
+      # placeholder NODE_AUTH_TOKEN setup-node writes is ignored by OIDC.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - run: npm ci
+      - run: npm run build
       # Trusted publishing: npm exchanges the GitHub OIDC token (id-token: write)
       # for a short-lived publish credential, so no NPM_TOKEN secret is needed and
       # provenance is attached automatically. Requires npm >= 11.5.1 and the
@@ -44,8 +72,25 @@ jobs:
       # Publisher: GitHub Actions, williansaez/abap-adt-mcp, workflow release.yml).
       - name: Use an npm CLI that supports trusted publishing
         run: npm install -g npm@^11.5.1 && npm --version
-      - name: Publish to npm (trusted publishing, provenance)
-        run: npm publish --provenance --access public
+      - name: Publish to npm (trusted publishing, provenance) unless this version is already there
+        # A re-run of the workflow (the GHCR job failed, the tag was moved and
+        # pushed again) must not fail on E403 for a version that already exists.
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "abap-adt-mcp@$VERSION" version >/dev/null 2>&1; then
+            echo "abap-adt-mcp@$VERSION is already on npm; skipping publish"
+          else
+            npm publish --provenance --access public
+          fi
+
+  ghcr:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # GHCR
+    steps:
+      - uses: actions/checkout@v7
       - name: Log in to GHCR
         uses: docker/login-action@v4
         with:

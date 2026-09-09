@@ -22,7 +22,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "abap-adt-mcp"
+        "abap-adt-mcp@2.0.1"
       ],
       "env": {
         "SAP_SYSTEMS_FILE": "${HOME}/.abap-adt-mcp/systems.json"

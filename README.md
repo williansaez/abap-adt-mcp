@@ -227,7 +227,7 @@ Claude Desktop offers them from the chat's attachment (plus) menu under the serv
 
 ## Other ways to install
 
-**Pin the version.** `npx -y abap-adt-mcp` fetches the newest release at every start. For a controlled rollout pin it (`npx -y abap-adt-mcp@2.0.0`, or the `vX.Y.Z` container tag) and verify the provenance attestation that trusted publishing attaches with `npm audit signatures` in a directory where the package is installed.
+**Pin the version.** `npx -y abap-adt-mcp` fetches the newest release at every start. For a controlled rollout pin it (`npx -y abap-adt-mcp@X.Y.Z`, or the `vX.Y.Z` container tag) and verify the provenance attestation that trusted publishing attaches with `npm audit signatures` in a directory where the package is installed.
 
 **Claude Code plugin.** The repository is its own plugin marketplace (`.claude-plugin/marketplace.json` next to `plugin.json`), so two commands in Claude Code register the server and load both skills, with no `claude mcp add`:
 
@@ -236,7 +236,7 @@ Claude Desktop offers them from the chat's attachment (plus) menu under the serv
 /plugin install abap-adt-mcp@abap-adt-mcp
 ```
 
-The manifest starts the server as `npx -y abap-adt-mcp` with `SAP_SYSTEMS_FILE=${HOME}/.abap-adt-mcp/systems.json` and no `MCP_TOOLSETS`, so it publishes all 173 tools; `systems.json` from step 1 is still yours to write. The skills alone install, at the time of writing, with `npx skills add williansaez/abap-adt-mcp` (a third-party installer, not part of this repository) or by copying the two directories under `skills/` into `~/.claude/skills/`.
+The manifest starts the server as `npx -y abap-adt-mcp@<version>`, pinned to the release it ships with (the pin moves with each release and CI checks it against `package.json`), so a plugin host keeps the version it installed instead of taking whatever npm serves as latest at its next start; it sets `SAP_SYSTEMS_FILE=${HOME}/.abap-adt-mcp/systems.json` and no `MCP_TOOLSETS`, so it publishes all 173 tools; `systems.json` from step 1 is still yours to write. The skills alone install, at the time of writing, with `npx skills add williansaez/abap-adt-mcp` (a third-party installer, not part of this repository) or by copying the two directories under `skills/` into `~/.claude/skills/`.
 
 **Container.** Images are built from `node:22-alpine`, run as the unprivileged `node` user (uid 1000) and are published to GHCR on every release (tags `latest` and `vX.Y.Z`). Mount your `systems.json` read-only and pass referenced secrets through:
 

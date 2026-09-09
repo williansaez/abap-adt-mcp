@@ -227,7 +227,7 @@ O Claude Desktop os oferece no menu de anexos (sinal de mais) da conversa, sob o
 
 ## Outras formas de instalar
 
-**Fixar a versão.** `npx -y abap-adt-mcp` busca a versão mais nova a cada início. Para uma implantação controlada, fixe-a (`npx -y abap-adt-mcp@2.0.0`, ou a tag de contêiner `vX.Y.Z`) e verifique a atestação de proveniência que o trusted publishing anexa com `npm audit signatures` em um diretório onde o pacote esteja instalado.
+**Fixar a versão.** `npx -y abap-adt-mcp` busca a versão mais nova a cada início. Para uma implantação controlada, fixe-a (`npx -y abap-adt-mcp@X.Y.Z`, ou a tag de contêiner `vX.Y.Z`) e verifique a atestação de proveniência que o trusted publishing anexa com `npm audit signatures` em um diretório onde o pacote esteja instalado.
 
 **Plugin do Claude Code.** O repositório é o seu próprio marketplace de plugins (`.claude-plugin/marketplace.json` ao lado de `plugin.json`), então dois comandos no Claude Code registram o servidor e carregam as duas skills, sem `claude mcp add`:
 
@@ -236,7 +236,7 @@ O Claude Desktop os oferece no menu de anexos (sinal de mais) da conversa, sob o
 /plugin install abap-adt-mcp@abap-adt-mcp
 ```
 
-O manifesto inicia o servidor como `npx -y abap-adt-mcp` com `SAP_SYSTEMS_FILE=${HOME}/.abap-adt-mcp/systems.json` e sem `MCP_TOOLSETS`, portanto publica todas as 173 ferramentas; o `systems.json` do passo 1 continua sendo você quem escreve. As skills sozinhas são instaladas, no momento em que isto foi escrito, com `npx skills add williansaez/abap-adt-mcp` (um instalador de terceiros, não parte deste repositório) ou copiando os dois diretórios de `skills/` para `~/.claude/skills/`.
+O manifesto inicia o servidor como `npx -y abap-adt-mcp@<versão>`, fixado na versão com que foi lançado (o pino avança a cada release e o CI o confere contra o `package.json`), então um host com o plugin mantém a versão que instalou em vez de pegar o que o npm servir como latest no próximo início; define `SAP_SYSTEMS_FILE=${HOME}/.abap-adt-mcp/systems.json` e nenhum `MCP_TOOLSETS`, portanto publica todas as 173 ferramentas; o `systems.json` do passo 1 continua sendo você quem escreve. As skills sozinhas são instaladas, no momento em que isto foi escrito, com `npx skills add williansaez/abap-adt-mcp` (um instalador de terceiros, não parte deste repositório) ou copiando os dois diretórios de `skills/` para `~/.claude/skills/`.
 
 **Contêiner.** As imagens são construídas a partir de `node:22-alpine`, rodam como o usuário sem privilégios `node` (uid 1000) e são publicadas no GHCR a cada release (tags `latest` e `vX.Y.Z`). Monte o seu `systems.json` como somente leitura e repasse os segredos referenciados:
 
