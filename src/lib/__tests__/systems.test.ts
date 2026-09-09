@@ -23,6 +23,38 @@ describe('systems configuration', () => {
     expect(() => readSystems({ SAP_SYSTEMS: JSON.stringify({ DEV: { ...base, url: 'ftp://x' } }) } as any)).toThrow(/DEV/);
   });
 
+  it('legacy SAP_URL setup infers the auth mode from the credentials present', () => {
+    const warn = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const url = 'https://sap.example.com:44300';
+    // No systems.json may shadow the legacy branch (the checkout keeps a git-ignored one).
+    const legacy = (extra: Record<string, string>) => readSystems({ SAP_URL: url, SAP_SYSTEMS_FILE: '/nonexistent/systems.json', ...extra } as any).get('default')!;
+    // SAP_USER + SAP_PASSWORD, no SAP_AUTH_TYPE: basic, as the templates intend.
+    let cfg = legacy({SAP_USER: 'DEV', SAP_PASSWORD: 'pw' });
+    expect(cfg.authType).toBe('basic');
+    expect(cfg.user).toBe('DEV');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('using basic'));
+    // The three OAuth variables, no SAP_AUTH_TYPE: oauth.
+    warn.mockClear();
+    cfg = legacy({SAP_OAUTH_TOKEN_URL: 'https://idp/token', SAP_OAUTH_CLIENT_ID: 'id', SAP_OAUTH_CLIENT_SECRET: 's' });
+    expect(cfg.authType).toBe('oauth');
+    expect(cfg.oauth?.clientId).toBe('id');
+    // Nothing: sso, silently.
+    warn.mockClear();
+    expect(legacy({ }).authType).toBe('sso');
+    expect(warn).not.toHaveBeenCalled();
+    // An explicit SAP_AUTH_TYPE wins, and unused credentials are reported.
+    warn.mockClear();
+    cfg = legacy({SAP_AUTH_TYPE: 'sso', SAP_USER: 'DEV', SAP_PASSWORD: 'pw' });
+    expect(cfg.authType).toBe('sso');
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/SAP_USER and SAP_PASSWORD are set but the auth mode is sso/));
+    expect(warn.mock.calls.join('\n')).not.toContain('pw');
+    // An unknown value falls back to sso and says so.
+    warn.mockClear();
+    expect(legacy({SAP_AUTH_TYPE: 'basc' }).authType).toBe('sso');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('SAP_AUTH_TYPE=basc is not one of'));
+    warn.mockRestore();
+  });
+
   it('detects inline secrets and file permissions', () => {
     expect(hasInlineSecrets({ DEV: { ...base } })).toBe(true);
     expect(hasInlineSecrets({ DEV: { ...base, password: '${env:PW}' } })).toBe(false);

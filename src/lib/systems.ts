@@ -206,14 +206,15 @@ function readSystemsRaw(env: NodeJS.ProcessEnv): Map<string, SystemConfig> {
   // Back-compat: a single implicit destination from the flat env vars.
   if (env.SAP_URL) {
     const name = env.SAP_DEFAULT_DESTINATION || 'default';
-    const oauth = defaultAuth === 'oauth' ? readOAuthConfig(env) : undefined;
+    const authType = legacyAuthType(env, defaultAuth);
+    const oauth = authType === 'oauth' ? readOAuthConfig(env) : undefined;
     const map = new Map<string, SystemConfig>();
     map.set(name, {
       name,
       url: env.SAP_URL,
       client: env.SAP_CLIENT,
       language: env.SAP_LANGUAGE,
-      authType: defaultAuth,
+      authType,
       user: env.SAP_USER,
       password: env.SAP_PASSWORD,
       oauth,
@@ -225,6 +226,42 @@ function readSystemsRaw(env: NodeJS.ProcessEnv): Map<string, SystemConfig> {
   throw new Error(
     'No ABAP systems configured. Provide systems.json, SAP_SYSTEMS, SAP_SYSTEMS_FILE, or SAP_URL.'
   );
+}
+
+/**
+ * Auth mode of the legacy single-system setup (SAP_URL and friends). An explicit
+ * SAP_AUTH_TYPE wins. Without one, the credentials present decide: the three
+ * SAP_OAUTH_* variables mean oauth, SAP_USER plus SAP_PASSWORD mean basic, and
+ * nothing means sso. Credentials the chosen mode will not use are reported on
+ * stderr: a password login that silently loads as sso shows the user a browser
+ * window against an on-prem host and a 300 s timeout instead of an error.
+ */
+export function legacyAuthType(env: NodeJS.ProcessEnv, defaultAuth: AuthType): AuthType {
+  const raw = String(env.SAP_AUTH_TYPE || '').trim();
+  const hasBasic = !!(env.SAP_USER && env.SAP_PASSWORD);
+  const hasOAuth = !!(env.SAP_OAUTH_TOKEN_URL && env.SAP_OAUTH_CLIENT_ID && env.SAP_OAUTH_CLIENT_SECRET);
+  let authType: AuthType;
+  if (raw) {
+    authType = coerceAuthType(raw, defaultAuth);
+    if (authType !== raw.toLowerCase() && raw.toLowerCase() !== 'browser') {
+      console.error(`SAP_AUTH_TYPE=${raw} is not one of sso, basic, oauth; using ${authType}.`);
+    }
+  } else if (hasOAuth) {
+    authType = 'oauth';
+    console.error('SAP_AUTH_TYPE not set; using oauth because SAP_OAUTH_TOKEN_URL, SAP_OAUTH_CLIENT_ID and SAP_OAUTH_CLIENT_SECRET are set.');
+  } else if (hasBasic) {
+    authType = 'basic';
+    console.error('SAP_AUTH_TYPE not set; using basic because SAP_USER and SAP_PASSWORD are set.');
+  } else {
+    authType = 'sso';
+  }
+  if (authType !== 'basic' && hasBasic) {
+    console.error(`SAP_USER and SAP_PASSWORD are set but the auth mode is ${authType}: the password is not used. Set SAP_AUTH_TYPE=basic for password logins.`);
+  }
+  if (authType !== 'oauth' && hasOAuth) {
+    console.error(`SAP_OAUTH_* variables are set but the auth mode is ${authType}: the OAuth client is not used. Set SAP_AUTH_TYPE=oauth for client-credentials logins.`);
+  }
+  return authType;
 }
 
 /** The default destination to use when a tool call omits one. */

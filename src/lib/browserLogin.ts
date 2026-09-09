@@ -43,9 +43,21 @@ function detectBrowser(): string {
 
 const SESSION_COOKIE_RE = /MYSAPSSO2|SAP_SESSIONID/i;
 
-function belongsToHost(cookieDomain: string, host: string): boolean {
-  const d = cookieDomain.replace(/^\./, '');
-  return host === d || host.endsWith('.' + d);
+/** True when a cookie set for `cookieDomain` is sent to `hostname` (no port). */
+export function belongsToHost(cookieDomain: string, hostname: string): boolean {
+  const d = cookieDomain.replace(/^\./, '').toLowerCase();
+  const h = hostname.toLowerCase();
+  return h === d || h.endsWith('.' + d);
+}
+
+/**
+ * The name cookies are matched against for a SAP URL. Cookie domains never carry
+ * a port, so `https://sap.example.com:44300` must match cookies for
+ * `sap.example.com`; comparing against `URL.host` (name plus port) made every
+ * SSO login on a non-default port time out without a cookie.
+ */
+export function cookieHostOf(sapUrl: string): string {
+  return new URL(sapUrl).hostname;
 }
 
 export interface BrowserLoginOptions {
@@ -62,7 +74,8 @@ export async function browserLogin(
   client?: string,
   opts: BrowserLoginOptions = {}
 ): Promise<HarvestedCookie[]> {
-  const host = new URL(sapUrl).host;
+  const host = new URL(sapUrl).host; // profile directory name and messages
+  const cookieHost = cookieHostOf(sapUrl);
   const executablePath = detectBrowser();
   // Profile for the login window. Default: a dedicated persistent profile per
   // host, so "keep me signed in" survives restarts without touching the user's
@@ -126,7 +139,7 @@ export async function browserLogin(
         }
         throw e;
       }
-      const forHost = cookies.filter((c) => belongsToHost(c.domain, host));
+      const forHost = cookies.filter((c) => belongsToHost(c.domain, cookieHost));
       if (forHost.some((c) => SESSION_COOKIE_RE.test(c.name))) {
         return forHost.map((c) => ({ name: c.name, value: c.value }));
       }

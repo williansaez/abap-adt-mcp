@@ -458,7 +458,7 @@ All variables declared in [server.json](../server.json), plus the two the server
 | `SAP_SYSTEMS_FILE` | unset | Path to the destinations file. Recommended; mode `0600`. |
 | `SAP_SYSTEMS` | unset | The same map inline. Takes precedence over the file. Secret. |
 | `SAP_DEFAULT_DESTINATION` | unset | Name used when a call omits `destination`; must be a configured entry, otherwise ignored. In legacy mode it names the implicit destination. |
-| `SAP_AUTH_TYPE` | `sso` | Default `authType` for entries without one (and for unknown values), and the mode of the legacy single-system setup. Set it to `basic` on hosts that only serve on-prem systems. |
+| `SAP_AUTH_TYPE` | `sso` | Default `authType` for entries without one (and for unknown values), and the mode of the legacy single-system setup. Set it to `basic` on hosts that only serve on-prem systems. In legacy mode an unset value is inferred from the credentials present (`basic` from `SAP_USER` and `SAP_PASSWORD`, `oauth` from the three `SAP_OAUTH_*` variables), with a stderr line saying so. |
 
 **Policy and safety**
 
@@ -516,9 +516,9 @@ All variables declared in [server.json](../server.json), plus the two the server
 |---|---|
 | `SAP_URL` | Base URL; its presence switches the mode on. |
 | `SAP_CLIENT`, `SAP_LANGUAGE` | Client and logon language. |
-| `SAP_USER`, `SAP_PASSWORD` | Basic credentials (with `SAP_AUTH_TYPE=basic`). |
+| `SAP_USER`, `SAP_PASSWORD` | Basic credentials. `SAP_AUTH_TYPE=basic` selects them; when `SAP_AUTH_TYPE` is unset their presence selects `basic`, and under an explicit `sso` or `oauth` they are reported on stderr as unused. |
 | `SAP_TLS_INSECURE` | Disables certificate verification for that system. |
-| `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE` | OAuth2 client. The loader reads them only when `SAP_AUTH_TYPE=oauth`; a missing one fails with `OAuth mode requires environment variables: ...`. |
+| `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE` | OAuth2 client. Read when `SAP_AUTH_TYPE=oauth`, or when `SAP_AUTH_TYPE` is unset and the first three are all present; a missing one under `oauth` fails with `OAuth mode requires environment variables: ...`. |
 
 Legacy mode has no `policy`, `tls` or `gitUser` equivalents (only `MCP_READ_ONLY` applies); moving to `systems.json` is the way to get them.
 
