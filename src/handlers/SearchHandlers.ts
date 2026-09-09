@@ -142,7 +142,7 @@ export class SearchHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(ErrorCode.InternalError, `Failed to run text search: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to run text search`, error);
         }
     }
 
@@ -248,7 +248,7 @@ export class SearchHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(ErrorCode.InternalError, `Failed to grep package: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to grep package`, error);
         }
     }
 }

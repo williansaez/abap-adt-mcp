@@ -145,10 +145,7 @@ export class RefactorHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to evaluate extract method: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to evaluate extract method`, error);
         }
     }
 
@@ -171,10 +168,7 @@ export class RefactorHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to preview extract method: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to preview extract method`, error);
         }
     }
 
@@ -197,10 +191,7 @@ export class RefactorHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to execute extract method: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to execute extract method`, error);
         }
     }
 
@@ -222,7 +213,7 @@ export class RefactorHandlers extends BaseHandler {
             return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', refactoring: result, next: 'changePackageExecute' }) }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(ErrorCode.InternalError, `Failed to preview change package: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to preview change package`, error);
         }
     }
 
@@ -237,7 +228,7 @@ export class RefactorHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(ErrorCode.InternalError, `Failed to execute change package: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to execute change package`, error);
         }
     }
 }

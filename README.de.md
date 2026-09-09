@@ -227,7 +227,7 @@ Claude Desktop bietet sie zum Zeitpunkt dieses Textes im Anhang-Menü (Plus) des
 
 ## Weitere Installationswege
 
-**Version festlegen.** `npx -y abap-adt-mcp` holt bei jedem Start die neueste Version. Für einen kontrollierten Rollout legen Sie sie fest (`npx -y abap-adt-mcp@2.0.0`, oder das Container-Tag `vX.Y.Z`) und prüfen die Provenance-Bescheinigung, die Trusted Publishing anhängt, mit `npm audit signatures` in einem Verzeichnis, in dem das Paket installiert ist.
+**Version festlegen.** `npx -y abap-adt-mcp` holt bei jedem Start die neueste Version. Für einen kontrollierten Rollout legen Sie sie fest (`npx -y abap-adt-mcp@X.Y.Z`, oder das Container-Tag `vX.Y.Z`) und prüfen die Provenance-Bescheinigung, die Trusted Publishing anhängt, mit `npm audit signatures` in einem Verzeichnis, in dem das Paket installiert ist.
 
 **Claude-Code-Plugin.** Das Repository ist sein eigener Plugin-Marketplace (`.claude-plugin/marketplace.json` neben `plugin.json`), daher registrieren zwei Befehle in Claude Code den Server und laden beide Skills, ohne `claude mcp add`:
 
@@ -236,7 +236,7 @@ Claude Desktop bietet sie zum Zeitpunkt dieses Textes im Anhang-Menü (Plus) des
 /plugin install abap-adt-mcp@abap-adt-mcp
 ```
 
-Das Manifest startet den Server als `npx -y abap-adt-mcp` mit `SAP_SYSTEMS_FILE=${HOME}/.abap-adt-mcp/systems.json` und ohne `MCP_TOOLSETS`, veröffentlicht also alle 173 Tools; die `systems.json` aus Schritt 1 schreiben weiterhin Sie. Die Skills allein installieren sich zum Zeitpunkt dieses Textes mit `npx skills add williansaez/abap-adt-mcp` (ein Installer eines Dritten, nicht Teil dieses Repositories) oder durch Kopieren der beiden Verzeichnisse aus `skills/` nach `~/.claude/skills/`.
+Das Manifest startet den Server als `npx -y abap-adt-mcp@<version>`, festgelegt auf das Release, mit dem es ausgeliefert wird (der Pin wandert mit jedem Release, CI prüft ihn gegen `package.json`); ein Plugin-Host behält also die installierte Version, statt beim nächsten Start zu nehmen, was npm gerade als latest liefert. Es setzt `SAP_SYSTEMS_FILE=${HOME}/.abap-adt-mcp/systems.json` und kein `MCP_TOOLSETS`, veröffentlicht also alle 173 Tools; die `systems.json` aus Schritt 1 schreiben weiterhin Sie. Die Skills allein installieren sich zum Zeitpunkt dieses Textes mit `npx skills add williansaez/abap-adt-mcp` (ein Installer eines Dritten, nicht Teil dieses Repositories) oder durch Kopieren der beiden Verzeichnisse aus `skills/` nach `~/.claude/skills/`.
 
 **Container.** Die Images werden aus `node:22-alpine` gebaut, laufen als unprivilegierter Benutzer `node` (uid 1000) und werden bei jedem Release nach GHCR veröffentlicht (Tags `latest` und `vX.Y.Z`). Hängen Sie Ihre `systems.json` schreibgeschützt ein und reichen Sie referenzierte Geheimnisse durch:
 
@@ -284,7 +284,7 @@ Dieser Server gibt einem Sprachmodell Lese- und Schreibzugriff auf SAP. Ein paar
   | Schlüssel | Typ | Wirkung |
   |---|---|---|
   | `readOnly` | boolean | Nur als nur-lesend annotierte Tools dürfen laufen, plus `login`, `logout`, `dropSession`, `listSystems`, `healthcheck`, `systemProfile` und `exportPackageSources` (das nur lokal schreibt). Als Schreibzugriff gesperrt: jeder Quelltext-Schreibzugriff, `lock`, `runSnippet`, `runClass`, `unitTestRun`, `createAtcRun` und `atcSummary`. Weiterhin erlaubt: `runQuery` und `tableContents` (sie lesen; sperren Sie sie mit `allowFreeSql: false` oder `deniedTools`). |
-  | `deniedTools` | Globs | Tool-Namen, die auf dieser Destination rundweg abgelehnt werden, zum Beispiel `["transportRelease", "git*"]`. Die Tools bleiben gelistet. |
+  | `deniedTools` | Globs | Tools, die auf dieser Destination rundweg abgelehnt werden: ein Name, ein Glob (`rapGen*`) oder `toolset:<name>` für alle Tools eines Toolsets, zum Beispiel `["transportRelease", "toolset:git"]`. Fünf abapGit-Tools tragen kein git-Präfix (`pushRepo`, `stageRepo`, `checkRepo`, `remoteRepoInfo`, `switchRepoBranch`), `git*` allein lässt den Push-Pfad also offen. Die Tools bleiben gelistet. |
   | `allowFreeSql` | boolean | `false` lehnt `runQuery` und `tableContents` mit `sqlQuery` ab. |
   | `deniedTables` | Globs | Angewandt auf `tableContents`, auf jedes `FROM`/`JOIN`-Ziel eines `runQuery`, und (nach bestem Bemühen, durch Durchsuchen des ABAP-Texts) auf `runSnippet`, `setObjectSource` und `setMethodSource`. Dynamisches SQL und Views über die Tabelle werden nicht erkannt: für Daten, die SAP nicht verlassen dürfen, verlassen Sie sich auf die SAP-Anzeigeberechtigungen des verbundenen Benutzers und kombinieren `allowFreeSql: false` mit `deniedTools: ["runSnippet"]` oder `readOnly`. |
   | `allowedPackages` | Globs, geschlossene Liste | Beschränkt nur Schreibzugriffe; Lesen und Navigation beliebiger Objekte (SAP-Objekte eingeschlossen) werden nie beschränkt. Paketargumente werden direkt geprüft; Objekt-Schreibzugriffe ermitteln das Paket des Objekts über `transportInfo`; ein nicht ermittelbares Paket wird abgelehnt. `gitPullRepo`, `rapGenGenerate`, `rapGenPublishService`, `publishServiceBinding` und `unPublishServiceBinding` können kein Paket ableiten und werden abgelehnt, sobald dieser Schlüssel gesetzt ist. |

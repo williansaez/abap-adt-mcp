@@ -346,10 +346,7 @@ export class GitHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get git repos: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get git repos`, error);
         }
     }
 
@@ -375,10 +372,7 @@ export class GitHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get external repo info: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get external repo info`, error);
         }
     }
 
@@ -407,10 +401,7 @@ export class GitHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to create git repo: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to create git repo`, error);
         }
     }
 
@@ -467,10 +458,7 @@ export class GitHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to pull git repo: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to pull git repo`, error);
         }
     }
 
@@ -492,10 +480,7 @@ export class GitHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to unlink git repo: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to unlink git repo`, error);
         }
     }
 
@@ -567,10 +552,7 @@ export class GitHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to stage repo: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to stage repo`, error);
         }
     }
 
@@ -597,10 +579,7 @@ export class GitHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to push repo: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to push repo`, error);
         }
     }
 
@@ -626,10 +605,7 @@ export class GitHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to check repo: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to check repo`, error);
         }
     }
 
@@ -655,10 +631,7 @@ export class GitHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get remote repo info: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get remote repo info`, error);
         }
     }
 
@@ -686,10 +659,7 @@ export class GitHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to switch repo branch: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to switch repo branch`, error);
         }
     }
 }

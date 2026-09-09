@@ -13,18 +13,23 @@ export interface MethodBlock {
   endLine: number;     // 1-based, the ENDMETHOD line
   text: string;
   amdp: boolean;
+  /** Line (1-based) of a second METHOD header found before this block's ENDMETHOD: the source is malformed there. */
+  nestedHeaderLine?: number;
 }
 
 const isComment = (line: string) => /^\*/.test(line) || /^\s*"/.test(line);
 const METHOD_RE = /^\s*METHOD\s+([\w~\/]+)\s*(?:\.|\s+BY\s+(DATABASE|KERNEL)\b)/i;
 const END_RE = /^\s*ENDMETHOD\s*\./i;
+/** ENDMETHOD as any statement of a line (after other statements), outside a trailing " comment. */
+const END_ANY_RE = /(^|[.\s])ENDMETHOD\s*\./i;
+const stripTrailingComment = (line: string) => line.replace(/"[^"]*$/, '');
 const CLASS_IMPL_RE = /^\s*CLASS\s+([\w\/]+)\s+IMPLEMENTATION\s*\./i;
 const ENDCLASS_RE = /^\s*ENDCLASS\s*\./i;
 
 export function listMethods(source: string): MethodBlock[] {
   const lines = String(source || '').replace(/\r\n/g, '\n').split('\n');
   const blocks: MethodBlock[] = [];
-  let open: { name: string; start: number; amdp: boolean } | undefined;
+  let open: { name: string; start: number; amdp: boolean; nested?: number } | undefined;
   let currentClass: string | undefined;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -34,11 +39,21 @@ export function listMethods(source: string): MethodBlock[] {
       if (c) { currentClass = c[1].toUpperCase(); continue; }
       if (ENDCLASS_RE.test(line)) { currentClass = undefined; continue; }
       const m = line.match(METHOD_RE);
-      if (m) open = { name: m[1].toUpperCase(), start: i, amdp: !!m[2] };
+      if (!m) continue;
+      open = { name: m[1].toUpperCase(), start: i, amdp: !!m[2] };
+      // `METHOD x. ENDMETHOD.` on one line is a complete (empty) block.
+      const rest = stripTrailingComment(line.slice(m[0].length));
+      if (END_ANY_RE.test(rest) || /^\s*ENDMETHOD\s*\./i.test(rest)) {
+        blocks.push({ name: open.name, className: currentClass, startLine: i + 1, endLine: i + 1, text: line, amdp: open.amdp });
+        open = undefined;
+      }
       continue;
     }
-    if (END_RE.test(line)) {
-      blocks.push({ name: open.name, className: currentClass, startLine: open.start + 1, endLine: i + 1, text: lines.slice(open.start, i + 1).join('\n'), amdp: open.amdp });
+    // A second METHOD header before ENDMETHOD: the previous block never closed.
+    // Remember the line so a write can refuse instead of swallowing the next method.
+    if (open.nested === undefined && METHOD_RE.test(line)) open.nested = i + 1;
+    if (END_ANY_RE.test(stripTrailingComment(line))) {
+      blocks.push({ name: open.name, className: currentClass, startLine: open.start + 1, endLine: i + 1, text: lines.slice(open.start, i + 1).join('\n'), amdp: open.amdp, ...(open.nested ? { nestedHeaderLine: open.nested } : {}) });
       open = undefined;
     }
   }

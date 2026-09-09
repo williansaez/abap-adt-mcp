@@ -224,10 +224,7 @@ export class TraceHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get traces list: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get traces list`, error);
         }
     }
 
@@ -249,10 +246,7 @@ export class TraceHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get trace requests: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get trace requests`, error);
         }
     }
 
@@ -305,10 +299,7 @@ export class TraceHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get trace hit list: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get trace hit list`, error);
         }
     }
 
@@ -362,10 +353,7 @@ export class TraceHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get trace DB access: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get trace DB access`, error);
         }
     }
 
@@ -418,10 +406,7 @@ export class TraceHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get trace statements: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get trace statements`, error);
         }
     }
 
@@ -443,10 +428,7 @@ export class TraceHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to set trace parameters: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to set trace parameters`, error);
         }
     }
 
@@ -468,10 +450,7 @@ export class TraceHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to create trace configuration: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to create trace configuration`, error);
         }
     }
 
@@ -493,10 +472,7 @@ export class TraceHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to delete trace configuration: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to delete trace configuration`, error);
         }
     }
 
@@ -518,10 +494,7 @@ export class TraceHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to delete trace: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to delete trace`, error);
         }
     }
 }

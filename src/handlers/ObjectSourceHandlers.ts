@@ -248,10 +248,7 @@ export class ObjectSourceHandlers extends BaseHandler {
       };
     } catch (error: any) {
       this.trackRequest(startTime, false);
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to get object source: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Failed to get object source`, error);
     }
   }
 
@@ -285,10 +282,7 @@ export class ObjectSourceHandlers extends BaseHandler {
       };
     } catch (error: any) {
       this.trackRequest(startTime, false);
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to set object source: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Failed to set object source`, error);
     }
   }
 
@@ -372,10 +366,7 @@ export class ObjectSourceHandlers extends BaseHandler {
       if (error instanceof McpError) {
         throw error;
       }
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to edit object source: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Failed to edit object source`, error);
     }
   }
 
@@ -492,7 +483,7 @@ export class ObjectSourceHandlers extends BaseHandler {
       return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', classUrl, sourceUrl, include: args.include || 'main', method: block.name, className: block.className, startLine: block.startLine, endLine: block.endLine, lines: block.endLine - block.startLine + 1, amdp: block.amdp, source: block.text }) }] };
     } catch (error: any) {
       this.trackRequest(startTime, false);
-      throw new McpError(ErrorCode.InternalError, `Failed to get method source: ${this.formatAdtError(error)}`);
+      throw this.adtFailure(`Failed to get method source`, error);
     }
   }
 
@@ -511,6 +502,9 @@ export class ObjectSourceHandlers extends BaseHandler {
         throw new McpError(ErrorCode.InvalidRequest, `Method ${String(args.methodName).toUpperCase()} is implemented ${candidates.length} times in ${args.include || 'main'} of ${classUrl} (${candidates.map(b => `${b.className || '?'} lines ${b.startLine}-${b.endLine}`).join('; ')}). Pass className to pick one; nothing was written.`);
       }
       const block = candidates[0];
+      if (block.nestedHeaderLine) {
+        throw new McpError(ErrorCode.InvalidRequest, `Method ${block.name} (lines ${block.startLine}-${block.endLine}) contains a second METHOD header at line ${block.nestedHeaderLine}: an ENDMETHOD is missing before it, so replacing the block would swallow that method. Fix the source with editObjectSource first; nothing was written.`);
+      }
       const { source: newSource, wrapped } = replaceMethod(current, block, String(args.source));
       this.adtclient.stateful = session_types.stateful;
       const written = await withLock(this.adtclient, sourceUrl, args.lockHandle, async (handle) => {
@@ -532,7 +526,7 @@ export class ObjectSourceHandlers extends BaseHandler {
     } catch (error: any) {
       this.trackRequest(startTime, false);
       if (error instanceof McpError) throw error;
-      throw new McpError(ErrorCode.InternalError, `Failed to set method source: ${this.formatAdtError(error)}`);
+      throw this.adtFailure(`Failed to set method source`, error);
     }
   }
 }

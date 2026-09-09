@@ -5,7 +5,7 @@
  * Configured in systems.json under each destination:
  *   "policy": {
  *     "readOnly": true,                       // only read-only tools (plus login/logout/dropSession)
- *     "deniedTools": ["transportRelease", "git*"],
+ *     "deniedTools": ["transportRelease", "toolset:git"],   // names, globs, or toolset:<name>
  *     "allowFreeSql": false,                  // blocks runQuery and tableContents with sqlQuery
  *     "deniedTables": ["PA*", "HR*", "USR02"],
  *     "allowedPackages": ["Z*", "$*"],        // writes only inside these packages (closed mode)
@@ -14,7 +14,36 @@
  * MCP_READ_ONLY=1 in the environment makes every destination readOnly.
  */
 
-import { READ_ONLY_TOOLS } from '../toolManifest.js';
+import { READ_ONLY_TOOLS, TOOLSETS, TOOL_ROUTES } from '../toolManifest.js';
+
+/** Tool name -> toolset name, built once from the manifest. */
+let toolsetIndex: Map<string, string> | undefined;
+function toolsetOfTool(toolName: string): string | undefined {
+  if (!toolsetIndex) {
+    toolsetIndex = new Map();
+    for (const [toolset, def] of Object.entries(TOOLSETS)) {
+      for (const handler of def.handlers) for (const t of TOOL_ROUTES[handler] || []) toolsetIndex.set(t, toolset);
+    }
+  }
+  return toolsetIndex.get(toolName);
+}
+
+/**
+ * deniedTools entry match: a tool name or glob (`transportRelease`, `rapGen*`),
+ * or `toolset:<name>` for every tool of a toolset (`toolset:git`). The abapGit
+ * tools are not all git-prefixed (pushRepo, stageRepo, checkRepo, remoteRepoInfo,
+ * switchRepoBranch), so `git*` alone leaves the push path open; `toolset:git`
+ * closes it.
+ */
+function deniedToolMatches(patterns: string[] | undefined, toolName: string): boolean {
+  if (!patterns?.length) return false;
+  const toolset = toolsetOfTool(toolName);
+  return patterns.some(p => {
+    const m = /^toolset:(.+)$/i.exec(p.trim());
+    if (m) return !!toolset && globMatch(m[1], toolset);
+    return globMatch(p, toolName);
+  });
+}
 
 export interface SystemPolicy {
   readOnly?: boolean;
@@ -130,7 +159,7 @@ export async function evaluatePolicy(
   if (policy.readOnly && !READ_ONLY_TOOLS.has(toolName) && !ALWAYS_ALLOWED.has(toolName)) {
     return deny('readOnly', `${toolName} is a write tool and the destination is readOnly`);
   }
-  if (matchesAny(policy.deniedTools, toolName)) {
+  if (deniedToolMatches(policy.deniedTools, toolName)) {
     return deny('deniedTools', `${toolName} is listed in deniedTools`);
   }
   if (policy.allowFreeSql === false) {
@@ -195,6 +224,31 @@ export async function evaluatePolicy(
     if (tr && !matchesAny(policy.allowedTransports, String(tr))) {
       return deny('allowedTransports', `transport ${String(tr).toUpperCase()} is not in allowedTransports (${policy.allowedTransports.join(', ')})`);
     }
+    // The refactoring execute tools carry the transport inside the proposal
+    // returned by their preview step, not as a top-level argument. Closed mode:
+    // a proposal without a transport is refused, like an unresolvable package.
+    if (REFACTORING_EXECUTE_TOOLS.has(toolName)) {
+      const found = refactoringTransports(a.refactoring);
+      if (found.length === 0) {
+        return deny('allowedTransports', `${toolName}: the refactoring proposal carries no transport and allowedTransports is set; run the preview with a transport from the list (${policy.allowedTransports.join(', ')})`);
+      }
+      const bad = found.find(t => !matchesAny(policy.allowedTransports, t));
+      if (bad) return deny('allowedTransports', `transport ${bad.toUpperCase()} in the refactoring proposal is not in allowedTransports (${policy.allowedTransports.join(', ')})`);
+    }
   }
   return { allowed: true };
+}
+
+const REFACTORING_EXECUTE_TOOLS = new Set(['renameExecute', 'extractMethodExecute', 'changePackageExecute']);
+
+/** Transports named in a refactoring proposal (string or object): the proposal's own and those of its affected objects. */
+export function refactoringTransports(refactoring: unknown): string[] {
+  let r: any = refactoring;
+  if (typeof r === 'string') { try { r = JSON.parse(r); } catch { return []; } }
+  if (!r || typeof r !== 'object') return [];
+  const out = new Set<string>();
+  const add = (v: unknown) => { const s = String(v ?? '').trim(); if (s) out.add(s.toUpperCase()); };
+  add(r.transport);
+  for (const o of Array.isArray(r.affectedObjects) ? r.affectedObjects : []) add(o?.transport);
+  return [...out];
 }

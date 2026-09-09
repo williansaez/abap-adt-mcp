@@ -116,7 +116,9 @@ export class QueryHandlers extends BaseHandler {
             return this.buildQueryResultResponse(result, args);
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new Error(`Failed to retrieve table contents: ${this.formatAdtError(error)}${dataPreviewHint(this.formatAdtError(error)) ? ' Hint: ' + dataPreviewHint(this.formatAdtError(error)) : ''}`);
+            const message = this.formatAdtError(error);
+            const hint = dataPreviewHint(message);
+            throw Object.assign(new Error(`Failed to retrieve table contents: ${message}${hint ? ' Hint: ' + hint : ''}`), { cause: error });
         }
     }
 
@@ -140,7 +142,7 @@ export class QueryHandlers extends BaseHandler {
             this.trackRequest(startTime, false);
             const message = this.formatAdtError(error);
             const hint = dataPreviewHint(message);
-            throw new Error(`Failed to run query: ${message}${hint ? ` Hint: ${hint}` : ''}`);
+            throw Object.assign(new Error(`Failed to run query: ${message}${hint ? ` Hint: ${hint}` : ''}`), { cause: error });
         }
     }
 

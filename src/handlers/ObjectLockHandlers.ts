@@ -96,10 +96,7 @@ export class ObjectLockHandlers extends BaseHandler {
       };
     } catch (error: any) {
       this.trackRequest(startTime, false);
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to lock object: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Failed to lock object`, error);
     }
   }
 
@@ -129,10 +126,7 @@ export class ObjectLockHandlers extends BaseHandler {
     } catch (error: any) {
       this.trackRequest(startTime, false);
       if (error instanceof McpError) throw error;
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to unlock object: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Failed to unlock object`, error);
     }
   }
 
@@ -173,7 +167,7 @@ export class ObjectLockHandlers extends BaseHandler {
       return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', released, failed, sessionDropped, remaining: listLocks(this.adtclient).length }) }] };
     } catch (error: any) {
       this.trackRequest(startTime, false);
-      throw new McpError(ErrorCode.InternalError, `Failed to force unlock: ${this.formatAdtError(error)}`);
+      throw this.adtFailure(`Failed to force unlock`, error);
     }
   }
 }

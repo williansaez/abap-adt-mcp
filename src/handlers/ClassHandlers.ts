@@ -102,10 +102,7 @@ export class ClassHandlers extends BaseHandler {
             if (error instanceof McpError) {
                 throw error;
             }
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get class includes: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get class includes`, error);
         }
     }
 
@@ -155,10 +152,7 @@ export class ClassHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get class components: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get class components`, error);
         }
     }
 

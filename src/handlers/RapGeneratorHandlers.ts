@@ -173,10 +173,7 @@ export class RapGeneratorHandlers extends BaseHandler {
     } catch (error: any) {
       this.trackRequest(startTime, false);
       if (error instanceof McpError) throw error;
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to ${action}: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Failed to ${action}`, error);
     }
   }
 }

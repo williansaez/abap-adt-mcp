@@ -111,10 +111,7 @@ export class FeedHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get feeds: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get feeds`, error);
         }
     }
 
@@ -183,10 +180,7 @@ export class FeedHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get dumps: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get dumps`, error);
         }
     }
 
@@ -223,10 +217,7 @@ export class FeedHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get dump details: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get dump details`, error);
         }
     }
 }

@@ -101,10 +101,7 @@ export class ObjectRegistrationHandlers extends BaseHandler {
       };
     } catch (error: any) {
       this.trackRequest(startTime, false);
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to get registration info: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Failed to get registration info`, error);
     }
   }
 
@@ -181,10 +178,10 @@ export class ObjectRegistrationHandlers extends BaseHandler {
     } catch (error: any) {
       this.trackRequest(startTime, false);
       if (error instanceof McpError) throw error;
-      throw new McpError(
+      throw Object.assign(new McpError(
         ErrorCode.InternalError,
         `Failed to validate new object: ${this.formatAdtError(error)}. If validation keeps failing, check objtype via loadTypes and confirm the package exists`
-      );
+      ), { cause: error });
     }
   }
 
@@ -270,10 +267,7 @@ export class ObjectRegistrationHandlers extends BaseHandler {
     } catch (error: any) {
       this.trackRequest(startTime, false);
       if (error instanceof McpError) throw error;
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to create object: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Failed to create object`, error);
     }
   }
 }

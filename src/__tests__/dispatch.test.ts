@@ -62,6 +62,18 @@ describe('dispatch', () => {
     expect(order).toEqual(['start 1', 'end 1', 'start 2', 'end 2']);
   });
 
+  it('does not re-authenticate on a wrapped ordinary error whose text mentions saml', async () => {
+    stub(server, 'DEV', 'objectSource', async () => {
+      const cause: any = new Error('Object ZCL_SAML_HANDLER not found'); cause.status = 404;
+      throw Object.assign(new McpError(ErrorCode.InternalError, 'Failed to get object source: Object ZCL_SAML_HANDLER not found'), { cause });
+    });
+    server.reauthenticate = jest.fn(async () => undefined);
+    const onRetry = jest.fn();
+    await expect(server.dispatch('getObjectSource', { objectSourceUrl: '/x' }, onRetry)).rejects.toThrow(/not found/);
+    expect(onRetry).not.toHaveBeenCalled();
+    expect(server.reauthenticate).not.toHaveBeenCalled();
+  });
+
   it('re-authenticates and retries once on an expired session, and gives up on the second failure', async () => {
     let calls = 0;
     stub(server, 'DEV', 'objectSource', async () => {

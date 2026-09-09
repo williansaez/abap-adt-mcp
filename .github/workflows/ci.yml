@@ -37,9 +37,8 @@ jobs:
           }
       - name: Documentation hygiene
         run: npm run docs:check
-      - name: Version files agree
-        run: |
-          node -e "const p=require('./package.json').version,s=require('./server.json');if(s.version!==p||s.packages[0].version!==p){console.error('server.json version differs from package.json');process.exit(1)}"
+      - name: Version files agree (package, lock, server.json, plugin.json and its npx pin)
+        run: npm run version:check
 
   docker:
     runs-on: ubuntu-latest

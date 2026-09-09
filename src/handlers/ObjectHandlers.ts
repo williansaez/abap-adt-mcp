@@ -217,11 +217,7 @@ export class ObjectHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            const detailedError = this.formatAdtError(error);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get object structure: ${detailedError}`
-            );
+            throw this.adtFailure(`Failed to get object structure`, error);
         }
     }
 
@@ -244,11 +240,7 @@ export class ObjectHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            const detailedError = this.formatAdtError(error);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to find object path: ${detailedError}`
-            );
+            throw this.adtFailure(`Failed to find object path`, error);
         }
     }
 
@@ -275,11 +267,7 @@ export class ObjectHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            const detailedError = this.formatAdtError(error);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to search objects: ${detailedError}`
-            );
+            throw this.adtFailure(`Failed to search objects`, error);
         }
     }
 
@@ -302,11 +290,7 @@ export class ObjectHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            const detailedError = this.formatAdtError(error);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get object types: ${detailedError}`
-            );
+            throw this.adtFailure(`Failed to get object types`, error);
         }
     }
 
@@ -337,11 +321,7 @@ export class ObjectHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            const detailedError = this.formatAdtError(error);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get reentrance ticket: ${detailedError}`
-            );
+            throw this.adtFailure(`Failed to get reentrance ticket`, error);
         }
     }
 }
