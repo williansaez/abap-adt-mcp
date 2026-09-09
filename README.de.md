@@ -227,7 +227,7 @@ Claude Desktop bietet sie zum Zeitpunkt dieses Textes im Anhang-Menü (Plus) des
 
 ## Weitere Installationswege
 
-**Version festlegen.** `npx -y abap-adt-mcp` holt bei jedem Start die neueste Version. Für einen kontrollierten Rollout legen Sie sie fest (`npx -y abap-adt-mcp@2.0.0`, oder das Container-Tag `vX.Y.Z`) und prüfen die Provenance-Bescheinigung, die Trusted Publishing anhängt, mit `npm audit signatures` in einem Verzeichnis, in dem das Paket installiert ist.
+**Version festlegen.** `npx -y abap-adt-mcp` holt bei jedem Start die neueste Version. Für einen kontrollierten Rollout legen Sie sie fest (`npx -y abap-adt-mcp@X.Y.Z`, oder das Container-Tag `vX.Y.Z`) und prüfen die Provenance-Bescheinigung, die Trusted Publishing anhängt, mit `npm audit signatures` in einem Verzeichnis, in dem das Paket installiert ist.
 
 **Claude-Code-Plugin.** Das Repository ist sein eigener Plugin-Marketplace (`.claude-plugin/marketplace.json` neben `plugin.json`), daher registrieren zwei Befehle in Claude Code den Server und laden beide Skills, ohne `claude mcp add`:
 
@@ -236,7 +236,7 @@ Claude Desktop bietet sie zum Zeitpunkt dieses Textes im Anhang-Menü (Plus) des
 /plugin install abap-adt-mcp@abap-adt-mcp
 ```
 
-Das Manifest startet den Server als `npx -y abap-adt-mcp` mit `SAP_SYSTEMS_FILE=${HOME}/.abap-adt-mcp/systems.json` und ohne `MCP_TOOLSETS`, veröffentlicht also alle 173 Tools; die `systems.json` aus Schritt 1 schreiben weiterhin Sie. Die Skills allein installieren sich zum Zeitpunkt dieses Textes mit `npx skills add williansaez/abap-adt-mcp` (ein Installer eines Dritten, nicht Teil dieses Repositories) oder durch Kopieren der beiden Verzeichnisse aus `skills/` nach `~/.claude/skills/`.
+Das Manifest startet den Server als `npx -y abap-adt-mcp@<version>`, festgelegt auf das Release, mit dem es ausgeliefert wird (der Pin wandert mit jedem Release, CI prüft ihn gegen `package.json`); ein Plugin-Host behält also die installierte Version, statt beim nächsten Start zu nehmen, was npm gerade als latest liefert. Es setzt `SAP_SYSTEMS_FILE=${HOME}/.abap-adt-mcp/systems.json` und kein `MCP_TOOLSETS`, veröffentlicht also alle 173 Tools; die `systems.json` aus Schritt 1 schreiben weiterhin Sie. Die Skills allein installieren sich zum Zeitpunkt dieses Textes mit `npx skills add williansaez/abap-adt-mcp` (ein Installer eines Dritten, nicht Teil dieses Repositories) oder durch Kopieren der beiden Verzeichnisse aus `skills/` nach `~/.claude/skills/`.
 
 **Container.** Die Images werden aus `node:22-alpine` gebaut, laufen als unprivilegierter Benutzer `node` (uid 1000) und werden bei jedem Release nach GHCR veröffentlicht (Tags `latest` und `vX.Y.Z`). Hängen Sie Ihre `systems.json` schreibgeschützt ein und reichen Sie referenzierte Geheimnisse durch:
 

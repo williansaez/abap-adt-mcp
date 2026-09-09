@@ -1,7 +1,10 @@
 .env
+.env.*
+!.env.example
 dist
 node_modules
-package-lock.json
+coverage
+*.tgz
 *.code-workspace
 
 .DS_Store
