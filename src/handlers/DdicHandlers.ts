@@ -265,10 +265,7 @@ export class DdicHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get annotation definitions: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get annotation definitions`, error);
         }
     }
 
@@ -332,10 +329,7 @@ export class DdicHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get DDIC element: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get DDIC element`, error);
         }
     }
 
@@ -383,10 +377,7 @@ export class DdicHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to access DDIC repository: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to access DDIC repository`, error);
         }
     }
 
@@ -438,10 +429,7 @@ export class DdicHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get package search help: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get package search help`, error);
         }
     }
 
@@ -462,7 +450,7 @@ export class DdicHandlers extends BaseHandler {
             return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', ...result }) }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(ErrorCode.InternalError, `Failed to get domain properties: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to get domain properties`, error);
         }
     }
 
@@ -478,7 +466,7 @@ export class DdicHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(ErrorCode.InternalError, `Failed to set domain properties: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to set domain properties`, error);
         }
     }
 
@@ -490,7 +478,7 @@ export class DdicHandlers extends BaseHandler {
             return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', ...result }) }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(ErrorCode.InternalError, `Failed to get data element properties: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to get data element properties`, error);
         }
     }
 
@@ -506,7 +494,7 @@ export class DdicHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(ErrorCode.InternalError, `Failed to set data element properties: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to set data element properties`, error);
         }
     }
 }

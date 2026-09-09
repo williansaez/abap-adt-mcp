@@ -179,10 +179,7 @@ export class ObjectManagementHandlers extends BaseHandler {
       if (error instanceof McpError) {
         throw error;
       }
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to activate objects: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Failed to activate objects`, error);
     }
   }
 
@@ -211,10 +208,7 @@ export class ObjectManagementHandlers extends BaseHandler {
       if (error instanceof McpError) {
         throw error;
       }
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to activate object: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Failed to activate object`, error);
     }
   }
 
@@ -265,10 +259,7 @@ export class ObjectManagementHandlers extends BaseHandler {
       if (error instanceof McpError) {
         throw error;
       }
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to get inactive objects: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Failed to get inactive objects`, error);
     }
   }
 
@@ -328,7 +319,7 @@ export class ObjectManagementHandlers extends BaseHandler {
       return { content: [{ type: 'text', text: text.length <= SAFE_OUTPUT_CHARS ? text : JSON.stringify({ ...payload, requested: payload.requested.length, messages: payload.messages.slice(0, 50), stillInactive: payload.stillInactive.slice(0, 50), capped: true }) }], ...(result?.success === false ? { isError: true } : {}) };
     } catch (error: any) {
       this.trackRequest(startTime, false);
-      throw new McpError(ErrorCode.InternalError, `Failed to activate package: ${this.formatAdtError(error)}`);
+      throw this.adtFailure(`Failed to activate package`, error);
     }
   }
 }

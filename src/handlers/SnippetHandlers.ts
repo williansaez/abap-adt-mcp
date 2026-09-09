@@ -132,7 +132,7 @@ export class SnippetHandlers extends BaseHandler {
             const hint = /S_ABPLNGVS|language version/i.test(detail) && packageName === '$TMP'
                 ? ' Hint: on S/4HANA Cloud objects in $TMP get the Standard ABAP language version, which cloud users may not change. Pass packageName with a customer package (ABAP for Cloud Development) and, if it is transportable, the transport from resolveTransport.'
                 : '';
-            throw new McpError(ErrorCode.InternalError, `runSnippet failed after ${steps.join(', ') || 'nothing'}: ${detail}${cleanupError ? ` (${cleanupError})` : ''}${hint}`);
+            throw Object.assign(new McpError(ErrorCode.InternalError, `runSnippet failed after ${steps.join(', ') || 'nothing'}: ${detail}${cleanupError ? ` (${cleanupError})` : ''}${hint}`), { cause: error });
         }
     }
 }

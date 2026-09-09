@@ -62,10 +62,7 @@ export class AuthHandlers extends BaseHandler {
       };
     } catch (error: any) {
       this.trackRequest(startTime, false);
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Login failed: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Login failed`, error);
     }
   }
 
@@ -87,10 +84,7 @@ export class AuthHandlers extends BaseHandler {
       };
     } catch (error: any) {
       this.trackRequest(startTime, false);
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Logout failed: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Logout failed`, error);
     }
   }
 
@@ -112,10 +106,7 @@ export class AuthHandlers extends BaseHandler {
       };
     } catch (error: any) {
       this.trackRequest(startTime, false);
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Drop session failed: ${this.formatAdtError(error)}`
-      );
+      throw this.adtFailure(`Drop session failed`, error);
     }
   }
 }

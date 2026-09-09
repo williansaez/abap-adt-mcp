@@ -49,7 +49,7 @@ Values are coerced leniently; the table says what each key accepts, so a file wr
 |---|---|---|
 | `client` | string or number | Converted to a string, then checked for three digits (`80` fails, `"080"` and `80` are not the same thing: write the leading zero). |
 | `insecureTls`, `default`, `policy.readOnly`, `policy.allowFreeSql` | JSON `true`; the strings `"1"`, `"true"`, `"yes"` (case-insensitive); the number `1` | Any other present value (`false`, `0`, `"no"`, `"off"`, `null`) counts as `false`. Only an absent key is "unset", which matters for `allowFreeSql`: a present key with any non-true value switches the gate on. |
-| `policy.deniedTools`, `deniedTables`, `allowedPackages`, `allowedTransports` | JSON array of strings, or one comma-separated string | `"git*,transportRelease"` and `["git*", "transportRelease"]` are equivalent. |
+| `policy.deniedTools`, `deniedTables`, `allowedPackages`, `allowedTransports` | JSON array of strings, or one comma-separated string | `"toolset:git,transportRelease"` and `["toolset:git", "transportRelease"]` are equivalent. |
 | `tls.*` | string | A file path, or inline PEM text recognised by a `-----BEGIN ...-----` header. Empty or whitespace-only strings are treated as absent. |
 | Everything else | string | |
 
@@ -295,7 +295,7 @@ A "production must be read-only" requirement in the sense of "the model cannot c
 | Key | Type | Effect |
 |---|---|---|
 | `readOnly` | boolean | Only tools annotated read-only (`READ_ONLY_TOOLS` in `src/toolManifest.ts`, the tools marked with a book in [docs/TOOLS.md](TOOLS.md)) may run, plus the always-allowed set below. |
-| `deniedTools` | globs | Tool names refused outright. The tools stay listed. |
+| `deniedTools` | globs | Tool names, globs or `toolset:<name>` refused outright. The tools stay listed. |
 | `allowFreeSql` | boolean | `false` refuses `runQuery` and `tableContents` when it carries `sqlQuery`. Absent or `true` changes nothing. |
 | `deniedTables` | globs | Table names that must not be read or referenced. |
 | `allowedPackages` | globs | Closed list: writes are only allowed into packages that match; an unknown package is refused. Reads are never gated. |
@@ -313,7 +313,7 @@ Gates run in a fixed order and the first refusal wins: `readOnly`, `deniedTools`
 
 **readOnly.** Always allowed regardless of annotation (`ALWAYS_ALLOWED`): `login`, `logout`, `dropSession`, `listSystems`, `healthcheck`, `systemProfile`, `exportPackageSources`. Everything not annotated read-only is refused: source writes, `lock`, create, delete and activation, `createTransport`, `transportRelease`, `unitTestRun`, `createAtcRun`, `atcSummary`, `runClass`, `runSnippet`, abapGit writes, refactoring executions, debugger and trace writes. Still allowed because they are reads: `runQuery`, `tableContents`, `revisions`, `transportUnifiedDiff`, `grepPackage`, refactoring previews.
 
-**deniedTools.** The tool name against each glob.
+**deniedTools.** The tool name against each glob, or, for an entry written `toolset:<name>` (the name may be a glob), the tool's toolset from the manifest. Use `toolset:git` rather than `git*`: five abapGit tools (`pushRepo`, `stageRepo`, `checkRepo`, `remoteRepoInfo`, `switchRepoBranch`) carry no git prefix, and `pushRepo` sends ABAP source to an external remote.
 
 **allowFreeSql.** Only when set to `false`: `runQuery` (any statement) and `tableContents` with a `sqlQuery` argument.
 
@@ -329,7 +329,7 @@ Gates run in a fixed order and the first refusal wins: `readOnly`, `deniedTools`
 
 For every object URL argument, a value that does not start with `/` is treated as a class name and turned into `/sap/bc/adt/oo/classes/<name>`. The mode is closed: when the package cannot be determined (`transportInfo` fails, the object does not exist yet, a direct package argument is missing) the call is refused with `could not determine the object package of the object, and allowedPackages is closed`. One edge: an object-URL tool called without its URL argument passes this gate and fails in the handler instead, since there is nothing to resolve. Tools not in the table are not gated by this key at all: `pushRepo`, `stageRepo`, `switchRepoBranch`, `gitUnlinkRepo`, `unitTestRun`, `runClass`, `createTransport`, `transportRelease`, `transportDelete`, `transportSetOwner`, `transportAddUser`, `fixEdits`, ATC exemptions, debugger and trace writes, `unLock`, `forceUnlock`. Use `deniedTools` for those.
 
-**allowedTransports.** `createTransport` and `resolveTransport` with `createIfMissing: true` are refused. Then the transport argument of the call (`TRANSPORT_ARGS`: `transport` on `setObjectSource`, `editObjectSource`, `setMethodSource`, `createObject`, `deleteObject`, `atcApplyQuickfix`, `gitPullRepo`, `gitCreateRepo`, `rapGenGenerate`, `createTestInclude`, `runSnippet`, `setDomainProperties`, `setDataElementProperties`, `setTextElements`, `changePackagePreview`; `transportNumber` on `transportRelease`, `transportDelete`, `transportSetOwner`, `transportAddUser`) must match a glob when present. A call without a transport argument passes this gate (local packages, or the gate has nothing to check), so combine it with `allowedPackages` when writes must stay both in a package and on a transport.
+**allowedTransports.** `createTransport` and `resolveTransport` with `createIfMissing: true` are refused. `renameExecute`, `extractMethodExecute` and `changePackageExecute` carry the transport inside the `refactoring` proposal from their preview step: the proposal's `transport` and every `affectedObjects[].transport` must match, and a proposal without a transport is refused (closed mode, like an unresolvable package). Then the transport argument of the call (`TRANSPORT_ARGS`: `transport` on `setObjectSource`, `editObjectSource`, `setMethodSource`, `createObject`, `deleteObject`, `atcApplyQuickfix`, `gitPullRepo`, `gitCreateRepo`, `rapGenGenerate`, `createTestInclude`, `runSnippet`, `setDomainProperties`, `setDataElementProperties`, `setTextElements`, `changePackagePreview`; `transportNumber` on `transportRelease`, `transportDelete`, `transportSetOwner`, `transportAddUser`) must match a glob when present. A call without a transport argument passes this gate (local packages, or the gate has nothing to check), so combine it with `allowedPackages` when writes must stay both in a package and on a transport.
 
 ### How packages are resolved and cached
 
@@ -377,7 +377,7 @@ Z-only development, local packages allowed, no releases, no abapGit:
   "user": "DEVELOPER", "password": "${env:DEV_PASSWORD}",
   "policy": {
     "allowedPackages": ["Z*", "$*"],
-    "deniedTools": ["transportRelease", "transportDelete", "deleteObject", "git*", "rapGen*"]
+    "deniedTools": ["transportRelease", "transportDelete", "deleteObject", "toolset:git", "rapGen*"]
   }
 }
 ```

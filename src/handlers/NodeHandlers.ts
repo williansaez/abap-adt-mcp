@@ -142,10 +142,7 @@ export class NodeHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get node contents: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get node contents`, error);
         }
     }
 
@@ -167,10 +164,7 @@ export class NodeHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get main programs: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get main programs`, error);
         }
     }
 }

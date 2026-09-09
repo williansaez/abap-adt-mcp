@@ -1,4 +1,4 @@
-import { evaluatePolicy, parsePolicy, globMatch, objectUrlOf, tablesInSql, summarizePolicy } from '../policy';
+import { refactoringTransports, evaluatePolicy, parsePolicy, globMatch, objectUrlOf, tablesInSql, summarizePolicy } from '../policy';
 import { readSystems } from '../systems';
 
 const ctx = (pkgs: Record<string, string | undefined> = {}) => ({
@@ -43,6 +43,37 @@ describe('evaluatePolicy gates', () => {
     expect((await evaluatePolicy(p, 'gitPullRepo', {}, ctx())).gate).toBe('deniedTools');
     expect((await evaluatePolicy(p, 'transportRelease', {}, ctx())).gate).toBe('deniedTools');
     expect((await evaluatePolicy(p, 'transportInfo', {}, ctx())).allowed).toBe(true);
+    // The trap the old docs example set: five abapGit tools are not git-prefixed.
+    expect((await evaluatePolicy(p, 'pushRepo', {}, ctx())).allowed).toBe(true);
+  });
+
+  it('deniedTools accepts toolset:<name> for every tool of a toolset', async () => {
+    const p = { deniedTools: ['toolset:git', 'toolset:rap'] };
+    for (const t of ['gitPullRepo', 'pushRepo', 'stageRepo', 'checkRepo', 'remoteRepoInfo', 'switchRepoBranch', 'rapGenGenerate']) {
+      expect((await evaluatePolicy(p, t, {}, ctx())).gate).toBe('deniedTools');
+    }
+    expect((await evaluatePolicy(p, 'getObjectSource', {}, ctx())).allowed).toBe(true);
+    expect((await evaluatePolicy({ deniedTools: ['toolset:g*'] }, 'pushRepo', {}, ctx())).gate).toBe('deniedTools');
+    expect((await evaluatePolicy({ deniedTools: ['toolset:nosuch'] }, 'pushRepo', {}, ctx())).allowed).toBe(true);
+  });
+
+  it('allowedTransports reads the transport inside refactoring proposals', async () => {
+    const p = { allowedTransports: ['DEVK9*'] };
+    const ok = { transport: 'DEVK900123', affectedObjects: [{ transport: 'DEVK900123' }] };
+    expect((await evaluatePolicy(p, 'renameExecute', { refactoring: ok }, ctx())).allowed).toBe(true);
+    expect((await evaluatePolicy(p, 'extractMethodExecute', { refactoring: JSON.stringify(ok) }, ctx())).allowed).toBe(true);
+    // Wrong transport, as object and as JSON string.
+    expect((await evaluatePolicy(p, 'renameExecute', { refactoring: { transport: 'QASK900001' } }, ctx()))).toMatchObject({ gate: 'allowedTransports' });
+    expect((await evaluatePolicy(p, 'changePackageExecute', { refactoring: JSON.stringify({ transport: 'QASK900001' }) }, ctx())).gate).toBe('allowedTransports');
+    // A wrong transport hidden in affectedObjects.
+    expect((await evaluatePolicy(p, 'renameExecute', { refactoring: { transport: 'DEVK900123', affectedObjects: [{ transport: 'QASK900001' }] } }, ctx())).gate).toBe('allowedTransports');
+    // No transport at all: closed mode refuses.
+    expect((await evaluatePolicy(p, 'renameExecute', { refactoring: { transport: '' } }, ctx())).gate).toBe('allowedTransports');
+    expect((await evaluatePolicy(p, 'extractMethodExecute', {}, ctx())).gate).toBe('allowedTransports');
+    // Preview tools stay open (they carry the transport as a top-level argument, gated by TRANSPORT_ARGS).
+    expect((await evaluatePolicy(p, 'renamePreview', { refactoring: { transport: '' } }, ctx())).allowed).toBe(true);
+    expect(refactoringTransports('not json')).toEqual([]);
+    expect(refactoringTransports({ transport: 'devk900123', affectedObjects: [{}, { transport: 'DEVK900123' }] })).toEqual(['DEVK900123']);
   });
 
   it('allowFreeSql=false blocks runQuery and SQL through tableContents', async () => {

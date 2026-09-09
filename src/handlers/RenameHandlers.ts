@@ -104,10 +104,7 @@ export class RenameHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to evaluate rename: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to evaluate rename`, error);
         }
     }
 
@@ -141,10 +138,7 @@ export class RenameHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to preview rename: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to preview rename`, error);
         }
     }
 
@@ -166,10 +160,7 @@ export class RenameHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to execute rename: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to execute rename`, error);
         }
     }
 }

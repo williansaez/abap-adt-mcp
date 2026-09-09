@@ -274,10 +274,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Syntax check failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Syntax check failed`, error);
         }
     }
     async handleSyntaxCheckCode(args: any): Promise<any> {
@@ -318,10 +315,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Syntax check failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Syntax check failed`, error);
         }
     }
 
@@ -348,10 +342,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Code completion failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Code completion failed`, error);
         }
     }
 
@@ -381,10 +372,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Find definition failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Find definition failed`, error);
         }
     }
 
@@ -436,10 +424,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Usage references failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Usage references failed`, error);
         }
     }
 
@@ -461,10 +446,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Syntax check types failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Syntax check types failed`, error);
         }
     }
 
@@ -486,10 +468,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Code completion full failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Code completion full failed`, error);
         }
     }
 
@@ -507,10 +486,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Run class failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Run class failed`, error);
         }
     }
 
@@ -532,10 +508,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Code completion element failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Code completion element failed`, error);
         }
     }
 
@@ -587,10 +560,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Usage reference snippets failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Usage reference snippets failed`, error);
         }
     }
 
@@ -612,10 +582,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Fix proposals failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Fix proposals failed`, error);
         }
     }
 
@@ -637,10 +604,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Fix edits failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Fix edits failed`, error);
         }
     }
 
@@ -662,10 +626,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Fragment mappings failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Fragment mappings failed`, error);
         }
     }
 
@@ -706,10 +667,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
         } catch (error: any) {
             if (error instanceof McpError) throw error;
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `ABAP documentation failed: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`ABAP documentation failed`, error);
         }
     }
 }

@@ -3,6 +3,7 @@ import type { ADTClient } from "abap-adt-api";
 import { performance } from 'perf_hooks';
 import { createLogger } from '../lib/logger';
 import { formatAdtError } from '../lib/adtErrorFormatting';
+import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 
 export abstract class BaseHandler {
   protected readonly adtclient: ADTClient;
@@ -43,6 +44,19 @@ export abstract class BaseHandler {
    */
   protected formatAdtError(error: unknown): string {
     return formatAdtError(error);
+  }
+
+  /**
+   * Wrap a caught SAP-side error for the host: `prefix: <formatted message>`,
+   * with the original error attached as `cause`. The dispatcher classifies the
+   * cause, not this wrapper, so the HTTP status and error code survive and an
+   * ordinary message that happens to contain "saml" or "lockhandle" no longer
+   * reads as an expired session.
+   */
+  protected adtFailure(prefix: string, error: unknown, code: ErrorCode = ErrorCode.InternalError): McpError {
+    const wrapped = new McpError(code, `${prefix}: ${formatAdtError(error)}`);
+    (wrapped as any).cause = error;
+    return wrapped;
   }
 
   protected getMetrics() {

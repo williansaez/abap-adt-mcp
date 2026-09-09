@@ -145,10 +145,7 @@ export class DiscoveryHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get feature details: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get feature details`, error);
         }
     }
 
@@ -170,10 +167,7 @@ export class DiscoveryHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get collection feature details: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get collection feature details`, error);
         }
     }
 
@@ -195,10 +189,7 @@ export class DiscoveryHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to find collection by URL: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to find collection by URL`, error);
         }
     }
 
@@ -220,10 +211,7 @@ export class DiscoveryHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to load types: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to load types`, error);
         }
     }
 
@@ -235,10 +223,7 @@ export class DiscoveryHandlers extends BaseHandler {
             return this.buildPagedArrayResponse(discovery, 'discovery', args);
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to perform ADT discovery: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to perform ADT discovery`, error);
         }
     }
 
@@ -250,10 +235,7 @@ export class DiscoveryHandlers extends BaseHandler {
             return this.buildPagedArrayResponse(discovery, 'discovery', args);
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to perform ADT core discovery: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to perform ADT core discovery`, error);
         }
     }
 
@@ -275,10 +257,7 @@ export class DiscoveryHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get ADT compatibility graph: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get ADT compatibility graph`, error);
         }
     }
 

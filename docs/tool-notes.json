@@ -616,7 +616,7 @@
   },
   "extractMethodExecute": {
     "when": "Apply the extract-method refactoring returned by `extractMethodPreview`; destructive. Then activate and rerun the unit tests (the live test plan in [docs/TESTPLAN.md](TESTPLAN.md) executed the full evaluate, preview, execute cycle this way).",
-    "returns": "`{status, result: GenericRefactoring as executed}`; `policyDenied` under `allowedPackages` (package of `adtObjectUri`). `allowedTransports` is not evaluated here: the transport sits inside the refactoring, so pick it at the preview step.",
+    "returns": "`{status, result: GenericRefactoring as executed}`; `policyDenied` under `allowedPackages` (package of `adtObjectUri`). `allowedTransports` is evaluated on the transport inside the refactoring (and on every affected object's transport); a proposal without a transport is refused when that policy is set, so pick the transport at the preview step.",
     "pitfalls": "No activation is triggered; call `activateObjects` afterwards. Until then the include is inactive, which is what `getObjectSource` shows by default.",
     "seeAlso": [
       "extractMethodPreview",
@@ -836,7 +836,7 @@
   "gitRepos": {
     "when": "List the abapGit repositories linked on the system with key, package, URL, branch and links; the repo objects it returns are what `stageRepo`, `pushRepo`, `checkRepo`, `remoteRepoInfo` and `switchRepoBranch` expect.",
     "returns": "`{status, repos: [{key, sapPackage, url, branch_name, created_by, created_at, created_email?, deserialized_by?, deserialized_email?, deserialized_at?, status?, status_text?, links: [{href, rel, type}]}]}`.",
-    "pitfalls": "The `git` toolset is gated on `/sap/bc/adt/abapgit/repos` (the abapGit ADT plugin must be installed) and is not in the `focused` preset; `deniedTools: [\"git*\"]` keeps the tools listed but refuses them on that destination.",
+    "pitfalls": "The `git` toolset is gated on `/sap/bc/adt/abapgit/repos` (the abapGit ADT plugin must be installed) and is not in the `focused` preset; `deniedTools: [\"toolset:git\"]` keeps the tools listed but refuses them on that destination (`git*` misses `pushRepo`, `stageRepo`, `checkRepo`, `remoteRepoInfo` and `switchRepoBranch`).",
     "seeAlso": [
       "gitPullRepo",
       "stageRepo",
@@ -1228,7 +1228,7 @@
   },
   "renameExecute": {
     "when": "Apply the rename previewed by `renamePreview`; destructive, it rewrites every affected object. Follow with activation, `unitTestRun` and `objectDiff` on the touched objects.",
-    "returns": "`{status, result: the RenameRefactoring as executed}`. Refused with `kind: policyDenied` when the destination's `allowedPackages` policy excludes the package of `adtObjectUri` (see README.md, Keeping it safe); `allowedTransports` is not evaluated for this tool because the transport travels inside the refactoring object, so choose it with `resolveTransport` at the `renamePreview` step.",
+    "returns": "`{status, result: the RenameRefactoring as executed}`. Refused with `kind: policyDenied` when the destination's `allowedPackages` policy excludes the package of `adtObjectUri` (see README.md, Keeping it safe); `allowedTransports` is evaluated on the transport inside the refactoring object (and on every affected object's transport), and a proposal without one is refused when that policy is set, so choose it with `resolveTransport` at the `renamePreview` step.",
     "pitfalls": "The rewritten objects are not activated by this call: run `activateObjects` or `activateByName` afterwards. The server clears its objectUrl-to-package memo after the call so later policy checks see the new state.",
     "seeAlso": [
       "renamePreview",

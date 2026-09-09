@@ -299,10 +299,7 @@ export class AtcHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get quickfix proposals: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get quickfix proposals`, error);
         }
     }
 
@@ -352,10 +349,7 @@ export class AtcHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to apply quickfix: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to apply quickfix`, error);
         }
     }
 
@@ -398,10 +392,7 @@ export class AtcHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get ATC customizing: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get ATC customizing`, error);
         }
     }
 
@@ -423,10 +414,7 @@ export class AtcHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get ATC check variant: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get ATC check variant`, error);
         }
     }
 
@@ -456,10 +444,7 @@ export class AtcHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to create ATC run: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to create ATC run`, error);
         }
     }
 
@@ -509,10 +494,7 @@ export class AtcHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get ATC worklists: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get ATC worklists`, error);
         }
     }
 
@@ -534,10 +516,7 @@ export class AtcHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get ATC users: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get ATC users`, error);
         }
     }
 
@@ -559,10 +538,7 @@ export class AtcHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get ATC exempt proposal: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get ATC exempt proposal`, error);
         }
     }
 
@@ -584,10 +560,7 @@ export class AtcHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to request ATC exemption: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to request ATC exemption`, error);
         }
     }
 
@@ -609,10 +582,7 @@ export class AtcHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to check if proposal message: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to check if proposal message`, error);
         }
     }
 
@@ -634,10 +604,7 @@ export class AtcHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get ATC contact URI: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get ATC contact URI`, error);
         }
     }
 
@@ -659,10 +626,7 @@ export class AtcHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to change ATC contact: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to change ATC contact`, error);
         }
     }
 
@@ -678,7 +642,7 @@ export class AtcHandlers extends BaseHandler {
             return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', docUri: args.docUri, documentation: capped ? text.slice(0, SAFE_OUTPUT_CHARS - 500) : text, capped }) }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(ErrorCode.InternalError, `Failed to get ATC documentation: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to get ATC documentation`, error);
         }
     }
 
@@ -703,7 +667,7 @@ export class AtcHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(ErrorCode.InternalError, `Failed to summarize ATC results: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to summarize ATC results`, error);
         }
     }
 }

@@ -134,6 +134,12 @@ function extractStatus(err: any, text: string): number | undefined {
 
 export function classifyAdtError(input: unknown, context?: AdtErrorContext): AdtErrorClassification {
   const err: any = input && typeof input === 'object' ? input : {};
+  // Handlers rethrow SAP errors as McpError("<what failed>: <message>") with the
+  // original attached as `cause`. Classify that original: it still carries the
+  // HTTP status and error code the wrapper text may have lost.
+  if (err.cause && typeof err.cause === 'object' && err.cause !== err) {
+    return classifyAdtError(err.cause, context);
+  }
   const text = [
     typeof input === 'string' ? input : '',
     err.message, err.localizedMessage, err.type, err.namespace,
@@ -154,11 +160,11 @@ export function classifyAdtError(input: unknown, context?: AdtErrorContext): Adt
   let kind: AdtErrorKind = 'unknown';
   if (err.code === 'POLICY_DENIED' || /^(?:MCP error -?\d+: )?Policy:/i.test(text) || has(/blocked by the destination policy/i)) {
     kind = 'policyDenied';
-  } else if (err.code === 'SESSION_EXPIRED' || status === 401 || has(/session (timed out|expired)|login page|identity provider|saml|logon ticket/i)) {
+  } else if (err.code === 'SESSION_EXPIRED' || status === 401 || has(/session (timed out|expired)|login page|identity provider|\bSAMLRequest\b|\bsaml (login|response|assertion|authentication)\b|logon ticket (expired|invalid|missing)/i)) {
     kind = 'sessionExpired';
   } else if (has(/csrf/i) && (status === 403 || has(/token/i))) {
     kind = 'csrf';
-  } else if (status === 412 || status === 423 || has(/invalid lock handle|lock handle (is )?(invalid|expired|not valid)|lockhandle/i)) {
+  } else if (status === 412 || status === 423 || has(/invalid lock handle|lock handle (is )?(invalid|expired|not valid)|\blockhandle\b.*(invalid|expired|not valid|stale)|(invalid|expired|stale) lockhandle/i)) {
     kind = 'staleLockHandle';
   } else if (has(/ExceptionResourceNoAccess|locked by|is being edited by|currently being processed by|enqueue|sm12|already locked/i) || err.properties?.ideUser) {
     kind = 'locked';

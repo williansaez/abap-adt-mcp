@@ -74,10 +74,7 @@ export class RevisionHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get revisions: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get revisions`, error);
         }
     }
 
@@ -128,7 +125,7 @@ export class RevisionHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(ErrorCode.InternalError, `Failed to diff revisions: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to diff revisions`, error);
         }
     }
 }

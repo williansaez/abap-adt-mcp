@@ -8,6 +8,25 @@ describe('classifyAdtError', () => {
     expect(classifyAdtError({ message: 'Failed to get object source: Request failed with status code 401' })).toMatchObject({ kind: 'sessionExpired', status: 401, nextTools: ['login', 'lock'] });
   });
 
+  it('classifies the cause a handler attached, not the wrapper text', () => {
+    // An ordinary not-found error whose text mentions SAML: the wrapper alone
+    // used to read as an expired session and trigger re-auth plus a lock wipe.
+    const cause: any = new Error('Object ZCL_SAML_HANDLER not found'); cause.status = 404;
+    const wrapped: any = new Error('Failed to get object source: Object ZCL_SAML_HANDLER not found'); wrapped.cause = cause;
+    expect(classifyAdtError(wrapped)).toMatchObject({ kind: 'notFound', status: 404 });
+    // The cause keeps the status the wrapper text lost.
+    const c401: any = new Error('SAP says no'); c401.status = 401;
+    const w401: any = new Error('Failed to read: SAP says no'); w401.cause = c401;
+    expect(classifyAdtError(w401)).toMatchObject({ kind: 'sessionExpired', status: 401 });
+    // Names containing saml or lockhandle are not session or lock errors.
+    expect(classifyAdtError({ message: 'Class ZCL_SAML_UTIL does not exist' }).kind).toBe('notFound');
+    expect(classifyAdtError({ message: 'Method GET_LOCKHANDLE not found' }).kind).toBe('notFound');
+    // Real session and lock wording still classifies.
+    expect(classifyAdtError({ message: 'Login page returned by the identity provider' }).kind).toBe('sessionExpired');
+    expect(classifyAdtError({ message: 'Redirected to SAMLRequest endpoint' }).kind).toBe('sessionExpired');
+    expect(classifyAdtError({ message: 'Error 423: invalid lockhandle' }).kind).toBe('staleLockHandle');
+  });
+
   it('detects CSRF resets', () => {
     expect(classifyAdtError({ status: 403, message: 'CSRF token validation failed' }).kind).toBe('csrf');
   });

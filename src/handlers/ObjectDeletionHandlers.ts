@@ -65,11 +65,7 @@ export class ObjectDeletionHandlers extends BaseHandler {
       };
     } catch (error: any) {
       this.trackRequest(startTime, false);
-      const detailedError = this.formatAdtError(error);
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to delete object: ${detailedError}`
-      );
+      throw this.adtFailure(`Failed to delete object`, error);
     }
   }
 }

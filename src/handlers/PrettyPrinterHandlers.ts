@@ -91,10 +91,7 @@ export class PrettyPrinterHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get pretty printer settings: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get pretty printer settings`, error);
         }
     }
 
@@ -116,10 +113,7 @@ export class PrettyPrinterHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to set pretty printer settings: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to set pretty printer settings`, error);
         }
     }
 
@@ -187,10 +181,7 @@ export class PrettyPrinterHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to format ABAP code: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to format ABAP code`, error);
         }
     }
 }

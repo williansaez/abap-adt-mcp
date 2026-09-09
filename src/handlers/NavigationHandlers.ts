@@ -158,7 +158,7 @@ export class NavigationHandlers extends BaseHandler {
             return this.ok({ direction: args.superTypes === true ? 'supertypes' : 'subtypes', count: nodes.length, hierarchy: nodes });
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(ErrorCode.InternalError, `Failed to get type hierarchy: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to get type hierarchy`, error);
         }
     }
 
@@ -185,7 +185,7 @@ export class NavigationHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(ErrorCode.InternalError, `Failed to get object structure elements: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to get object structure elements`, error);
         }
     }
 
@@ -203,7 +203,7 @@ export class NavigationHandlers extends BaseHandler {
             return { content: [{ type: 'text', text: paged }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(ErrorCode.InternalError, `Failed to get object enhancements: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to get object enhancements`, error);
         }
     }
 
@@ -232,7 +232,7 @@ export class NavigationHandlers extends BaseHandler {
             return { content: [{ type: 'text', text: flat }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(ErrorCode.InternalError, `Failed to build package tree: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to build package tree`, error);
         }
     }
 
@@ -266,7 +266,7 @@ export class NavigationHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(ErrorCode.InternalError, `Failed to compute where-used: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to compute where-used`, error);
         }
     }
 
@@ -298,7 +298,7 @@ export class NavigationHandlers extends BaseHandler {
             return { content: [{ type: 'text', text: text.length <= SAFE_OUTPUT_CHARS ? text : hardTruncateJson(payload) }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(ErrorCode.InternalError, `Failed to read CDS view ${args.name}: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to read CDS view ${args.name}`, error);
         }
     }
 
@@ -359,7 +359,7 @@ export class NavigationHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(ErrorCode.InternalError, `Failed to export package sources: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to export package sources`, error);
         }
     }
 }

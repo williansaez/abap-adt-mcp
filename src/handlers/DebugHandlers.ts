@@ -404,10 +404,7 @@ export class DebugHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get debugger listeners: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get debugger listeners`, error);
         }
     }
 
@@ -436,10 +433,7 @@ export class DebugHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to start debugger listener: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to start debugger listener`, error);
         }
     }
 
@@ -466,10 +460,7 @@ export class DebugHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to delete debugger listener: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to delete debugger listener`, error);
         }
     }
 
@@ -502,10 +493,7 @@ export class DebugHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to set breakpoints: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to set breakpoints`, error);
         }
     }
 
@@ -534,10 +522,7 @@ export class DebugHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to delete breakpoints: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to delete breakpoints`, error);
         }
     }
 
@@ -564,10 +549,7 @@ export class DebugHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to attach debugger: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to attach debugger`, error);
         }
     }
 
@@ -589,10 +571,7 @@ export class DebugHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to save debugger settings: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to save debugger settings`, error);
         }
     }
 
@@ -614,10 +593,7 @@ export class DebugHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get stack trace: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get stack trace`, error);
         }
     }
 
@@ -666,10 +642,7 @@ export class DebugHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get variables: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get variables`, error);
         }
     }
 
@@ -727,10 +700,7 @@ export class DebugHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get child variables: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get child variables`, error);
         }
     }
 
@@ -752,10 +722,7 @@ export class DebugHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to perform debug step: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to perform debug step`, error);
         }
     }
 
@@ -777,10 +744,7 @@ export class DebugHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to go to stack position: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to go to stack position`, error);
         }
     }
 
@@ -802,10 +766,7 @@ export class DebugHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to set variable value: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to set variable value`, error);
         }
     }
 }

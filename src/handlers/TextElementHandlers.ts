@@ -57,7 +57,7 @@ export class TextElementHandlers extends BaseHandler {
             return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', category, ...result }) }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(ErrorCode.InternalError, `Failed to get text elements: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to get text elements`, error);
         }
     }
 
@@ -84,7 +84,7 @@ export class TextElementHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
-            throw new McpError(ErrorCode.InternalError, `Failed to set text elements: ${this.formatAdtError(error)}`);
+            throw this.adtFailure(`Failed to set text elements`, error);
         }
     }
 }

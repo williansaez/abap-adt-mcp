@@ -64,4 +64,24 @@ describe('methodSource', () => {
     expect(findMethod(src, 'setup', 'LTC_TWO')?.startLine).toBe(7);
     expect(findMethods(src, 'setup', 'ltc_three')).toEqual([]);
   });
+
+  it('closes a block on the same line and flags a missing ENDMETHOD instead of swallowing the next method', () => {
+    const src = `CLASS zcl_b IMPLEMENTATION.
+  METHOD empty. ENDMETHOD.
+  METHOD one_liner. rv = 1. ENDMETHOD. " trailing comment with ENDMETHOD.
+  METHOD broken.
+    DATA x TYPE i.
+  METHOD next.
+    x = 2.
+  ENDMETHOD.
+ENDCLASS.`;
+    const blocks = listMethods(src);
+    expect(blocks.map(b => [b.name, b.startLine, b.endLine, b.nestedHeaderLine])).toEqual([
+      ['EMPTY', 2, 2, undefined], ['ONE_LINER', 3, 3, undefined], ['BROKEN', 4, 8, 6],
+    ]);
+    expect(findMethod(src, 'next')).toBeUndefined();
+    // Replacing a one-line block keeps the surrounding lines intact.
+    const { source } = replaceMethod(src, findMethod(src, 'empty')!, '  METHOD empty.\n    rv = 0.\n  ENDMETHOD.');
+    expect(source.split('\n').slice(1, 5)).toEqual(['  METHOD empty.', '    rv = 0.', '  ENDMETHOD.', '  METHOD one_liner. rv = 1. ENDMETHOD. " trailing comment with ENDMETHOD.']);
+  });
 });

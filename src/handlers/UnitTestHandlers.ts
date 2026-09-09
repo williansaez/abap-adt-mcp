@@ -178,10 +178,7 @@ export class UnitTestHandlers extends BaseHandler {
             return this.buildPagedItemsResponse(trimmed, args);
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to run unit test: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to run unit test`, error);
         }
     }
 
@@ -209,10 +206,7 @@ export class UnitTestHandlers extends BaseHandler {
             return this.buildPagedItemsResponse(trimmed, args);
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to evaluate unit test: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to evaluate unit test`, error);
         }
     }
 
@@ -279,10 +273,7 @@ export class UnitTestHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to get unit test markers: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to get unit test markers`, error);
         }
     }
 
@@ -308,10 +299,7 @@ export class UnitTestHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
-            throw new McpError(
-                ErrorCode.InternalError,
-                `Failed to create test include: ${this.formatAdtError(error)}`
-            );
+            throw this.adtFailure(`Failed to create test include`, error);
         }
     }
 }
