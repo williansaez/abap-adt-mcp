@@ -147,12 +147,20 @@ users that carry their own password).
 SAP_URL=https://host:44300
 SAP_CLIENT=100
 SAP_LANGUAGE=EN
+SAP_AUTH_TYPE=basic
 SAP_USER=TECH_USER
 SAP_PASSWORD=secret
 ```
 
+`SAP_AUTH_TYPE=basic` is what makes the password count. Since 2.0.1 the legacy
+single-system loader infers `basic` when `SAP_USER` and `SAP_PASSWORD` are set and
+`SAP_AUTH_TYPE` is absent (and reports the inference on stderr); an explicit
+`SAP_AUTH_TYPE=sso` with a password set is reported as unused credentials instead
+of silently opening a browser. In `systems.json` the per-entry default stays `sso`,
+so write `"authType": "basic"` on every password entry there.
+
 > Named business users on S/4HANA Public Cloud authenticate through SSO (SAML2/OIDC
-> via IAS) and **cannot** use Basic auth. For those tenants use Mode 2, or create a
+> via IAS) and **cannot** use Basic auth. For those tenants use mode `sso`, or create a
 > Communication User.
 
 ## Mode oauth: OAuth2 (S/4HANA Public Cloud)
@@ -162,8 +170,10 @@ password does not work for a normal user. The sanctioned programmatic path is an
 OAuth2 client obtained from a **Communication Arrangement**. The ADT ICF node
 already has an OAuth authenticator active, so a valid bearer token authenticates.
 
-Enable the mode by setting `SAP_AUTH_TYPE=oauth` (or simply providing
-`SAP_OAUTH_CLIENT_ID`). When enabled, `SAP_USER`/`SAP_PASSWORD` are ignored.
+Enable the mode by setting `SAP_AUTH_TYPE=oauth`. In the legacy single-system
+setup the loader also infers it when `SAP_AUTH_TYPE` is unset and
+`SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID` and `SAP_OAUTH_CLIENT_SECRET` are all
+present. When enabled, `SAP_USER`/`SAP_PASSWORD` are ignored (and reported as unused).
 
 ```env
 SAP_URL=https://myXXXXXX.s4hana.cloud.sap
