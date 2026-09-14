@@ -1,4 +1,4 @@
-import { belongsToHost, cookieHostOf } from '../browserLogin';
+import { belongsToHost, chromiumAuthArgs, cookieHostOf } from '../browserLogin';
 
 describe('browser SSO cookie host matching', () => {
   it('matches cookies against the hostname, never the host with its port', () => {
@@ -20,5 +20,26 @@ describe('browser SSO cookie host matching', () => {
     expect(belongsToHost('example.com', 'notexample.com')).toBe(false);
     // The regression: host with port never equals a cookie domain.
     expect(belongsToHost('sap.example.com', 'sap.example.com:44300')).toBe(false);
+  });
+});
+
+describe('Chromium integrated-authentication flags (Secure Login Client / Kerberos)', () => {
+  it('allowlists exactly the destination host, never a wildcard', () => {
+    expect(chromiumAuthArgs('https://sap.example.com:44300')).toEqual([
+      '--auth-server-allowlist=sap.example.com',
+      '--auth-negotiate-delegate-allowlist=sap.example.com',
+    ]);
+  });
+
+  it('drops the port and the path, as Chromium matches on host only', () => {
+    expect(chromiumAuthArgs('https://sap.example.com:8443/sap/bc/adt')).toEqual([
+      '--auth-server-allowlist=sap.example.com',
+      '--auth-negotiate-delegate-allowlist=sap.example.com',
+    ]);
+  });
+
+  it('yields no flags for an unusable url instead of throwing, so the browser still opens', () => {
+    expect(chromiumAuthArgs('not a url')).toEqual([]);
+    expect(chromiumAuthArgs('')).toEqual([]);
   });
 });

@@ -138,6 +138,72 @@ cookie harvest → `adt.login()` (CSRF ok) → `reentranceTicket()` and
 is refused unless the server is started with `SAP_ALLOW_REENTRANCE_TICKET=1`,
 because it returns a live logon credential into the conversation.
 
+### Secure Login Client and certificate logon (on-premise)
+
+The same mode is the recommended path for an on-premise system that authenticates
+users with **SAP Secure Login Client** (SLC), the desktop component of SAP Single
+Sign-On and of the SAP Secure Login Service for SAP GUI. SLC provisions a
+short-lived X.509 user certificate into the OS key store (Windows certificate
+store, macOS Keychain), normally with a **non-exportable private key**. SAP GUI
+uses it over SNC; ADT is HTTP, so the ICM consumes it as a TLS client
+certificate. Chromium reads the same OS key store, so the browser login presents
+the certificate and the server only ever holds the resulting session cookies, in
+memory. Nothing is exported, and no key material reaches this process.
+
+```json
+{
+  "ONPREM": { "url": "https://sap.example.com:44300", "client": "100", "authType": "sso" }
+}
+```
+
+What to expect at login time:
+
+- **Certificate picker.** When the ICM requests a client certificate and the key
+  store holds a matching one, Chromium shows a picker in the login window. Pick
+  the SLC certificate. To skip the picker, set the Chrome policy
+  [`AutoSelectCertificateForUrls`](https://chromeenterprise.google/policies/#AutoSelectCertificateForUrls)
+  for the SAP host (macOS: a profile under `/Library/Managed Preferences`;
+  Windows: `HKLM\SOFTWARE\Policies\Google\Chrome`). This is optional, and
+  deliberately not forced by the server: auto-selecting an identity is the
+  user's decision, not the tool's.
+- **Kerberos / SPNEGO.** The login window is launched with
+  `--auth-server-allowlist` and `--auth-negotiate-delegate-allowlist` set to the
+  destination's host only, so an SLC Kerberos token or a domain-joined machine
+  authenticates without a prompt. Integrated authentication stays off for every
+  other host.
+- **No identity-provider page.** On-premise the ADT discovery document is
+  returned directly once the certificate is accepted; the login completes as
+  soon as the session cookie appears, with no HTML in between.
+- **Session expiry** on-premise is the ABAP system login form (fields
+  `sap-user` / `sap-password`), not an identity provider page. It is recognised
+  as an expired session and triggers the automatic re-login.
+
+The ABAP system has to accept client certificates for this to work at all. The
+SAP-side checklist (STRUST, `icm/HTTPS/verify_client`, CERTRULE) is below, under
+[SAP-side setup for certificate logon](#sap-side-setup-for-certificate-logon).
+
+> A **technical user** whose certificate legitimately lives in a file (CI, an
+> unattended runner) does not need a browser: that is `authType: "cert"`, and it
+> is the on-premise counterpart of the OAuth mode. Certificates provisioned by
+> SLC are not that case: their key cannot be exported, by design.
+
+### SAP-side setup for certificate logon
+
+X.509 logon is a system configuration, not a client setting: without it the ICM
+never asks for a certificate and the browser never offers one. Ask Basis to
+confirm each item. The right-hand column is what this server reports when the
+item is missing.
+
+| Step | What | Symptom when missing |
+|---|---|---|
+| 1 | The CA that issued the user certificates (SLC / Secure Login Service, or the corporate PKI) is imported into the **SSL server Standard** PSE in **STRUST**, and the ICM was restarted. | The handshake fails, or the certificate is offered and rejected; the server reports `tlsCertificate`. |
+| 2 | **`icm/HTTPS/verify_client = 1`** (request a certificate, fall back to another logon procedure) or `= 2` (require one). Per port: `VCLIENT=1` in the `icm/server_port_<n>` entry. | No picker appears and logon falls back to a password prompt. |
+| 3 | The certificate is mapped to an ABAP user, rule-based in **CERTRULE** or explicitly in **VUSREXTID** (`EXTID_DN`). | The certificate is accepted by TLS but the logon fails: HTTP 401, classified `sessionExpired`. |
+| 4 | The **SICF** service `/sap/bc/adt` has X.509 in its logon procedure list (usually "Standard"), ahead of or alongside basic. | Same as step 3: the TLS layer is happy, ADT still asks for a password. |
+| 5 | Behind a **Web Dispatcher or reverse proxy that terminates TLS**, the certificate is forwarded in a header and the backend trusts that hop: `icm/HTTPS/trust_client_with_issuer` / `trust_client_with_subject` on the AS ABAP, `wdisp/ssl_encrypt = 1` on the dispatcher. | The logon works against the ICM directly and fails through the proxy. |
+
+Confirm with a browser first: open `https://<host>:<port>/sap/bc/adt/core/discovery?sap-client=<client>` in the same Chromium profile. If the browser reaches the discovery XML after picking the certificate, this server will too.
+
 ## Mode basic: basic auth
 
 Works for on-prem AS ABAP and for S/4HANA Cloud **Communication Users** (technical

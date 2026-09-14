@@ -38,13 +38,19 @@ interface HttpClientResponse {
 export class CookieHttpClient {
   static readonly MAX_RETRY_WAIT_MS = 5000;
 
-  /** Heuristic: a 2xx/3xx HTML document carrying a logon form or SAML/IAS markers. */
+  /**
+   * Heuristic: a 2xx/3xx HTML document carrying a logon form or SAML/IAS markers.
+   * Covers both the S/4HANA Cloud path (SAML2/OIDC via IAS answers the redirect
+   * chain with the IdP's HTML login page and a 200) and the on-premise path (an
+   * expired session on the ICM answers with the ABAP system login form, fields
+   * `sap-user` / `sap-password`, handler `sap-system-login-oninputprocessing`).
+   */
   static looksLikeLoginPage(status: number, contentType: unknown, body: string): boolean {
     if (status >= 400) return false;
     const ct = String(contentType || '').toLowerCase();
     const head = body.slice(0, 20000);
     if (!ct.includes('text/html') && !/^\s*<(!doctype html|html)/i.test(head)) return false;
-    return /SAMLRequest|SAMLResponse|j_username|sap-idp|accounts\.sap\.com|Identity Authentication|<form[^>]*(logon|login|signin|authenticate)/i.test(head);
+    return /SAMLRequest|SAMLResponse|j_username|sap-idp|accounts\.sap\.com|Identity Authentication|sap-system-login(-oninputprocessing)?|name=["']?sap-user\b|name=["']?sap-password\b|<form[^>]*(logon|login|signin|authenticate)/i.test(head);
   }
 
   private jar = new Map<string, string>();

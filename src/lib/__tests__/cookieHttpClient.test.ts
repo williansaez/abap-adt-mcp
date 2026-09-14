@@ -31,6 +31,13 @@ describe('CookieHttpClient', () => {
     expect(res.status).toBe(200);
   });
 
+  it('treats the on-premise ICM system login form as an expired session', () => {
+    const icm = '<html><body><form action="/sap/bc/adt" method="post">' +
+      '<input type="hidden" name="sap-system-login-oninputprocessing" value="onLogin"/>' +
+      '<input name="sap-user"/><input type="password" name="sap-password"/></form></body></html>';
+    expect(CookieHttpClient.looksLikeLoginPage(200, 'text/html; charset=utf-8', icm)).toBe(true);
+  });
+
   it('does not mistake ADT HTML payloads (dump text, docs) for a login page', () => {
     expect(CookieHttpClient.looksLikeLoginPage(200, 'text/html', '<html><body><h4>Header Information</h4><table><tr><td>Runtime Error</td></tr></table></body></html>')).toBe(false);
     expect(CookieHttpClient.looksLikeLoginPage(401, 'text/html', LOGIN_HTML)).toBe(false);

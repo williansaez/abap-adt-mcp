@@ -108,3 +108,34 @@ describe('classifyAdtError', () => {
     });
   });
 });
+
+describe('TLS client-certificate requests (Secure Login Client / ICM verify_client)', () => {
+  const ctx = { destination: 'ONPREM', url: 'https://sap.example.com:44300' };
+
+  it('classifies a TLS 1.3 "certificate required" alert and names both answers', () => {
+    const err: any = new Error('write EPROTO ... alert certificate required');
+    err.code = 'ERR_SSL_TLSV13_ALERT_CERTIFICATE_REQUIRED';
+    const cls = classifyAdtError(err, ctx);
+    expect(cls.kind).toBe('tlsCertificate');
+    expect(cls.hint).toMatch(/verify_client/);
+    expect(cls.hint).toMatch(/"authType": "sso"/);
+    expect(cls.hint).toMatch(/"authType": "cert"/);
+    expect(cls.hint).toMatch(/sap\.example\.com:44300/);
+  });
+
+  it('classifies the TLS 1.2 handshake-failure alert the same way', () => {
+    const err: any = new Error('Client network socket disconnected: sslv3 alert handshake failure');
+    const cls = classifyAdtError(err, ctx);
+    expect(cls.kind).toBe('tlsCertificate');
+    expect(cls.hint).toMatch(/client certificate/i);
+  });
+
+  it('keeps an unknown-issuer failure on the tls.ca hint, not the client-certificate one', () => {
+    const err: any = new Error('unable to verify the first certificate');
+    err.code = 'UNABLE_TO_VERIFY_LEAF_SIGNATURE';
+    const cls = classifyAdtError(err, ctx);
+    expect(cls.kind).toBe('tlsCertificate');
+    expect(cls.hint).toMatch(/tls\.ca/);
+    expect(cls.hint).not.toMatch(/verify_client/);
+  });
+});

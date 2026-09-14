@@ -65,6 +65,38 @@ export interface BrowserLoginOptions {
 }
 
 /**
+ * Chromium command-line flags that let an on-premise SSO logon complete without
+ * a password prompt, scoped to the destination host so nothing else on the
+ * machine is affected:
+ *
+ *  - `--auth-server-allowlist` / `--auth-negotiate-delegate-allowlist` turn on
+ *    Integrated Windows Authentication (SPNEGO/Kerberos) for that host, so a
+ *    Secure Login Client Kerberos token or a domain-joined machine authenticates
+ *    silently. Off by default in Chromium for every host, hence the allowlist.
+ *  - `--ssl-client-certificate-selection` is left at the default (a picker
+ *    appears when the OS key store holds a certificate that matches the
+ *    server's CA request). A silent pick is opt-in via the Chrome policy
+ *    `AutoSelectCertificateForUrls`, documented in docs/AUTH.md rather than
+ *    forced here: auto-selecting a certificate is the user's decision.
+ *
+ * The host is taken from the destination URL; a bad URL yields no flags rather
+ * than throwing, so a misconfiguration cannot stop the browser from opening.
+ */
+export function chromiumAuthArgs(sapUrl: string): string[] {
+  let host: string;
+  try {
+    host = new URL(sapUrl).hostname;
+  } catch {
+    return [];
+  }
+  if (!host) return [];
+  return [
+    `--auth-server-allowlist=${host}`,
+    `--auth-negotiate-delegate-allowlist=${host}`,
+  ];
+}
+
+/**
  * Open a browser at the ADT discovery URL, wait for the user to complete SSO, and
  * return the session cookies for the SAP host. Resolves once a session cookie
  * appears; rejects on timeout.
@@ -109,7 +141,7 @@ export async function browserLogin(
     headless: false,
     userDataDir,
     defaultViewport: null,
-    args: ['--no-first-run', '--no-default-browser-check'],
+    args: ['--no-first-run', '--no-default-browser-check', ...chromiumAuthArgs(sapUrl)],
   });
 
   try {

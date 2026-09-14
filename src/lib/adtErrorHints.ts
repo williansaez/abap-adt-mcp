@@ -80,12 +80,18 @@ const TLS_ISSUER_CODES = new Set(['UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'SELF_SIGNE
 const TLS_ISSUER_TEXT = /unable to verify the first certificate|self[- ]signed certificate|unable to get (local )?issuer certificate|certificate is not trusted/i;
 const TLS_NAME_TEXT = /Hostname\/IP does not match certificate's altnames/i;
 const TLS_EXPIRED_TEXT = /certificate has expired/i;
+// The server asked for a client certificate the connection did not present: a
+// TLS 1.3 "certificate required" alert, or the TLS 1.2 handshake-failure alert
+// an ICM with icm/HTTPS/verify_client sends when no client certificate arrives.
+const TLS_CLIENT_CERT_CODES = new Set(['ERR_SSL_TLSV13_ALERT_CERTIFICATE_REQUIRED', 'ERR_SSL_SSLV3_ALERT_HANDSHAKE_FAILURE']);
+const TLS_CLIENT_CERT_TEXT = /alert certificate required|sslv3 alert handshake failure|tlsv1(?:\.|3)? alert (?:certificate required|handshake failure)/i;
 
-type TlsFailure = 'issuer' | 'name' | 'expired';
+type TlsFailure = 'issuer' | 'name' | 'expired' | 'clientCert';
 
 function detectTlsFailure(code: string | undefined, text: string): TlsFailure | undefined {
   if (code === 'ERR_TLS_CERT_ALTNAME_INVALID' || TLS_NAME_TEXT.test(text)) return 'name';
   if (code === 'CERT_HAS_EXPIRED' || TLS_EXPIRED_TEXT.test(text)) return 'expired';
+  if ((code && TLS_CLIENT_CERT_CODES.has(code)) || TLS_CLIENT_CERT_TEXT.test(text)) return 'clientCert';
   if ((code && TLS_ISSUER_CODES.has(code)) || TLS_ISSUER_TEXT.test(text)) return 'issuer';
   return undefined;
 }
@@ -111,6 +117,12 @@ function tlsHint(failure: TlsFailure, text: string, ctx: AdtErrorContext | undef
     return `The certificate of ${dest} is not issued for the host in its url${detail ? ` (${detail})` : ''}. ` +
       'Verification is otherwise fine: set "tls": { "servername": "<the DNS name the certificate carries>" } on that destination in systems.json, so a system reached by IP address or short hostname is checked against the name on its certificate. ' +
       `If the issuer is also unknown, add tls.ca as well (docs/CONFIGURATION.md, "tls.servername"). ${escape}`;
+  }
+  if (failure === 'clientCert') {
+    return `${where} asked for a TLS client certificate and ${dest} presented none, so the handshake was refused (the ICM runs with icm/HTTPS/verify_client). ` +
+      'Two ways to answer it. A named user whose certificate comes from SAP Secure Login Client keeps the key in the OS key store, where Node cannot read it: use "authType": "sso" on that destination, and the browser presents the certificate for you. ' +
+      'A technical user whose certificate lives in a file uses "authType": "cert" with "tls": { "cert": "...", "key": "..." } or "tls": { "pfx": "...", "passphrase": "${env:VAR}" }. ' +
+      'See docs/AUTH.md, "Secure Login Client and certificate logon".';
   }
   if (failure === 'expired') {
     return `The certificate presented by ${dest} (${where}) has expired. No client-side setting fixes this: the SAP system's certificate has to be renewed (STRUST, SSL server PSE). ` +
