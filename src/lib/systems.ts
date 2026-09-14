@@ -19,7 +19,7 @@ import { readOAuthConfig, OAuthConfig } from './oauth.js';
 import { parsePolicy, SystemPolicy } from './policy.js';
 import { parseTlsConfig, TlsConfig } from './tls.js';
 
-export type AuthType = 'sso' | 'basic' | 'oauth';
+export type AuthType = 'sso' | 'basic' | 'oauth' | 'cert';
 
 export interface SystemConfig {
   name: string;
@@ -82,17 +82,30 @@ export function validateSystem(cfg: SystemConfig): void {
   if (cfg.authType === 'basic' && (!cfg.user || !cfg.password)) {
     throw new Error(`System "${cfg.name}": authType=basic requires user and password (use \${env:VAR} to keep them out of the file)`);
   }
+  if (cfg.authType === 'cert' && !(cfg.tls?.pfx || (cfg.tls?.cert && cfg.tls?.key))) {
+    throw new Error(
+      `System "${cfg.name}": authType=cert requires a client certificate: tls.cert plus tls.key, or tls.pfx. ` +
+      'A certificate held in the OS key store (SAP Secure Login Client) cannot be read here: use authType=sso for those.'
+    );
+  }
 }
 
-/** True when the raw config carries inline secrets (not env references). */
+/**
+ * True when the raw config carries inline secrets (not env references). A key
+ * passphrase counts, and so does a private key pasted into the file as PEM
+ * text: both are as good as a password to whoever can read the file. A path to
+ * a key file is not a secret in itself; the file's own permissions guard it.
+ */
 export function hasInlineSecrets(raw: any): boolean {
   const isRef = (v: unknown) => typeof v === 'string' && /^\$\{(?:env:)?[A-Za-z_][A-Za-z0-9_]*\}$/.test(v);
+  const isInlinePrivateKey = (v: unknown) => typeof v === 'string' && /-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(v);
   for (const entry of Object.values(raw || {})) {
     if (!entry || typeof entry !== 'object') continue;
     const e: any = entry;
-    for (const v of [e.password, e.gitPassword, e.oauth?.clientSecret]) {
+    for (const v of [e.password, e.gitPassword, e.oauth?.clientSecret, e.tls?.passphrase]) {
       if (typeof v === 'string' && v.length > 0 && !isRef(v)) return true;
     }
+    if (isInlinePrivateKey(e.tls?.key) || isInlinePrivateKey(e.tls?.pfx)) return true;
   }
   return false;
 }
@@ -115,6 +128,7 @@ function coerceAuthType(v: any, fallback: AuthType): AuthType {
   if (s === 'sso' || s === 'browser') return 'sso';
   if (s === 'basic') return 'basic';
   if (s === 'oauth') return 'oauth';
+  if (s === 'cert' || s === 'x509') return 'cert';
   return fallback;
 }
 
@@ -139,6 +153,14 @@ function fromRawEntry(name: string, raw: any, defaultAuth: AuthType): SystemConf
   if (authType === 'basic') {
     cfg.user = raw.user;
     cfg.password = raw.password;
+  } else if (authType === 'cert') {
+    // The certificate authenticates; a user name is still useful as the label
+    // abap-adt-api puts on the session, but a password here is never sent and
+    // saying so beats letting someone believe it is a fallback.
+    cfg.user = raw.user;
+    if (raw.password) {
+      console.error(`[abap-adt-mcp] System "${name}": authType=cert ignores "password"; the client certificate authenticates. Remove it from the entry.`);
+    }
   } else if (authType === 'oauth') {
     if (raw.oauth?.tokenUrl && raw.oauth?.clientId && raw.oauth?.clientSecret) {
       cfg.oauth = {
@@ -209,7 +231,7 @@ function readSystemsRaw(env: NodeJS.ProcessEnv): Map<string, SystemConfig> {
     const authType = legacyAuthType(env, defaultAuth);
     const oauth = authType === 'oauth' ? readOAuthConfig(env) : undefined;
     const map = new Map<string, SystemConfig>();
-    map.set(name, {
+    const cfg: SystemConfig = {
       name,
       url: env.SAP_URL,
       client: env.SAP_CLIENT,
@@ -218,8 +240,11 @@ function readSystemsRaw(env: NodeJS.ProcessEnv): Map<string, SystemConfig> {
       user: env.SAP_USER,
       password: env.SAP_PASSWORD,
       oauth,
+      tls: readLegacyTlsConfig(env),
       insecureTls: /^(1|true|yes)$/i.test(env.SAP_TLS_INSECURE || ''),
-    });
+    };
+    validateSystem(cfg);
+    map.set(name, cfg);
     return map;
   }
 
@@ -229,22 +254,52 @@ function readSystemsRaw(env: NodeJS.ProcessEnv): Map<string, SystemConfig> {
 }
 
 /**
+ * TLS material of the legacy single-system setup. The systems.json form takes
+ * the same values under `tls`; these variables are the flat equivalent, so a
+ * single-destination setup never has to grow a file just to name a certificate.
+ */
+export function readLegacyTlsConfig(env: NodeJS.ProcessEnv): TlsConfig | undefined {
+  return parseTlsConfig({
+    ca: env.SAP_TLS_CA,
+    cert: env.SAP_TLS_CERT,
+    key: env.SAP_TLS_KEY,
+    pfx: env.SAP_TLS_PFX,
+    passphrase: env.SAP_TLS_PASSPHRASE,
+    servername: env.SAP_TLS_SERVERNAME,
+  });
+}
+
+/** True when the environment names a client certificate (not just a CA). */
+function hasLegacyClientCert(env: NodeJS.ProcessEnv): boolean {
+  return !!(env.SAP_TLS_PFX || (env.SAP_TLS_CERT && env.SAP_TLS_KEY));
+}
+
+/**
  * Auth mode of the legacy single-system setup (SAP_URL and friends). An explicit
  * SAP_AUTH_TYPE wins. Without one, the credentials present decide: the three
- * SAP_OAUTH_* variables mean oauth, SAP_USER plus SAP_PASSWORD mean basic, and
- * nothing means sso. Credentials the chosen mode will not use are reported on
- * stderr: a password login that silently loads as sso shows the user a browser
- * window against an on-prem host and a 300 s timeout instead of an error.
+ * SAP_OAUTH_* variables mean oauth, SAP_USER plus SAP_PASSWORD mean basic, a
+ * client certificate (SAP_TLS_PFX, or SAP_TLS_CERT plus SAP_TLS_KEY) means
+ * cert, and nothing means sso. Credentials the chosen mode will not use are
+ * reported on stderr: a password login that silently loads as sso shows the
+ * user a browser window against an on-prem host and a 300 s timeout instead of
+ * an error.
+ *
+ * Order between the inferences matters. A password and a certificate together
+ * are ambiguous, and basic wins, because a certificate is also the transport
+ * for a password login behind a mutual-TLS proxy: reading it as cert would
+ * silently stop sending credentials the user clearly configured. The other way
+ * round is not symmetric, so it is reported rather than guessed.
  */
 export function legacyAuthType(env: NodeJS.ProcessEnv, defaultAuth: AuthType): AuthType {
   const raw = String(env.SAP_AUTH_TYPE || '').trim();
   const hasBasic = !!(env.SAP_USER && env.SAP_PASSWORD);
   const hasOAuth = !!(env.SAP_OAUTH_TOKEN_URL && env.SAP_OAUTH_CLIENT_ID && env.SAP_OAUTH_CLIENT_SECRET);
+  const hasCert = hasLegacyClientCert(env);
   let authType: AuthType;
   if (raw) {
     authType = coerceAuthType(raw, defaultAuth);
-    if (authType !== raw.toLowerCase() && raw.toLowerCase() !== 'browser') {
-      console.error(`SAP_AUTH_TYPE=${raw} is not one of sso, basic, oauth; using ${authType}.`);
+    if (authType !== raw.toLowerCase() && !['browser', 'x509'].includes(raw.toLowerCase())) {
+      console.error(`SAP_AUTH_TYPE=${raw} is not one of sso, basic, oauth, cert; using ${authType}.`);
     }
   } else if (hasOAuth) {
     authType = 'oauth';
@@ -252,11 +307,20 @@ export function legacyAuthType(env: NodeJS.ProcessEnv, defaultAuth: AuthType): A
   } else if (hasBasic) {
     authType = 'basic';
     console.error('SAP_AUTH_TYPE not set; using basic because SAP_USER and SAP_PASSWORD are set.');
+    if (hasCert) {
+      console.error('A client certificate is also configured: it is sent on the connection, but the logon is the password. Set SAP_AUTH_TYPE=cert for a certificate logon.');
+    }
+  } else if (hasCert) {
+    authType = 'cert';
+    console.error(`SAP_AUTH_TYPE not set; using cert because ${env.SAP_TLS_PFX ? 'SAP_TLS_PFX is' : 'SAP_TLS_CERT and SAP_TLS_KEY are'} set.`);
   } else {
     authType = 'sso';
   }
   if (authType !== 'basic' && hasBasic) {
     console.error(`SAP_USER and SAP_PASSWORD are set but the auth mode is ${authType}: the password is not used. Set SAP_AUTH_TYPE=basic for password logins.`);
+  }
+  if (authType !== 'cert' && authType !== 'basic' && hasCert) {
+    console.error(`A client certificate is configured but the auth mode is ${authType}: it is still sent on the connection, but it is not what logs the user on. Set SAP_AUTH_TYPE=cert for a certificate logon.`);
   }
   if (authType !== 'oauth' && hasOAuth) {
     console.error(`SAP_OAUTH_* variables are set but the auth mode is ${authType}: the OAuth client is not used. Set SAP_AUTH_TYPE=oauth for client-credentials logins.`);

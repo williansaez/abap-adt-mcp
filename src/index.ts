@@ -272,6 +272,14 @@ export class AbapAdtServer extends Server {
     if (sys.authType === 'sso') {
       cookieClient = new CookieHttpClient(sys.url, [], !!sys.insecureTls, client || undefined, agent);
       adtClient = new ADTClient(cookieClient as any, sys.user || 'sso', '', client, language);
+    } else if (sys.authType === 'cert') {
+      // The client certificate on the agent is the credential: the ICM logon
+      // order tries X.509 before basic, and an empty Authorization header would
+      // make it offer a password logon instead. The cookie client sends none,
+      // and keeps the SAP_SESSIONID the certificate logon returns, so the
+      // stateful session survives the way it does for SSO.
+      cookieClient = new CookieHttpClient(sys.url, [], !!sys.insecureTls, client || undefined, agent);
+      adtClient = new ADTClient(cookieClient as any, sys.user || 'cert', '', client, language);
     } else if (sys.authType === 'oauth') {
       bearerFetcher = makeBearerFetcher(sys.oauth!);
       adtClient = new ADTClient(sys.url, sys.oauth!.clientId || 'oauth', bearerFetcher, client, language, options);
@@ -393,7 +401,7 @@ export class AbapAdtServer extends Server {
       error = new Error(String(error));
     }
     const sys = destination ? this.systems.get(destination) : undefined;
-    const cls = classifyAdtError(error, { destination, url: sys?.url });
+    const cls = classifyAdtError(error, { destination, url: sys?.url, authType: sys?.authType });
     const extra = cls.kind === 'unknown' ? {} : { kind: cls.kind, httpStatus: cls.status, hint: cls.hint, nextTools: cls.nextTools };
     if (error instanceof McpError) {
       return {
@@ -413,8 +421,9 @@ export class AbapAdtServer extends Server {
   /**
    * Re-establish the SAP session of a destination after it expired mid-flow:
    * SSO re-runs the browser login (silent with a persistent profile), OAuth
-   * drops the cached bearer so a fresh token is fetched, basic simply logs in
-   * again. The stateful flag is restored because dropSession resets it.
+   * drops the cached bearer so a fresh token is fetched, cert forgets the dead
+   * session cookie and lets the client certificate log on again, basic simply
+   * logs in again. The stateful flag is restored because dropSession resets it.
    */
   private async reauthenticate(name: string): Promise<void> {
     const dest = this.getDestination(name);
@@ -426,6 +435,12 @@ export class AbapAdtServer extends Server {
       if (dest.system.authType === 'oauth') {
         dest.bearerFetcher?.invalidate();
         (dest.adtClient.httpClient as any).bearer = undefined;
+      }
+      if (dest.system.authType === 'cert') {
+        // Sending the expired SAP_SESSIONID back would ask the ICM to resume a
+        // session that is gone; emptying the jar makes the next request a fresh
+        // certificate logon.
+        dest.cookieClient?.setCookies([]);
       }
       await dest.adtClient.login();
     }

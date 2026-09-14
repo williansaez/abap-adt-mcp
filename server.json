@@ -35,7 +35,7 @@
         },
         {
           "name": "SAP_AUTH_TYPE",
-          "description": "Default auth type for entries that don't specify one: sso (default), basic, or oauth",
+          "description": "Default auth type for entries that don't specify one: sso (default), basic, oauth, or cert (X.509 client certificate)",
           "isRequired": false
         },
         {
@@ -153,6 +153,39 @@
         {
           "name": "SAP_TLS_INSECURE",
           "description": "Legacy single-system mode: set to 1 to skip TLS certificate verification for that system only (sandboxes with self-signed certificates)",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_TLS_CA",
+          "description": "Extra CA bundle (PEM path or inline PEM) for a corporate or self-signed server certificate; keeps verification on, unlike SAP_TLS_INSECURE",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_TLS_CERT",
+          "description": "X.509 client certificate (PEM path or inline PEM) presented to the ABAP system; with SAP_TLS_KEY it also selects authType cert when SAP_AUTH_TYPE is unset",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_TLS_KEY",
+          "description": "Private key for SAP_TLS_CERT (PEM path or inline PEM). Keep the file mode 0600",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "SAP_TLS_PFX",
+          "description": "PKCS#12 bundle (path) holding client certificate and key, instead of SAP_TLS_CERT/SAP_TLS_KEY",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "SAP_TLS_PASSPHRASE",
+          "description": "Passphrase for SAP_TLS_KEY or SAP_TLS_PFX",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "SAP_TLS_SERVERNAME",
+          "description": "DNS name the server certificate is verified against and sent as SNI, when the url names an IP address or short hostname",
           "isRequired": false
         },
         {

@@ -20,6 +20,8 @@ export interface AdtErrorClassification {
 export interface AdtErrorContext {
   destination?: string;
   url?: string;
+  /** The destination's auth mode, so a 401 can say what failed for that mode. */
+  authType?: string;
 }
 
 const HINTS: Record<Exclude<AdtErrorKind, 'unknown' | 'tlsCertificate'>, { hint: string; nextTools: string[] }> = {
@@ -196,5 +198,19 @@ export function classifyAdtError(input: unknown, context?: AdtErrorContext): Adt
   void lower;
 
   if (kind === 'unknown') return { kind, status };
+  // A 401 on a certificate destination is not an expired session: the
+  // handshake succeeded, so the certificate reached the ICM and the ICM did not
+  // accept it as a logon. Re-running the login changes nothing; the mapping on
+  // the SAP side is what is missing. Saying "session expired" here would send
+  // the model into a login loop.
+  if (kind === 'sessionExpired' && context?.authType === 'cert' && status === 401) {
+    return {
+      kind,
+      status,
+      hint: 'The client certificate was accepted by TLS but did not log a user on (HTTP 401). Re-authenticating will not help: the certificate is not mapped to an ABAP user, or X.509 is not in the logon procedure of /sap/bc/adt. ' +
+        'Ask Basis to check the CERTRULE rule (or the VUSREXTID entry) for this certificate\'s subject, and the SICF logon procedure. See docs/AUTH.md, "SAP-side setup for certificate logon".',
+      nextTools: ['listSystems'],
+    };
+  }
   return { kind, status, ...HINTS[kind as Exclude<AdtErrorKind, 'unknown' | 'tlsCertificate'>] };
 }

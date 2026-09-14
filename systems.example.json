@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to systems.json (gitignored) or point SAP_SYSTEMS_FILE at it. One entry per ABAP system (destination); tools take a `destination` argument naming one of these keys. Mark one entry with \"default\": true to use it when destination is omitted. Optional per-entry gitUser/gitPassword supply abapGit credentials so they never pass through the model. Optional per-entry \"policy\" block: readOnly, deniedTools (globs), allowFreeSql, deniedTables (globs), allowedPackages (globs, closed), allowedTransports (globs, no new transports). MCP_READ_ONLY=1 makes every destination read-only. Optional per-entry \"tls\": ca (extra CA bundle), cert+key or pfx+passphrase (client certificate).",
+  "_comment": "Copy to systems.json (gitignored) or point SAP_SYSTEMS_FILE at it. One entry per ABAP system (destination); tools take a `destination` argument naming one of these keys. Mark one entry with \"default\": true to use it when destination is omitted. Optional per-entry gitUser/gitPassword supply abapGit credentials so they never pass through the model. Optional per-entry \"policy\" block: readOnly, deniedTools (globs), allowFreeSql, deniedTables (globs), allowedPackages (globs, closed), allowedTransports (globs, no new transports). MCP_READ_ONLY=1 makes every destination read-only. Optional per-entry \"tls\": ca (extra CA bundle), cert+key or pfx+passphrase (client certificate). authType \"cert\" makes that client certificate the logon itself (on-prem technical users); Secure Login Client certificates live in the OS key store and cannot be read here, use authType \"sso\" for those.",
   "DEV": {
     "url": "https://myXXXXXX.s4hana.cloud.sap",
     "client": "080",
@@ -52,6 +52,22 @@
       "tokenUrl": "https://myZZZZZZ.s4hana.cloud.sap/sap/bc/sec/oauth2/token",
       "clientId": "<client id>",
       "clientSecret": "<client secret>"
+    }
+  },
+  "OnPrem-Cert": {
+    "url": "https://host:44300",
+    "client": "100",
+    "authType": "cert",
+    "user": "TECH_USER",
+    "tls": {
+      "ca": "/etc/ssl/corp-ca.pem",
+      "cert": "<client cert PEM path>",
+      "key": "<client key PEM path>"
+    },
+    "policy": {
+      "allowedPackages": [
+        "Z*"
+      ]
     }
   }
 }

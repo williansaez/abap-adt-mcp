@@ -82,8 +82,8 @@ One object per destination; the key is the name you will use in `destination` an
 | `url` | string | yes | Base URL of the system, scheme and host, port when not the default (`https://sap.example.com:44300`, `https://myXXXXXX.s4hana.cloud.sap`). No path. |
 | `client` | string or number | no | SAP client, three digits. How it is sent depends on the mode: in `sso` the cookie client pins `sap-client` on every request (the harvested cookies alone would land in the tenant's default client); in `basic` and `oauth` the ADT library sends `sap-client` on the login request that opens the SAP session (`/sap/bc/adt/compatibility/graph`), and the session cookie carries the client from then on. It is never sent to an OAuth token endpoint. Omitted means the system's default client. |
 | `language` | string | no | Logon language (`EN`), sent as `sap-language` with the login. Affects message texts and, when writing message classes with `setObjectSource`, the master language (see [docs/FIELD-NOTES.md](FIELD-NOTES.md)). |
-| `authType` | `sso`, `basic`, `oauth` | no, but write it | Defaults to `SAP_AUTH_TYPE`, otherwise `sso`; an unknown value also falls back to that default (see the trap above). `browser` is an alias of `sso`; `auth` an alias of the key. |
-| `user`, `password` | string | with `basic` | Both required for `basic`; silently dropped for the other modes (an SSO client is labelled `sso`, an OAuth client with its `clientId`). Use `${env:VAR}` for `password`. |
+| `authType` | `sso`, `basic`, `oauth`, `cert` | no, but write it | Defaults to `SAP_AUTH_TYPE`, otherwise `sso`; an unknown value also falls back to that default (see the trap above). `browser` is an alias of `sso`, `x509` of `cert`; `auth` an alias of the key. |
+| `user`, `password` | string | with `basic` | Both required for `basic`; dropped for the other modes (an SSO client is labelled `sso`, an OAuth client with its `clientId`, a certificate client `cert` or the `user` given as a label). A `password` on a `cert` entry is reported on stderr as ignored rather than dropped in silence, because it looks like a fallback and is not one. Use `${env:VAR}` for `password`. |
 | `oauth` | object | with `oauth` | `tokenUrl`, `clientId`, `clientSecret` required, `scope` optional. Client-credentials grant: `clientId:clientSecret` go to the token endpoint as HTTP Basic authentication, `scope` in the form body when set. The token is cached until 60 seconds before `expires_in` (3600 seconds when the endpoint omits it), concurrent calls share one token request, and the cache is dropped after a 401 so the retry fetches a fresh one. The token request uses Node's global `fetch`: it is not covered by the destination's `tls` block or by `insecureTls`, and it ignores `HTTPS_PROXY`. |
 | `insecureTls` | boolean | no | Disables certificate verification for this destination's ADT calls only. Announced on stderr at every start: `WARNING: TLS certificate verification disabled (insecureTls) for destination(s): NAME`. Use `tls.ca` instead whenever the certificate's names match the host (next section). |
 | `tls` | object | no | `ca`, `cert`, `key`, `pfx`, `passphrase`, `servername`. `servername` is the name the certificate is verified against (and sent as SNI) when `url` names an IP address or a short hostname; verification stays on (next section). `cert` and `key` go together; `pfx` (PKCS#12) is the alternative, with `passphrase`. The resulting `https.Agent` (keep-alive) is used for basic, OAuth and SSO API calls; the browser window of an SSO login uses its own trust store. |
@@ -273,7 +273,28 @@ When both `basic` and `oauth` are possible for a Communication User, prefer `oau
 }
 ```
 
-Or `"pfx": "/home/me/.abap-adt-mcp/dev.p12"` with `passphrase` instead of `cert`/`key`. The certificate authenticates the TLS connection to the proxy or gateway; SAP still needs its own credentials (`basic` here), unless the gateway maps the certificate to a user and the ABAP side accepts the request without a password, which is a gateway question, not a server option.
+Or `"pfx": "/home/me/.abap-adt-mcp/dev.p12"` with `passphrase` instead of `cert`/`key`. Here the certificate authenticates the TLS connection to the proxy or gateway and SAP still needs its own credentials (`basic`). When the ABAP system itself maps the certificate to a user (CERTRULE / VUSREXTID), the password becomes unnecessary and the destination is `"authType": "cert"` with the same `tls` block and no `password`: see the next recipe.
+
+### On-prem with a certificate logon, no password
+
+```json
+{
+  "ONPREM-CERT": {
+    "url": "https://sap.example.com:44300",
+    "client": "100",
+    "authType": "cert",
+    "user": "TECH_USER",
+    "tls": {
+      "ca": "/etc/ssl/corp-ca.pem",
+      "cert": "/home/me/.abap-adt-mcp/tech.crt",
+      "key": "/home/me/.abap-adt-mcp/tech.key"
+    },
+    "policy": { "allowedPackages": ["Z*"] }
+  }
+}
+```
+
+The certificate is the credential: no `password`, no browser, no token endpoint. The ABAP system must map it to a user (CERTRULE or VUSREXTID) and run with `icm/HTTPS/verify_client`; the checklist is in [docs/AUTH.md](AUTH.md#sap-side-setup-for-certificate-logon). `user` is only the session label here. A certificate held in the OS key store by SAP Secure Login Client cannot be used: its key is non-exportable, so those destinations use `"authType": "sso"` and let the browser present it.
 
 ## 3. Policy in depth
 
@@ -458,7 +479,7 @@ All variables declared in [server.json](../server.json), plus the two the server
 | `SAP_SYSTEMS_FILE` | unset | Path to the destinations file. Recommended; mode `0600`. |
 | `SAP_SYSTEMS` | unset | The same map inline. Takes precedence over the file. Secret. |
 | `SAP_DEFAULT_DESTINATION` | unset | Name used when a call omits `destination`; must be a configured entry, otherwise ignored. In legacy mode it names the implicit destination. |
-| `SAP_AUTH_TYPE` | `sso` | Default `authType` for entries without one (and for unknown values), and the mode of the legacy single-system setup. Set it to `basic` on hosts that only serve on-prem systems. In legacy mode an unset value is inferred from the credentials present (`basic` from `SAP_USER` and `SAP_PASSWORD`, `oauth` from the three `SAP_OAUTH_*` variables), with a stderr line saying so. |
+| `SAP_AUTH_TYPE` | `sso` | Default `authType` for entries without one (and for unknown values), and the mode of the legacy single-system setup. Set it to `basic` on hosts that only serve on-prem systems. In legacy mode an unset value is inferred from the credentials present (`basic` from `SAP_USER` and `SAP_PASSWORD`, `oauth` from the three `SAP_OAUTH_*` variables, `cert` from `SAP_TLS_PFX` or `SAP_TLS_CERT` plus `SAP_TLS_KEY`), with a stderr line saying so. A password and a certificate together read as `basic`. |
 
 **Policy and safety**
 
@@ -518,9 +539,10 @@ All variables declared in [server.json](../server.json), plus the two the server
 | `SAP_CLIENT`, `SAP_LANGUAGE` | Client and logon language. |
 | `SAP_USER`, `SAP_PASSWORD` | Basic credentials. `SAP_AUTH_TYPE=basic` selects them; when `SAP_AUTH_TYPE` is unset their presence selects `basic`, and under an explicit `sso` or `oauth` they are reported on stderr as unused. |
 | `SAP_TLS_INSECURE` | Disables certificate verification for that system. |
+| `SAP_TLS_CA`, `SAP_TLS_CERT`, `SAP_TLS_KEY`, `SAP_TLS_PFX`, `SAP_TLS_PASSPHRASE`, `SAP_TLS_SERVERNAME` | The flat equivalent of the `tls` block: extra CA, client certificate and key (or a PKCS#12 bundle plus its passphrase), and the name the certificate is verified against. A client certificate here also selects `cert` when `SAP_AUTH_TYPE` is unset and no password is set. |
 | `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE` | OAuth2 client. Read when `SAP_AUTH_TYPE=oauth`, or when `SAP_AUTH_TYPE` is unset and the first three are all present; a missing one under `oauth` fails with `OAuth mode requires environment variables: ...`. |
 
-Legacy mode has no `policy`, `tls` or `gitUser` equivalents (only `MCP_READ_ONLY` applies); moving to `systems.json` is the way to get them.
+Legacy mode has no `policy` or `gitUser` equivalents (only `MCP_READ_ONLY` applies); moving to `systems.json` is the way to get them. The `tls` block does have one, the `SAP_TLS_*` variables above.
 
 ## 6. HTTP transport
 

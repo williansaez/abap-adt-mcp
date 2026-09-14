@@ -1,6 +1,6 @@
 ---
 name: abap-adt-mcp-setup
-description: Install and configure the abap-adt-mcp MCP server for an MCP host (Claude Code, Claude Desktop, Cursor, VS Code): systems.json with destinations and policies, authentication modes (browser SSO for S/4HANA Cloud, basic, OAuth), toolsets, and a first health check. Use when someone wants to connect an AI agent to an SAP ABAP system through ADT.
+description: Install and configure the abap-adt-mcp MCP server for an MCP host (Claude Code, Claude Desktop, Cursor, VS Code): systems.json with destinations and policies, authentication modes (browser SSO for S/4HANA Cloud and Secure Login Client, basic, OAuth, X.509 certificate), toolsets, and a first health check. Use when someone wants to connect an AI agent to an SAP ABAP system through ADT.
 ---
 
 # Setting up abap-adt-mcp
@@ -20,7 +20,8 @@ Create `~/.abap-adt-mcp/systems.json` (mode 0600) with one entry per destination
 }
 ```
 
-- `authType`: `sso` opens a browser once per host and keeps a persistent profile (S/4HANA Cloud with IAS); `basic` for on-prem users; `oauth` with `oauth.tokenUrl/clientId/clientSecret` for a communication arrangement.
+- `authType`: `sso` opens a browser once per host and keeps a persistent profile (S/4HANA Cloud with IAS, and on-prem systems where SAP Secure Login Client holds the certificate in the OS key store); `basic` for on-prem users; `oauth` with `oauth.tokenUrl/clientId/clientSecret` for a communication arrangement; `cert` with `tls.cert`+`tls.key` (or `tls.pfx`) when a technical user's certificate is a file on disk.
+- Deciding between `sso` and `cert` on-prem: ask whose certificate it is. A named user's certificate from Secure Login Client has a non-exportable private key, so only the browser can present it, which is `sso`. A certificate you can hand over as a file belongs to a technical user, which is `cert`. Never ask anyone to export a key from their key store to make `cert` work.
 - `policy` is enforced by the server before any SAP call: `readOnly`, `deniedTools`, `allowFreeSql`, `deniedTables`, `allowedPackages`, `allowedTransports` (globs). `MCP_READ_ONLY=1` makes everything read-only. `$*` (local packages) belongs on on-prem entries only: the tested S/4HANA Public Cloud tenant refuses `$TMP`.
 - Secrets: never inline. `${env:VAR}` works in every string and a missing variable fails at startup by name. A file readable by others is refused when it holds an inline password.
 - TLS stays on. `tls.ca` adds a corporate or self-signed CA; `tls.servername` names the certificate when the system is reached by IP address or short hostname; `tls.cert`/`tls.key` or `tls.pfx` for client certificates. `insecureTls: true` is the last resort, per destination, announced at startup. `NODE_TLS_REJECT_UNAUTHORIZED=0` is ignored by the server.

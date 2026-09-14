@@ -1,8 +1,8 @@
 # Authentication
 
 The server connects to ABAP systems through the ADT (`/sap/bc/adt/...`) endpoints
-using the [`abap-adt-api`](https://www.npmjs.com/package/abap-adt-api) client. Three
-authentication modes are supported.
+using the [`abap-adt-api`](https://www.npmjs.com/package/abap-adt-api) client. Four
+authentication modes are supported: `sso`, `basic`, `oauth` and `cert`.
 
 ## Multiple systems (destinations)
 
@@ -228,6 +228,69 @@ so write `"authType": "basic"` on every password entry there.
 > Named business users on S/4HANA Public Cloud authenticate through SSO (SAML2/OIDC
 > via IAS) and **cannot** use Basic auth. For those tenants use mode `sso`, or create a
 > Communication User.
+
+## Mode cert: X.509 client certificate (on-premise, technical users)
+
+The client certificate *is* the logon: no password, no browser, no token
+endpoint. This is the on-premise counterpart of the OAuth mode, for a technical
+user whose certificate legitimately lives in a file (a CI job, an unattended
+runner, a service account issued by the corporate PKI).
+
+```json
+{
+  "ONPREM": {
+    "url": "https://sap.example.com:44300",
+    "client": "100",
+    "authType": "cert",
+    "user": "TECH_USER",
+    "tls": {
+      "ca": "/etc/ssl/corp-ca.pem",
+      "cert": "/home/me/.abap-adt-mcp/tech.crt",
+      "key": "/home/me/.abap-adt-mcp/tech.key"
+    }
+  }
+}
+```
+
+A PKCS#12 bundle works instead of the pair, and the passphrase belongs in the
+environment rather than the file:
+
+```json
+{ "tls": { "pfx": "/home/me/.abap-adt-mcp/tech.p12", "passphrase": "${env:TECH_P12_PW}" } }
+```
+
+`x509` is accepted as a spelling of `authType`. The flat single-destination form
+uses `SAP_AUTH_TYPE=cert` with `SAP_TLS_CERT` and `SAP_TLS_KEY` (or
+`SAP_TLS_PFX`), plus the optional `SAP_TLS_CA`, `SAP_TLS_PASSPHRASE` and
+`SAP_TLS_SERVERNAME`. With no `SAP_AUTH_TYPE`, a certificate pair infers `cert`
+and says so on stderr.
+
+Behaviour and limits:
+
+- The destination is **refused at startup** without a certificate: `tls.ca`
+  alone is not one, because a CA says who to trust, not who you are.
+- `user` is optional and is only a label for the session; a `password` on a
+  `cert` entry is **not** a fallback and is reported as ignored.
+- No `Authorization` header is sent. The ICM tries X.509 before basic, and an
+  empty header would push it to offer a password logon instead.
+- Certificate **and** password both configured in the flat form reads as
+  `basic`, not `cert`: a client certificate is also the transport for a password
+  login behind a mutual-TLS proxy, so dropping the password would be the more
+  surprising reading. It is reported either way.
+- Server verification stays on. `tls.ca` still answers "who signed the
+  *server's* certificate", independently of the identity you present.
+- **Secure Login Client certificates are not this mode.** Their private key is
+  non-exportable by design, so no file can hold it: those users authenticate
+  through [mode sso](#secure-login-client-and-certificate-logon-on-premise).
+
+Keep the key file at mode `0600`. A private key pasted inline as PEM text, and a
+literal `tls.passphrase`, both count as inline secrets: the server refuses to
+start when the configuration file is group- or world-readable and holds either.
+
+When the handshake succeeds but SAP answers **401**, the certificate reached the
+ICM and was not accepted as a logon: the mapping is missing, not the session.
+The error says so instead of sending the model into a login loop. See
+[SAP-side setup for certificate logon](#sap-side-setup-for-certificate-logon).
 
 ## Mode oauth: OAuth2 (S/4HANA Public Cloud)
 

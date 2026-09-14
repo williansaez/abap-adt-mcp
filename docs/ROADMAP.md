@@ -29,6 +29,7 @@ Source: `docs/ANALISE-ECOSSISTEMA-SAP-MCP.md` (research across 30+ SAP MCP proje
 | 23 | Progress notifications for long runs | done (steps + 10 s heartbeat) |
 | 24 | ATC summary by priority, historic ATC results | done (`atcSummary`); historic result listing not built: endpoint undocumented |
 | 25 | Source export in abapGit layout, `debugSession` composition | done (`exportPackageSources`); `debugSession` not built: on-prem only, no system to validate |
+| 26 | Secure Login Client and X.509 certificate logon (browser SSO for OS-key-store certificates and Kerberos; `authType: "cert"` for certificates in a file) | in 2.1.0; transport verified by test, SAP-side mapping awaiting a landscape with `icm/HTTPS/verify_client` |
 
 The earlier plan based on SAP's official documentation (`docs/IMPROVEMENTS.md`) is complete since 0.3.1 and kept for history.
 

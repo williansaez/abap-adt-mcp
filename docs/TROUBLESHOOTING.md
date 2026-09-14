@@ -86,6 +86,15 @@ Login succeeds but every object is "not authorized" or "not found": the session 
 
 Errors from `src/lib/oauth.ts` surface inside `Login failed:` or the first tool's message: `OAuth token request failed (401): ...` (wrong `clientId`/`clientSecret`, or a locked Communication User); `OAuth token request failed (404): ...` or `OAuth token endpoint returned non-JSON response` (wrong `tokenUrl`; take it from the Communication Arrangement); `OAuth token response did not contain access_token` (not an OAuth2 token endpoint). A valid token followed by `authorization` on `/sap/bc/adt/...` means the arrangement does not expose ADT ([docs/AUTH.md](AUTH.md#mode-oauth-oauth2-s4hana-public-cloud)).
 
+### Certificate (authType cert)
+
+Certificate destinations authenticate on the first call; `login` is optional and headless. Startup refuses the destination outright when no client certificate is configured (`authType=cert requires a client certificate: tls.cert plus tls.key, or tls.pfx`) and when the file is unreadable (`tls.cert: cannot read ...`). Two failures are easy to confuse, and they point at opposite halves of the setup:
+
+- **The handshake fails** (`alert certificate required`, `sslv3 alert handshake failure`, classified `tlsCertificate`): the certificate never reached ADT. Either none was presented, or the ICM does not trust its issuer. Check `tls.cert`/`tls.key` really load, and that the issuing CA is in the STRUST SSL server PSE.
+- **The handshake succeeds and SAP answers 401**: the certificate arrived and did not log anyone on. The mapping is missing (CERTRULE / VUSREXTID) or X.509 is not in the SICF logon procedure of `/sap/bc/adt`. For `cert` destinations this case gets its own hint and does **not** tell the model to log in again, because re-running the logon would present the same unmapped certificate ([docs/AUTH.md](AUTH.md#sap-side-setup-for-certificate-logon)).
+
+A `password` on a `cert` entry is reported as ignored at startup and is never sent: the certificate is the credential. Certificates provisioned by Secure Login Client cannot be used here, their key is non-exportable; those destinations use `sso`.
+
 ### Basic
 
 Basic destinations authenticate on the first call; `login` is optional. A 401 is classified `sessionExpired`, the server logs in again once, and if that fails the same error surfaces: the password, a user lock or an expired password. On S/4HANA Public Cloud a named business user with `basic` gets no 401 at all, only the identity provider's HTML: use `sso` or a Communication User ([README: Authentication](../README.md#authentication)).
