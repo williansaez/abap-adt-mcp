@@ -481,6 +481,16 @@ npm test
 
 Jest suites cover handlers, error hints, response sizing, toolsets and the catalog contract against `docs/tools.snapshot.json`; CI runs them on Node 22 and 24, builds the container image and checks that it starts and lists tools. After changing a tool description or schema, run `npm run tools:docs` and commit the regenerated `docs/TOOLS.md`, snapshot and README counts (the translated READMEs included), or CI flags them as stale; `npm run docs:check` runs the documentation hygiene gate (no customer identifiers, no em-dashes, no dead links, every environment variable declared in `server.json`). Releases are tag-driven: npm through trusted publishing (GitHub OIDC, provenance attached) plus the GHCR image. Fork, branch, open a pull request. Session reports for [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) are welcome, without customer names, tenants or transport numbers.
 
+## Collaboration
+
+This server grows with the people who run it against real landscapes and send back what they found.
+
+- [João Gementi](https://github.com/JoaoVTGementi) contributed the headless `sso2` mode: an opt-in bridge that asks a trusted local provider for a short-lived SAP logon ticket, so a named on-prem user who already authenticates through SNC connects without a browser and without a stored password. He also tightened the cookie client, which now refuses any request that would carry the SAP session off its configured origin.
+- [Alexandre Leite](https://github.com/Dregus) reported the Secure Login Client scenario that opened milestone 2.1.0 and tested the on-prem authentication paths.
+- The original `mcp-abap-abap-adt-api` server by [mario-andreschak](https://github.com/mario-andreschak) is where this project started.
+
+Found something, fixed something, or ran a mode on a landscape nobody here has? Open an issue or a pull request, and see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 [MIT](LICENSE). Built on [abap-adt-api](https://github.com/marcellourbani/abap-adt-api) by Marcello Urbani. If the project saves you time, you can [sponsor the author](https://github.com/sponsors/williansaez).

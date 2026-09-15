@@ -481,6 +481,16 @@ npm test
 
 Die Jest-Suiten decken Handler, Fehlerhinweise, Antwortgrößen, Toolsets und den Katalogvertrag gegen `docs/tools.snapshot.json` ab; die CI führt sie auf Node 22 und 24 aus, baut das Container-Image und prüft, dass es startet und Tools auflistet. Nach einer Änderung an Beschreibung oder Schema eines Tools führen Sie `npm run tools:docs` aus und committen die neu erzeugten `docs/TOOLS.md`, den Snapshot und die README-Zähler (die übersetzten READMEs eingeschlossen), sonst meldet die CI sie als veraltet; `npm run docs:check` führt die Dokumentationshygiene aus (keine Kundenkennungen, keine Geviertstriche, keine toten Links, jede Umgebungsvariable in `server.json` deklariert). Releases sind tag-gesteuert: npm per Trusted Publishing (GitHub OIDC, Provenance angehängt) plus das GHCR-Image. Forken, Branch anlegen, Pull Request öffnen. Sitzungsberichte für [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) sind willkommen, ohne Kundennamen, Tenants oder Transportnummern.
 
+## Zusammenarbeit
+
+Dieser Server wächst mit den Menschen, die ihn gegen echte Landschaften betreiben und zurückmelden, was sie gefunden haben.
+
+- [João Gementi](https://github.com/JoaoVTGementi) hat den Headless-Modus `sso2` beigetragen: eine optionale Brücke, die von einem vertrauenswürdigen lokalen Provider ein kurzlebiges SAP-Logon-Ticket anfordert, sodass ein benannter On-Prem-Benutzer, der sich bereits über SNC authentifiziert, ohne Browser und ohne gespeichertes Passwort verbindet. Er hat außerdem den Cookie-Client gehärtet, der nun jede Anfrage ablehnt, die die SAP-Sitzung aus ihrem konfigurierten Origin heraustragen würde.
+- [Alexandre Leite](https://github.com/Dregus) hat das Secure-Login-Client-Szenario gemeldet, das den Meilenstein 2.1.0 eröffnet hat, und die On-Prem-Authentifizierungswege getestet.
+- Der ursprüngliche Server `mcp-abap-abap-adt-api` von [mario-andreschak](https://github.com/mario-andreschak) ist der Ausgangspunkt dieses Projekts.
+
+Etwas gefunden, etwas behoben oder einen Modus auf einer Landschaft ausprobiert, die hier niemand hat? Öffnen Sie ein Issue oder einen Pull Request, siehe [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Lizenz
 
 [MIT](LICENSE). Aufgebaut auf [abap-adt-api](https://github.com/marcellourbani/abap-adt-api) von Marcello Urbani. Wenn das Projekt Ihnen Zeit spart, können Sie [den Autor unterstützen](https://github.com/sponsors/williansaez).

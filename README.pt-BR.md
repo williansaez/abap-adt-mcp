@@ -481,6 +481,16 @@ npm test
 
 As suítes Jest cobrem handlers, dicas de erro, dimensionamento de respostas, toolsets e o contrato do catálogo contra `docs/tools.snapshot.json`; o CI as executa em Node 22 e 24, constrói a imagem de contêiner e confere que ela inicia e lista as ferramentas. Após mudar a descrição ou o esquema de uma ferramenta, rode `npm run tools:docs` e faça commit do `docs/TOOLS.md` regenerado, do snapshot e das contagens do README (os READMEs traduzidos incluídos), ou o CI os marca como desatualizados; `npm run docs:check` roda a barreira de higiene da documentação (sem identificadores de clientes, sem travessões, sem links quebrados, toda variável de ambiente declarada em `server.json`). Os releases são guiados por tag: npm via trusted publishing (GitHub OIDC, proveniência anexada) mais a imagem GHCR. Faça fork, crie um branch, abra um pull request. Relatórios de sessão para [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) são bem-vindos, sem nomes de clientes, tenants ou números de ordem de transporte.
 
+## Colaboração
+
+Este servidor cresce com quem o roda em paisagens reais e devolve o que encontrou.
+
+- [João Gementi](https://github.com/JoaoVTGementi) contribuiu o modo headless `sso2`: uma ponte opcional que pede a um provedor local confiável um ticket de logon SAP de vida curta, para que um usuário nomeado on-prem que já se autentica por SNC conecte sem navegador e sem senha armazenada. Ele também endureceu o cliente de cookies, que agora recusa qualquer requisição que levaria a sessão SAP para fora da origem configurada.
+- [Alexandre Leite](https://github.com/Dregus) relatou o cenário do Secure Login Client que abriu o marco 2.1.0 e testou os caminhos de autenticação on-prem.
+- O servidor original `mcp-abap-abap-adt-api` de [mario-andreschak](https://github.com/mario-andreschak) é onde este projeto começou.
+
+Achou algo, corrigiu algo ou rodou um modo em uma paisagem que ninguém aqui tem? Abra uma issue ou um pull request, e veja [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Licença
 
 [MIT](LICENSE). Construído sobre [abap-adt-api](https://github.com/marcellourbani/abap-adt-api) de Marcello Urbani. Se o projeto economiza o seu tempo, você pode [patrocinar o autor](https://github.com/sponsors/williansaez).
