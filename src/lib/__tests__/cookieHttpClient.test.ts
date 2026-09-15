@@ -17,7 +17,24 @@ describe('CookieHttpClient', () => {
     const { client, request } = makeClient([{ status: 200, data: '<xml/>', headers: { 'content-type': 'application/xml' } }]);
     const res = await client.request({ url: '/sap/bc/adt/x' });
     expect(res.body).toBe('<xml/>');
-    expect(request.mock.calls[0][0]).toMatchObject({ headers: { Cookie: 'SAP_SESSIONID=abc' }, params: { 'sap-client': '100' } });
+    expect(request.mock.calls[0][0]).toMatchObject({
+      url: 'https://sap.example/sap/bc/adt/x',
+      headers: { Cookie: 'SAP_SESSIONID=abc' },
+      params: { 'sap-client': '100' },
+    });
+  });
+
+  it('allows an absolute URL only when it stays on the configured SAP origin', async () => {
+    const { client, request } = makeClient([{ status: 200, data: '<xml/>', headers: { 'content-type': 'application/xml' } }]);
+    await client.request({ url: 'https://sap.example/sap/bc/adt/x' });
+    expect(request.mock.calls[0][0].url).toBe('https://sap.example/sap/bc/adt/x');
+  });
+
+  it('rejects absolute and scheme-relative cross-origin URLs before sending the SAP cookie', async () => {
+    const { client, request } = makeClient([]);
+    await expect(client.request({ url: 'https://attacker.example/collect' })).rejects.toThrow(/cross-origin/);
+    await expect(client.request({ url: '//attacker.example/collect' })).rejects.toThrow(/cross-origin/);
+    expect(request).not.toHaveBeenCalled();
   });
 
   it('turns an IAS login page into a SESSION_EXPIRED error', async () => {

@@ -19,8 +19,56 @@ describe('systems configuration', () => {
     expect(() => validateSystem({ name: 'X', url: 'not a url', authType: 'sso' } as any)).toThrow(/valid http\(s\) URL/);
     expect(() => validateSystem({ name: 'X', url: 'https://h', client: '1', authType: 'sso' } as any)).toThrow(/3-digit/);
     expect(() => validateSystem({ name: 'X', url: 'https://h', authType: 'basic' } as any)).toThrow(/requires user and password/);
+    expect(() => validateSystem({ name: 'X', url: 'https://h', authType: 'sso2' } as any)).toThrow(/requires sso2.command/);
+    expect(() => validateSystem({
+      name: 'X', url: 'http://h', authType: 'sso2',
+      sso2: { command: '/usr/bin/provider', args: [], timeoutMs: 30_000 },
+    } as any)).toThrow(/requires an HTTPS url/);
     expect(() => readSystems({ SAP_SYSTEMS: '{}' } as any)).toThrow(/empty/);
     expect(() => readSystems({ SAP_SYSTEMS: JSON.stringify({ DEV: { ...base, url: 'ftp://x' } }) } as any)).toThrow(/DEV/);
+  });
+
+  it('parses an opt-in SSO2 provider without changing the existing auth modes', () => {
+    const command = path.resolve('/opt/local/bin/sap-sso2-provider');
+    const systems = readSystems({ SAP_SYSTEMS: JSON.stringify({
+      QAS: {
+        url: 'https://sap.example.com:44300', client: '100', authType: 'sso2',
+        sso2: { command, args: ['--system', 'QAS', '--user', 'DEVELOPER'], timeoutMs: 15_000 },
+      },
+      DEV: { url: 'https://dev.example.com:44300', client: '100', authType: 'sso' },
+    }) } as any);
+    expect(systems.get('QAS')).toMatchObject({
+      authType: 'sso2', sso2: { command, args: ['--system', 'QAS', '--user', 'DEVELOPER'], timeoutMs: 15_000 },
+    });
+    expect(systems.get('DEV')!.authType).toBe('sso');
+
+    const legacy = readSystems({
+      SAP_URL: 'https://sap.example.com:44300', SAP_CLIENT: '100', SAP_AUTH_TYPE: 'sso2',
+      SAP_SSO2_COMMAND: command, SAP_SSO2_ARGS: '["--system","QAS"]', SAP_SSO2_TIMEOUT_MS: '20000',
+      SAP_SYSTEMS_FILE: '/nonexistent/systems.json',
+    } as any).get('default')!;
+    expect(legacy).toMatchObject({
+      authType: 'sso2', sso2: { command, args: ['--system', 'QAS'], timeoutMs: 20_000 },
+    });
+  });
+
+  it('rejects unsafe or malformed SSO2 provider configuration', () => {
+    const entry = (sso2: any) => ({ SAP_SYSTEMS: JSON.stringify({
+      X: { url: 'https://sap.example.com:44300', authType: 'sso2', sso2 },
+    }) } as any);
+    expect(() => readSystems(entry({ command: 'provider-on-path' }))).toThrow(/absolute executable path/);
+    expect(() => readSystems(entry({ command: '/usr/bin/provider', args: '--system QAS' }))).toThrow(/array of strings/);
+    expect(() => readSystems(entry({ command: '/usr/bin/provider', timeoutMs: 999 }))).toThrow(/1000 to 300000/);
+    expect(() => readSystems({ SAP_SYSTEMS: JSON.stringify({
+      X: {
+        url: 'http://sap.example.com:8000', authType: 'sso2',
+        sso2: { command: '/usr/bin/provider' },
+      },
+    }) } as any)).toThrow(/requires an HTTPS url/);
+    expect(() => readSystems({
+      SAP_URL: 'https://sap.example.com:44300', SAP_AUTH_TYPE: 'sso2', SAP_SSO2_COMMAND: '/usr/bin/provider',
+      SAP_SSO2_ARGS: 'not-json', SAP_SYSTEMS_FILE: '/nonexistent/systems.json',
+    } as any)).toThrow(/SAP_SSO2_ARGS must be a JSON array/);
   });
 
   it('legacy SAP_URL setup infers the auth mode from the credentials present', () => {

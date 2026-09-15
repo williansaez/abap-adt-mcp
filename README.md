@@ -99,7 +99,7 @@ Create a folder `.abap-adt-mcp` in your home directory and a file `systems.json`
 }
 ```
 
-The pattern for any productive or test system is the `PRD` entry: add `"policy": { "readOnly": true }` and the server refuses every write there, whatever the model is asked. `sso` opens a real browser once for S/4HANA Cloud named users; `basic` is for on-prem users and Communication Users; `oauth` is for unattended clients. `${env:VAR}` pulls a secret from the environment so it never sits in the file, `policy` is enforced by the server, and `tls.ca` adds a corporate CA with verification kept on (`tls.servername` names the certificate when the system is reached by IP address). `$*` (local packages) is listed only on the on-prem entry because the tested Public Cloud tenant refuses `$TMP`.
+The pattern for any productive or test system is the `PRD` entry: add `"policy": { "readOnly": true }` and the server refuses every write there, whatever the model is asked. `sso` opens a real browser once for S/4HANA Cloud named users; `sso2` optionally accepts an ephemeral ticket from a trusted local SNC/RFC provider for headless on-prem access; `basic` is for on-prem users and Communication Users; `oauth` is for unattended clients. `${env:VAR}` pulls a secret from the environment so it never sits in the file, `policy` is enforced by the server, and `tls.ca` adds a corporate CA with verification kept on (`tls.servername` names the certificate when the system is reached by IP address). `$*` (local packages) is listed only on the on-prem entry because the tested Public Cloud tenant refuses `$TMP`.
 
 If you have a terminal, restrict the file to your user:
 
@@ -270,6 +270,7 @@ Every destination picks its own `authType` (`sso` unless `SAP_AUTH_TYPE` says ot
 | Mode | Use it for | What you configure | SAP-side setup |
 |---|---|---|---|
 | `sso` (default) | S/4HANA Cloud named users, exactly like Eclipse ADT (SAML2/OIDC via IAS) | A Chromium browser (Chrome, Edge, Brave) opens once per host; the session cookies are read over the DevTools protocol and kept in memory, with `sap-client` pinned on every request. The identity-provider session lives in a dedicated profile under `~/.abap-adt-mcp/sso/<host>` (mode `0700`). `SAP_BROWSER_PATH` overrides the browser, `SAP_BROWSER_PROFILE_DIR` reuses a custom profile with saved passkeys (the browser's default profile is rejected on purpose). | None beyond the developer business role your user already needs for Eclipse ADT |
+| `sso2` | Headless on-prem named users when an approved local SNC/RFC bridge can issue a short-lived ticket | An absolute provider command, argument array and timeout. It returns `{"ticket":"..."}`; output is never logged and the `MYSAPSSO2` cookie stays in memory. | SNC mapping plus ticket issuance/acceptance and ADT ICF logon configured by Basis; availability is release/policy dependent |
 | `basic` | On-prem AS ABAP, S/4HANA Cloud Communication Users | `user` and `password` (use `${env:VAR}`). Authenticates on the first call, `login` is optional. | A user with ADT authorizations |
 | `oauth` | S/4HANA Cloud unattended clients | `oauth.tokenUrl`, `oauth.clientId`, `oauth.clientSecret`, optional `oauth.scope` (client credentials grant; the token is cached until shortly before expiry and invalidated on a 401). | A Communication User, a Communication System with OAuth 2.0, and a Communication Arrangement for the scenario that exposes ADT on your tenant (it varies by tenant and is not listed here; the arrangement gives the token endpoint). The tools then run with the Communication User's authorizations. |
 
@@ -314,7 +315,7 @@ Fields: `ts`, `requestId`, `tool`, `destination`, `durationMs`, `outcome` (`ok`,
 
 | Topic | S/4HANA Cloud (public edition) | On-prem / private |
 |---|---|---|
-| Authentication | Named users: browser SSO only. Unattended: OAuth2 from a Communication Arrangement, or basic auth with a Communication User. | Basic auth; client certificates through `tls`. |
+| Authentication | Named users: browser SSO only. Unattended: OAuth2 from a Communication Arrangement, or basic auth with a Communication User. | Basic auth; client certificates through `tls`; optional headless `sso2` through a trusted local SNC/RFC ticket provider. |
 | Local objects | `$TMP` was refused on the tested tenant (authorization object S_ABPLNGVS: objects in `$TMP` get the Standard language version); use a customer package with ABAP for Cloud Development and its transport, `resolveTransport` picks it. `runSnippet` needs `packageName`, `transport` and `responsible` there. | `$TMP` available, no transport needed; `runSnippet` defaults to `$TMP`. |
 | Toolsets | RAP generator absent on the tested tenant; debugger, traces and abapGit depend on the tenant and authorizations. `dumps`/`dumpDetails` are the root-cause path when the debugger is missing. `sourceTextSearch` falls back to `grepPackage` when the tenant answers "Source Search is not supported". | Full ADT collection set on a current release. |
 | Released APIs | `apiReleaseState` checks names, an object URL or a whole source; ATC variant `ABAP_CLOUD_DEVELOPMENT_DEFAULT`. `createObject` needs `responsible`. | Optional. |
@@ -326,9 +327,9 @@ Lessons that apply everywhere: `runQuery` statements are wrapped to the data pre
 
 Every option with its default, the policy gates tool by tool, host snippets and operational notes are in [docs/CONFIGURATION.md](docs/CONFIGURATION.md); this section is the summary.
 
-Configuration sources, in order of precedence: `SAP_SYSTEMS` (inline JSON), `SAP_SYSTEMS_FILE`, a `systems.json` next to the install, then the legacy single-system variables (`SAP_URL`, `SAP_CLIENT`, `SAP_USER`, `SAP_PASSWORD`, `SAP_LANGUAGE`, `SAP_TLS_INSECURE`, `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE`, see [.env.example](.env.example)).
+Configuration sources, in order of precedence: `SAP_SYSTEMS` (inline JSON), `SAP_SYSTEMS_FILE`, a `systems.json` next to the install, then the legacy single-system variables (`SAP_URL`, `SAP_CLIENT`, `SAP_USER`, `SAP_PASSWORD`, `SAP_LANGUAGE`, `SAP_TLS_INSECURE`, `SAP_SSO2_COMMAND`, `SAP_SSO2_ARGS`, `SAP_SSO2_TIMEOUT_MS`, `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE`, see [.env.example](.env.example)).
 
-Per-destination keys in `systems.json`: `url`, `client`, `language`, `authType`, `default`, `user`/`password` (basic), `oauth` (`tokenUrl`, `clientId`, `clientSecret`, `scope`), `insecureTls`, `gitUser`/`gitPassword`, `policy` and `tls` (`ca`, `servername`, `cert` + `key`, `pfx` + `passphrase`). Any string value may be `${env:VAR}`. Keys starting with `_` are ignored, so `_comment` entries are fine. All operational output (startup warnings, gate messages, the audit-file warning) goes to stderr, which MCP hosts capture in their logs.
+Per-destination keys in `systems.json`: `url`, `client`, `language`, `authType`, `default`, `user`/`password` (basic), `sso2` (`command`, `args`, `timeoutMs`), `oauth` (`tokenUrl`, `clientId`, `clientSecret`, `scope`), `insecureTls`, `gitUser`/`gitPassword`, `policy` and `tls` (`ca`, `servername`, `cert` + `key`, `pfx` + `passphrase`). Any string value may be `${env:VAR}`. Keys starting with `_` are ignored, so `_comment` entries are fine. All operational output (startup warnings, gate messages, the audit-file warning) goes to stderr, which MCP hosts capture in their logs.
 
 Every variable declared in [server.json](server.json):
 
@@ -337,7 +338,7 @@ Every variable declared in [server.json](server.json):
 | `SAP_SYSTEMS_FILE` | Path to the destinations file | Recommended; keep mode `0600` |
 | `SAP_SYSTEMS` | The same map inline | Contains credentials, prefer the file |
 | `SAP_DEFAULT_DESTINATION` | Destination used when a call omits `destination` | Or mark an entry `"default": true` |
-| `SAP_AUTH_TYPE` | Default auth type for entries without one, and the mode of the legacy single-system setup | `sso`; `basic` or `oauth` |
+| `SAP_AUTH_TYPE` | Default auth type for entries without one, and the mode of the legacy single-system setup | `sso`; `sso2`, `basic` or `oauth` |
 | `MCP_TOOLSETS` | Toolsets to publish: preset `all` or `focused`, or a comma list | `all` |
 | `MCP_DISABLED_TOOLSETS` | Toolsets to hide, comma list | `core` cannot be disabled |
 | `MCP_READ_ONLY` | `1` makes every destination read-only, server-side | Off |
@@ -349,6 +350,9 @@ Every variable declared in [server.json](server.json):
 | `SAP_ALLOW_REENTRANCE_TICKET` | `1` enables the `reentranceTicket` tool | Disabled |
 | `SAP_BROWSER_PATH` | SSO: path to a Chromium, Chrome or Edge binary | Auto-detected |
 | `SAP_BROWSER_PROFILE_DIR` | SSO: persistent browser profile holding the identity-provider session | `~/.abap-adt-mcp/sso/<host>` |
+| `SAP_SSO2_COMMAND` | Legacy single-system `sso2`: absolute path to the trusted ticket provider | Required for this mode |
+| `SAP_SSO2_ARGS` | Legacy single-system `sso2`: provider arguments as a JSON array | `[]`; never put a ticket here |
+| `SAP_SSO2_TIMEOUT_MS` | Legacy single-system `sso2`: provider timeout | 30000; range 1000–300000 |
 | `MCP_HTTP_PORT` | Serve Streamable HTTP on `http://127.0.0.1:<port>/mcp` with bearer auth instead of stdio | Unset (stdio); accepts 1024 to 65535 |
 | `MCP_HTTP_HOST` | Bind address of the HTTP transport | `127.0.0.1`; `0.0.0.0` only in containers |
 | `MCP_HTTP_TOKEN` | Bearer token for the HTTP transport | Generated into `~/.abap-adt-mcp/http-token` |
