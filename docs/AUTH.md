@@ -183,6 +183,10 @@ Provider contract and security properties:
 - The destination URL must use HTTPS. Configuration loading rejects `http://`
   for `authType: "sso2"`, and the cookie client rejects any request URL that
   resolves outside the configured SAP origin before attaching `MYSAPSSO2`.
+- `insecureTls` (and `SAP_TLS_INSECURE`) is refused on an `sso2` destination.
+  Encryption without verification means the ticket goes to whoever answers on
+  that name, so the pair is rejected at startup: a destination with a private
+  certificate authority gets `tls.ca` instead.
 
 A provider based on SAP NW RFC SDK can open an RFC client connection through SNC
 with `SNC_SSO=1` and `GETSSO2=1`, then call `RfcGetPartnerSSOTicket()`. Issuance is

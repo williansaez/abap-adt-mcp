@@ -71,6 +71,27 @@ describe('systems configuration', () => {
     } as any)).toThrow(/SAP_SSO2_ARGS must be a JSON array/);
   });
 
+  it('refuses an SSO2 destination whose TLS verification is off, in both config forms', () => {
+    expect(() => readSystems({ SAP_SYSTEMS: JSON.stringify({
+      X: {
+        url: 'https://sap.example.com:44300', authType: 'sso2', insecureTls: true,
+        sso2: { command: '/usr/bin/provider' },
+      },
+    }) } as any)).toThrow(/cannot be combined with insecureTls/);
+    // The legacy variables were not validated at all before, so an SSO2 ticket
+    // could reach a plaintext or unverified host through SAP_URL.
+    expect(() => readSystems({
+      SAP_URL: 'https://sap.example.com:44300', SAP_AUTH_TYPE: 'sso2',
+      SAP_SSO2_COMMAND: '/usr/bin/provider', SAP_TLS_INSECURE: '1',
+      SAP_SYSTEMS_FILE: '/nonexistent/systems.json',
+    } as any)).toThrow(/cannot be combined with insecureTls/);
+    expect(() => readSystems({
+      SAP_URL: 'http://sap.example.com:8000', SAP_AUTH_TYPE: 'sso2',
+      SAP_SSO2_COMMAND: '/usr/bin/provider',
+      SAP_SYSTEMS_FILE: '/nonexistent/systems.json',
+    } as any)).toThrow(/requires an HTTPS url/);
+  });
+
   it('legacy SAP_URL setup infers the auth mode from the credentials present', () => {
     const warn = jest.spyOn(console, 'error').mockImplementation(() => {});
     const url = 'https://sap.example.com:44300';

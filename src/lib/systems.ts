@@ -101,6 +101,13 @@ export function validateSystem(cfg: SystemConfig): void {
   if (cfg.authType === 'sso2' && parsedUrl.protocol !== 'https:') {
     throw new Error(`System "${cfg.name}": authType=sso2 requires an HTTPS url so the ticket is never sent in plaintext`);
   }
+  // HTTPS alone is not the guarantee: with verification off, anything that can
+  // answer on that name collects a live logon ticket. The other modes can be
+  // told to trust a self-signed test host; a ticket is a credential this server
+  // hands over before it knows who it is talking to, so the pair is refused.
+  if (cfg.authType === 'sso2' && cfg.insecureTls) {
+    throw new Error(`System "${cfg.name}": authType=sso2 cannot be combined with insecureTls; the ticket would be handed to an unverified server. Give the destination its CA bundle with tls.ca instead`);
+  }
 }
 
 /** True when the raw config carries inline secrets (not env references). */
@@ -260,7 +267,7 @@ function readSystemsRaw(env: NodeJS.ProcessEnv): Map<string, SystemConfig> {
       timeoutMs: env.SAP_SSO2_TIMEOUT_MS,
     }, name) : undefined;
     const map = new Map<string, SystemConfig>();
-    map.set(name, {
+    const cfg: SystemConfig = {
       name,
       url: env.SAP_URL,
       client: env.SAP_CLIENT,
@@ -271,7 +278,12 @@ function readSystemsRaw(env: NodeJS.ProcessEnv): Map<string, SystemConfig> {
       oauth,
       sso2,
       insecureTls: /^(1|true|yes)$/i.test(env.SAP_TLS_INSECURE || ''),
-    });
+    };
+    // The map form has always been validated here; the legacy variables were
+    // not, so the rules that keep a ticket off a plaintext or unverified
+    // connection would have applied to systems.json only.
+    validateSystem(cfg);
+    map.set(name, cfg);
     return map;
   }
 
