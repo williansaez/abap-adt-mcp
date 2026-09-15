@@ -21,6 +21,7 @@ import { makeBearerFetcher, BearerFetcher } from './lib/oauth.js';
 import https from 'https';
 import { CookieHttpClient } from './lib/cookieHttpClient.js';
 import { browserLogin } from './lib/browserLogin.js';
+import { getSso2Cookies } from './lib/sso2TicketProvider.js';
 import { readSystems, defaultDestination, SystemConfig } from './lib/systems.js';
 import { classifyAdtError } from './lib/adtErrorHints.js';
 import { TOOL_ROUTES, HandlerKey, toolAnnotations, resolveToolsets, ToolsetSelection, TOOLSETS } from './toolManifest.js';
@@ -149,7 +150,7 @@ interface Destination {
   httpsAgent: https.Agent;
   handlers: HandlerSet;
   loggedIn: boolean;
-  /** In-flight SSO login, shared by concurrent callers so only one browser opens. */
+  /** In-flight SSO login, shared by concurrent callers so only one login runs. */
   loginInFlight?: Promise<void>;
   profile?: Promise<SystemProfile>;
   /** objectUrl -> package (DEVCLASS), filled lazily for allowedPackages checks. */
@@ -269,9 +270,9 @@ export class AbapAdtServer extends Server {
 
     const agent = buildHttpsAgent(sys.tls, sys.insecureTls);
     const options = { httpsAgent: agent };
-    if (sys.authType === 'sso') {
+    if (sys.authType === 'sso' || sys.authType === 'sso2') {
       cookieClient = new CookieHttpClient(sys.url, [], !!sys.insecureTls, client || undefined, agent);
-      adtClient = new ADTClient(cookieClient as any, sys.user || 'sso', '', client, language);
+      adtClient = new ADTClient(cookieClient as any, sys.user || sys.authType, '', client, language);
     } else if (sys.authType === 'oauth') {
       bearerFetcher = makeBearerFetcher(sys.oauth!);
       adtClient = new ADTClient(sys.url, sys.oauth!.clientId || 'oauth', bearerFetcher, client, language, options);
@@ -329,16 +330,23 @@ export class AbapAdtServer extends Server {
     return dest;
   }
 
-  /** Ensure the destination is authenticated. SSO opens a browser; other modes
-   *  authenticate lazily on the first request, so this is a no-op for them. */
+  /** Ensure a cookie-authenticated destination has a session. Browser SSO opens
+   *  Chromium; SSO2 calls the configured local ticket provider. */
   private async ensureLogin(name: string, force: boolean): Promise<void> {
     const dest = this.getDestination(name);
-    if (dest.system.authType !== 'sso') return;
+    if (dest.system.authType !== 'sso' && dest.system.authType !== 'sso2') return;
     if (dest.loggedIn && !force) return;
     if (dest.loginInFlight && !force) return dest.loginInFlight;
     dest.loginInFlight = (async () => {
-      reportProgress(`opening the browser for SSO login to ${name}; complete the login if a window appears`);
-      const cookies = await browserLogin(dest.system.url, dest.system.client);
+      const cookies = dest.system.authType === 'sso'
+        ? await (async () => {
+          reportProgress(`opening the browser for SSO login to ${name}; complete the login if a window appears`);
+          return browserLogin(dest.system.url, dest.system.client);
+        })()
+        : await (async () => {
+          reportProgress(`obtaining a short-lived SSO2 ticket for ${name} from the configured local provider`);
+          return getSso2Cookies(dest.system.sso2!);
+        })();
       dest.cookieClient!.setCookies(cookies);
       await dest.adtClient.login();
       dest.loggedIn = true;
@@ -412,13 +420,13 @@ export class AbapAdtServer extends Server {
 
   /**
    * Re-establish the SAP session of a destination after it expired mid-flow:
-   * SSO re-runs the browser login (silent with a persistent profile), OAuth
-   * drops the cached bearer so a fresh token is fetched, basic simply logs in
-   * again. The stateful flag is restored because dropSession resets it.
+   * Browser SSO re-runs the browser login (silent with a persistent profile),
+   * SSO2 obtains a fresh ticket, OAuth drops the cached bearer, and basic logs
+   * in again. The stateful flag is restored because dropSession resets it.
    */
   private async reauthenticate(name: string): Promise<void> {
     const dest = this.getDestination(name);
-    if (dest.system.authType === 'sso') {
+    if (dest.system.authType === 'sso' || dest.system.authType === 'sso2') {
       dest.loggedIn = false;
       await this.ensureLogin(name, true);
     } else {
@@ -676,12 +684,12 @@ export class AbapAdtServer extends Server {
         }
       }
 
-      // Explicit login for SSO destinations.
-      if (name === 'login' && dest.system.authType === 'sso') {
+      // Explicit login for cookie-authenticated destinations.
+      if (name === 'login' && (dest.system.authType === 'sso' || dest.system.authType === 'sso2')) {
         await this.ensureLogin(destination, true);
-        return { status: `logged in to ${destination} via browser SSO` };
+        return { status: `logged in to ${destination} via ${dest.system.authType === 'sso' ? 'browser SSO' : 'headless SSO2'}` };
       }
-      // Otherwise ensure the SSO session exists before the call.
+      // Otherwise ensure the cookie-authenticated session exists before the call.
       if (name !== 'logout') {
         await this.ensureLogin(destination, false);
       }
@@ -778,6 +786,8 @@ export class AbapAdtServer extends Server {
       console.error(`[abap-adt-mcp] WARNING: HTTP transport bound to ${opts.host}, reachable beyond this machine. Keep the bearer token secret, restrict MCP_HTTP_ALLOWED_ORIGINS/HOSTS and put TLS in front.`);
       const sso = [...this.systems.values()].filter(s => s.authType === 'sso').map(s => s.name);
       if (sso.length) console.error(`[abap-adt-mcp] WARNING: destination(s) ${sso.join(', ')} use browser SSO: every remote caller shares the browser login of the user running this server. Prefer basic/oauth destinations for a shared HTTP server.`);
+      const sso2 = [...this.systems.values()].filter(s => s.authType === 'sso2').map(s => s.name);
+      if (sso2.length) console.error(`[abap-adt-mcp] WARNING: destination(s) ${sso2.join(', ')} use a local SSO2 provider: every remote caller shares the SAP identity of the user running this server. Prefer one server instance per person.`);
     }
     // Every MCP session gets its own server instance: separate SAP sessions,
     // lock ledgers and caches per caller.

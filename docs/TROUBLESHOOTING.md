@@ -68,7 +68,7 @@ A TLS handshake failure reaches the model as `kind: "tlsCertificate"` with a hin
 | `Hostname/IP does not match certificate's altnames: IP: 10.1.2.3 is not in the cert's list: DNS:sapdev.corp.example.com` | Is it for this name | `tls.servername` set to the `DNS:` name the message quotes ([docs/CONFIGURATION.md](CONFIGURATION.md#tlsservername-a-system-reached-by-ip-address-or-short-hostname)). The CA may be right already; this failure is about the name in `url`, not the issuer. |
 | `certificate has expired` | Is it still valid | Nothing on the client side. Basis renews the SSL server PSE in `STRUST`. |
 
-`insecureTls: true` connects in all three cases by not asking any of the questions; it is announced on stderr at every start and shown by `listSystems` as `verification disabled`. It belongs on a throwaway sandbox and nowhere else. `NODE_TLS_REJECT_UNAUTHORIZED=0` is removed at startup and does nothing here ([Startup failures](#startup-failures)).
+`insecureTls: true` connects in all three cases by not asking any of the questions; it is announced on stderr at every start and shown by `listSystems` as `verification disabled`. It belongs on a throwaway sandbox and nowhere else, and an `sso2` destination refuses it at startup, because a logon ticket handed to an unverified server is handed to whoever answers on that name. `NODE_TLS_REJECT_UNAUTHORIZED=0` is removed at startup and does nothing here ([Startup failures](#startup-failures)).
 
 ## Login problems by auth type
 

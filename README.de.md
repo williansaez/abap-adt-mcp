@@ -99,7 +99,7 @@ Legen Sie in Ihrem Benutzerverzeichnis einen Ordner `.abap-adt-mcp` an und darin
 }
 ```
 
-Das Muster für jedes Produktiv- oder Testsystem ist der Eintrag `PRD`: fügen Sie `"policy": { "readOnly": true }` hinzu, und der Server lehnt dort jeden Schreibzugriff ab, was auch immer das Modell gefragt wird. `sso` öffnet einmal einen echten Browser für benannte Benutzer auf S/4HANA Cloud; `basic` ist für On-Premise-Benutzer und Communication Users; `oauth` ist für unbeaufsichtigte Clients. `${env:VAR}` holt ein Geheimnis aus der Umgebung, damit es nie in der Datei steht, `policy` wird vom Server durchgesetzt, und `tls.ca` ergänzt eine Unternehmens-CA bei eingeschalteter Prüfung (`tls.servername` benennt das Zertifikat, wenn das System über eine IP-Adresse erreicht wird). `$*` (lokale Pakete) steht nur im On-Premise-Eintrag, weil der getestete Public-Cloud-Tenant `$TMP` ablehnt.
+Das Muster für jedes Produktiv- oder Testsystem ist der Eintrag `PRD`: fügen Sie `"policy": { "readOnly": true }` hinzu, und der Server lehnt dort jeden Schreibzugriff ab, was auch immer das Modell gefragt wird. `sso` öffnet einmal einen echten Browser für benannte Benutzer auf S/4HANA Cloud; `sso2` akzeptiert optional ein kurzlebiges Ticket von einem vertrauenswürdigen lokalen SNC/RFC-Provider für Headless-On-Premise-Zugriff; `basic` ist für On-Premise-Benutzer und Communication Users; `oauth` ist für unbeaufsichtigte Clients. `${env:VAR}` holt ein Geheimnis aus der Umgebung, damit es nie in der Datei steht, `policy` wird vom Server durchgesetzt, und `tls.ca` ergänzt eine Unternehmens-CA bei eingeschalteter Prüfung (`tls.servername` benennt das Zertifikat, wenn das System über eine IP-Adresse erreicht wird). `$*` (lokale Pakete) steht nur im On-Premise-Eintrag, weil der getestete Public-Cloud-Tenant `$TMP` ablehnt.
 
 Wenn Sie ein Terminal haben, beschränken Sie die Datei auf Ihren Benutzer:
 
@@ -270,6 +270,7 @@ Jede Destination wählt ihren `authType` (`sso`, sofern `SAP_AUTH_TYPE` nichts a
 | Modus | Wofür | Was Sie konfigurieren | SAP-seitige Einrichtung |
 |---|---|---|---|
 | `sso` (Standard) | Benannte Benutzer auf S/4HANA Cloud, genau wie Eclipse ADT (SAML2/OIDC über IAS) | Ein Chromium-Browser (Chrome, Edge, Brave) öffnet sich einmal je Host; die Sitzungscookies werden über das DevTools-Protokoll gelesen und im Speicher gehalten, mit `sap-client` an jeder Anfrage. Die Sitzung beim Identity Provider lebt in einem eigenen Profil unter `~/.abap-adt-mcp/sso/<host>` (Modus `0700`). `SAP_BROWSER_PATH` überschreibt den Browser, `SAP_BROWSER_PROFILE_DIR` verwendet ein eigenes Profil mit gespeicherten Passkeys wieder (das Standardprofil des Browsers wird absichtlich abgelehnt). | Nichts über die Entwickler-Business-Role hinaus, die Ihr Benutzer für Eclipse ADT ohnehin braucht |
+| `sso2` | Benannte On-Premise-Benutzer im Headless-Betrieb, wenn eine freigegebene lokale SNC/RFC-Brücke ein kurzlebiges Ticket ausstellen kann | Absoluter Provider-Befehl, Argumentliste und Timeout. Er liefert `{"ticket":"..."}`; die Ausgabe wird nicht protokolliert und das `MYSAPSSO2`-Cookie bleibt im Speicher. | SNC-Zuordnung, Ticket-Ausstellung/-Annahme und ADT-ICF-Anmeldung durch Basis; Verfügbarkeit hängt von Release und Richtlinie ab |
 | `basic` | On-Premise AS ABAP, Communication Users auf S/4HANA Cloud | `user` und `password` (verwenden Sie `${env:VAR}`). Authentifiziert beim ersten Aufruf, `login` ist optional. | Ein Benutzer mit ADT-Berechtigungen |
 | `oauth` | Unbeaufsichtigte Clients auf S/4HANA Cloud | `oauth.tokenUrl`, `oauth.clientId`, `oauth.clientSecret`, optional `oauth.scope` (Client-Credentials-Grant; das Token wird bis kurz vor Ablauf zwischengespeichert und bei einem 401 verworfen). | Ein Communication User, ein Communication System mit OAuth 2.0 und ein Communication Arrangement für das Szenario, das ADT auf Ihrem Tenant freigibt (es variiert je Tenant und wird hier nicht aufgeführt; das Arrangement liefert den Token-Endpunkt). Die Tools laufen dann mit den Berechtigungen des Communication Users. |
 
@@ -326,9 +327,9 @@ Lektionen, die überall gelten: `runQuery`-Anweisungen werden auf die 255-Zeiche
 
 Jede Option mit ihrem Standardwert, die Richtlinienschranken Tool für Tool, Host-Schnipsel und Betriebshinweise stehen in [docs/CONFIGURATION.md](docs/CONFIGURATION.md); dieser Abschnitt ist die Zusammenfassung.
 
-Konfigurationsquellen in Reihenfolge des Vorrangs: `SAP_SYSTEMS` (JSON inline), `SAP_SYSTEMS_FILE`, eine `systems.json` neben der Installation, dann die Altvariablen für ein Einzelsystem (`SAP_URL`, `SAP_CLIENT`, `SAP_USER`, `SAP_PASSWORD`, `SAP_LANGUAGE`, `SAP_TLS_INSECURE`, `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE`, siehe [.env.example](.env.example)).
+Konfigurationsquellen in Reihenfolge des Vorrangs: `SAP_SYSTEMS` (JSON inline), `SAP_SYSTEMS_FILE`, eine `systems.json` neben der Installation, dann die Altvariablen für ein Einzelsystem (`SAP_URL`, `SAP_CLIENT`, `SAP_USER`, `SAP_PASSWORD`, `SAP_LANGUAGE`, `SAP_TLS_INSECURE`, `SAP_SSO2_COMMAND`, `SAP_SSO2_ARGS`, `SAP_SSO2_TIMEOUT_MS`, `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE`, siehe [.env.example](.env.example)).
 
-Schlüssel je Destination in `systems.json`: `url`, `client`, `language`, `authType`, `default`, `user`/`password` (basic), `oauth` (`tokenUrl`, `clientId`, `clientSecret`, `scope`), `insecureTls`, `gitUser`/`gitPassword`, `policy` und `tls` (`ca`, `servername`, `cert` + `key`, `pfx` + `passphrase`). Jeder Zeichenkettenwert darf `${env:VAR}` sein. Schlüssel, die mit `_` beginnen, werden ignoriert, `_comment`-Einträge sind also in Ordnung. Alle Betriebsausgaben (Startwarnungen, Schrankenmeldungen, die Warnung zur Audit-Datei) gehen nach stderr, das MCP-Hosts in ihren Protokollen auffangen.
+Schlüssel je Destination in `systems.json`: `url`, `client`, `language`, `authType`, `default`, `user`/`password` (basic), `sso2` (`command`, `args`, `timeoutMs`), `oauth` (`tokenUrl`, `clientId`, `clientSecret`, `scope`), `insecureTls`, `gitUser`/`gitPassword`, `policy` und `tls` (`ca`, `servername`, `cert` + `key`, `pfx` + `passphrase`). Jeder Zeichenkettenwert darf `${env:VAR}` sein. Schlüssel, die mit `_` beginnen, werden ignoriert, `_comment`-Einträge sind also in Ordnung. Alle Betriebsausgaben (Startwarnungen, Schrankenmeldungen, die Warnung zur Audit-Datei) gehen nach stderr, das MCP-Hosts in ihren Protokollen auffangen.
 
 Jede in [server.json](server.json) deklarierte Variable:
 
@@ -337,7 +338,7 @@ Jede in [server.json](server.json) deklarierte Variable:
 | `SAP_SYSTEMS_FILE` | Pfad zur Destinationsdatei | Empfohlen; Modus `0600` halten |
 | `SAP_SYSTEMS` | Dieselbe Map inline | Enthält Zugangsdaten, bevorzugen Sie die Datei |
 | `SAP_DEFAULT_DESTINATION` | Destination, wenn ein Aufruf `destination` weglässt | Oder einen Eintrag mit `"default": true` markieren |
-| `SAP_AUTH_TYPE` | Standard-Authentifizierungstyp für Einträge ohne eigenen, und der Modus des Einzelsystem-Altsetups | `sso`; `basic` oder `oauth` |
+| `SAP_AUTH_TYPE` | Standard-Authentifizierungstyp für Einträge ohne eigenen, und der Modus des Einzelsystem-Altsetups | `sso`; `sso2`, `basic` oder `oauth` |
 | `MCP_TOOLSETS` | Zu veröffentlichende Toolsets: Preset `all` oder `focused`, oder eine Kommaliste | `all` |
 | `MCP_DISABLED_TOOLSETS` | Auszublendende Toolsets, Kommaliste | `core` kann nicht deaktiviert werden |
 | `MCP_READ_ONLY` | `1` macht jede Destination serverseitig nur-lesend | Aus |
@@ -349,6 +350,9 @@ Jede in [server.json](server.json) deklarierte Variable:
 | `SAP_ALLOW_REENTRANCE_TICKET` | `1` aktiviert das Tool `reentranceTicket` | Deaktiviert |
 | `SAP_BROWSER_PATH` | SSO: Pfad zu einer Chromium-, Chrome- oder Edge-Binärdatei | Automatisch erkannt |
 | `SAP_BROWSER_PROFILE_DIR` | SSO: persistentes Browserprofil mit der Sitzung beim Identity Provider | `~/.abap-adt-mcp/sso/<host>` |
+| `SAP_SSO2_COMMAND` | Einzelsystem-`sso2`: absoluter Pfad zum vertrauenswürdigen Ticket-Provider | Für diesen Modus erforderlich |
+| `SAP_SSO2_ARGS` | Einzelsystem-`sso2`: Provider-Argumente als JSON-Array | `[]`; niemals ein Ticket hier ablegen |
+| `SAP_SSO2_TIMEOUT_MS` | Einzelsystem-`sso2`: Provider-Timeout | 30000; Bereich 1000–300000 |
 | `MCP_HTTP_PORT` | Streamable HTTP auf `http://127.0.0.1:<port>/mcp` mit Bearer-Authentifizierung statt stdio | Nicht gesetzt (stdio); akzeptiert 1024 bis 65535 |
 | `MCP_HTTP_HOST` | Bind-Adresse des HTTP-Transports | `127.0.0.1`; `0.0.0.0` nur in Containern |
 | `MCP_HTTP_TOKEN` | Bearer-Token des HTTP-Transports | Erzeugt in `~/.abap-adt-mcp/http-token` |
@@ -480,6 +484,16 @@ npm test
 ```
 
 Die Jest-Suiten decken Handler, Fehlerhinweise, Antwortgrößen, Toolsets und den Katalogvertrag gegen `docs/tools.snapshot.json` ab; die CI führt sie auf Node 22 und 24 aus, baut das Container-Image und prüft, dass es startet und Tools auflistet. Nach einer Änderung an Beschreibung oder Schema eines Tools führen Sie `npm run tools:docs` aus und committen die neu erzeugten `docs/TOOLS.md`, den Snapshot und die README-Zähler (die übersetzten READMEs eingeschlossen), sonst meldet die CI sie als veraltet; `npm run docs:check` führt die Dokumentationshygiene aus (keine Kundenkennungen, keine Geviertstriche, keine toten Links, jede Umgebungsvariable in `server.json` deklariert). Releases sind tag-gesteuert: npm per Trusted Publishing (GitHub OIDC, Provenance angehängt) plus das GHCR-Image. Forken, Branch anlegen, Pull Request öffnen. Sitzungsberichte für [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) sind willkommen, ohne Kundennamen, Tenants oder Transportnummern.
+
+## Zusammenarbeit
+
+Dieser Server wächst mit den Menschen, die ihn gegen echte Landschaften betreiben und zurückmelden, was sie gefunden haben.
+
+- [João Gementi](https://github.com/JoaoVTGementi) hat den Headless-Modus `sso2` beigetragen: eine optionale Brücke, die von einem vertrauenswürdigen lokalen Provider ein kurzlebiges SAP-Logon-Ticket anfordert, sodass ein benannter On-Prem-Benutzer, der sich bereits über SNC authentifiziert, ohne Browser und ohne gespeichertes Passwort verbindet. Er hat außerdem den Cookie-Client gehärtet, der nun jede Anfrage ablehnt, die die SAP-Sitzung aus ihrem konfigurierten Origin heraustragen würde.
+- [Alexandre Leite](https://github.com/Dregus) hat das Secure-Login-Client-Szenario gemeldet, das den Meilenstein 2.1.0 eröffnet hat, und die On-Prem-Authentifizierungswege getestet.
+- Der ursprüngliche Server `mcp-abap-abap-adt-api` von [mario-andreschak](https://github.com/mario-andreschak) ist der Ausgangspunkt dieses Projekts.
+
+Etwas gefunden, etwas behoben oder einen Modus auf einer Landschaft ausprobiert, die hier niemand hat? Öffnen Sie ein Issue oder einen Pull Request, siehe [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Lizenz
 

@@ -19,7 +19,18 @@ import { readOAuthConfig, OAuthConfig } from './oauth.js';
 import { parsePolicy, SystemPolicy } from './policy.js';
 import { parseTlsConfig, TlsConfig } from './tls.js';
 
-export type AuthType = 'sso' | 'basic' | 'oauth';
+export type AuthType = 'sso' | 'sso2' | 'basic' | 'oauth';
+
+/**
+ * Trusted local program that obtains a short-lived SAP logon/assertion ticket.
+ * The program must print exactly one JSON object to stdout: {"ticket":"..."}.
+ * Its stdout and stderr are never copied into MCP responses or diagnostics.
+ */
+export interface Sso2ProviderConfig {
+  command: string;
+  args: string[];
+  timeoutMs: number;
+}
 
 export interface SystemConfig {
   name: string;
@@ -32,7 +43,8 @@ export interface SystemConfig {
   password?: string;
   // oauth
   oauth?: OAuthConfig;
-  // sso
+  // browser sso / external RFC-to-SSO2 bridge
+  sso2?: Sso2ProviderConfig;
   insecureTls?: boolean;
   // abapGit remote credentials (backfilled into git tools when omitted, so
   // they never have to pass through the model context)
@@ -70,9 +82,10 @@ export function resolveEnvRefs<T>(value: T, env: NodeJS.ProcessEnv, where = 'sys
 
 /** Fail early on configurations that would only break at the first call. */
 export function validateSystem(cfg: SystemConfig): void {
+  let parsedUrl: URL;
   try {
-    const u = new URL(cfg.url);
-    if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('protocol');
+    parsedUrl = new URL(cfg.url);
+    if (parsedUrl.protocol !== 'https:' && parsedUrl.protocol !== 'http:') throw new Error('protocol');
   } catch {
     throw new Error(`System "${cfg.name}": url "${cfg.url}" is not a valid http(s) URL`);
   }
@@ -81,6 +94,19 @@ export function validateSystem(cfg: SystemConfig): void {
   }
   if (cfg.authType === 'basic' && (!cfg.user || !cfg.password)) {
     throw new Error(`System "${cfg.name}": authType=basic requires user and password (use \${env:VAR} to keep them out of the file)`);
+  }
+  if (cfg.authType === 'sso2' && !cfg.sso2) {
+    throw new Error(`System "${cfg.name}": authType=sso2 requires sso2.command`);
+  }
+  if (cfg.authType === 'sso2' && parsedUrl.protocol !== 'https:') {
+    throw new Error(`System "${cfg.name}": authType=sso2 requires an HTTPS url so the ticket is never sent in plaintext`);
+  }
+  // HTTPS alone is not the guarantee: with verification off, anything that can
+  // answer on that name collects a live logon ticket. The other modes can be
+  // told to trust a self-signed test host; a ticket is a credential this server
+  // hands over before it knows who it is talking to, so the pair is refused.
+  if (cfg.authType === 'sso2' && cfg.insecureTls) {
+    throw new Error(`System "${cfg.name}": authType=sso2 cannot be combined with insecureTls; the ticket would be handed to an unverified server. Give the destination its CA bundle with tls.ca instead`);
   }
 }
 
@@ -113,9 +139,31 @@ export function checkConfigFileMode(filePath: string, raw: any): void {
 function coerceAuthType(v: any, fallback: AuthType): AuthType {
   const s = String(v || '').toLowerCase();
   if (s === 'sso' || s === 'browser') return 'sso';
+  if (s === 'sso2' || s === 'ticket') return 'sso2';
   if (s === 'basic') return 'basic';
   if (s === 'oauth') return 'oauth';
   return fallback;
+}
+
+function parseSso2Provider(raw: any, name: string): Sso2ProviderConfig {
+  if (!raw || typeof raw.command !== 'string' || !raw.command.trim()) {
+    throw new Error(`System "${name}" authType=sso2 requires sso2.command`);
+  }
+  if (!path.isAbsolute(raw.command)) {
+    throw new Error(`System "${name}": sso2.command must be an absolute executable path`);
+  }
+  if (raw.command.includes('\0')) {
+    throw new Error(`System "${name}": sso2.command contains an invalid NUL character`);
+  }
+  const args = raw.args === undefined ? [] : raw.args;
+  if (!Array.isArray(args) || args.some((arg: unknown) => typeof arg !== 'string' || arg.includes('\0'))) {
+    throw new Error(`System "${name}": sso2.args must be an array of strings without NUL characters`);
+  }
+  const timeoutMs = raw.timeoutMs === undefined ? 30_000 : Number(raw.timeoutMs);
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1_000 || timeoutMs > 300_000) {
+    throw new Error(`System "${name}": sso2.timeoutMs must be an integer from 1000 to 300000`);
+  }
+  return { command: raw.command, args: [...args], timeoutMs };
 }
 
 function fromRawEntry(name: string, raw: any, defaultAuth: AuthType): SystemConfig {
@@ -139,6 +187,8 @@ function fromRawEntry(name: string, raw: any, defaultAuth: AuthType): SystemConf
   if (authType === 'basic') {
     cfg.user = raw.user;
     cfg.password = raw.password;
+  } else if (authType === 'sso2') {
+    cfg.sso2 = parseSso2Provider(raw.sso2, name);
   } else if (authType === 'oauth') {
     if (raw.oauth?.tokenUrl && raw.oauth?.clientId && raw.oauth?.clientSecret) {
       cfg.oauth = {
@@ -208,8 +258,16 @@ function readSystemsRaw(env: NodeJS.ProcessEnv): Map<string, SystemConfig> {
     const name = env.SAP_DEFAULT_DESTINATION || 'default';
     const authType = legacyAuthType(env, defaultAuth);
     const oauth = authType === 'oauth' ? readOAuthConfig(env) : undefined;
+    const sso2 = authType === 'sso2' ? parseSso2Provider({
+      command: env.SAP_SSO2_COMMAND,
+      args: env.SAP_SSO2_ARGS ? (() => {
+        try { return JSON.parse(env.SAP_SSO2_ARGS); }
+        catch { throw new Error('SAP_SSO2_ARGS must be a JSON array of strings'); }
+      })() : [],
+      timeoutMs: env.SAP_SSO2_TIMEOUT_MS,
+    }, name) : undefined;
     const map = new Map<string, SystemConfig>();
-    map.set(name, {
+    const cfg: SystemConfig = {
       name,
       url: env.SAP_URL,
       client: env.SAP_CLIENT,
@@ -218,8 +276,14 @@ function readSystemsRaw(env: NodeJS.ProcessEnv): Map<string, SystemConfig> {
       user: env.SAP_USER,
       password: env.SAP_PASSWORD,
       oauth,
+      sso2,
       insecureTls: /^(1|true|yes)$/i.test(env.SAP_TLS_INSECURE || ''),
-    });
+    };
+    // The map form has always been validated here; the legacy variables were
+    // not, so the rules that keep a ticket off a plaintext or unverified
+    // connection would have applied to systems.json only.
+    validateSystem(cfg);
+    map.set(name, cfg);
     return map;
   }
 
@@ -243,8 +307,8 @@ export function legacyAuthType(env: NodeJS.ProcessEnv, defaultAuth: AuthType): A
   let authType: AuthType;
   if (raw) {
     authType = coerceAuthType(raw, defaultAuth);
-    if (authType !== raw.toLowerCase() && raw.toLowerCase() !== 'browser') {
-      console.error(`SAP_AUTH_TYPE=${raw} is not one of sso, basic, oauth; using ${authType}.`);
+    if (authType !== raw.toLowerCase() && !['browser', 'ticket'].includes(raw.toLowerCase())) {
+      console.error(`SAP_AUTH_TYPE=${raw} is not one of sso, sso2, basic, oauth; using ${authType}.`);
     }
   } else if (hasOAuth) {
     authType = 'oauth';

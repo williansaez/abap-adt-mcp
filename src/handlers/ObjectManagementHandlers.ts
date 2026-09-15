@@ -267,7 +267,7 @@ export class ObjectManagementHandlers extends BaseHandler {
   /** The SAP user of this session when known; SSO/OAuth clients carry a placeholder instead of a real name. */
   private ownUser(): string | undefined {
     const u = String((this.adtclient as any).username || '').toUpperCase();
-    return u && !['SSO', 'OAUTH', 'BROWSER'].includes(u) ? u : undefined;
+    return u && !['SSO', 'SSO2', 'OAUTH', 'BROWSER'].includes(u) ? u : undefined;
   }
 
   private async inactiveInPackage(packageName: string, recursive: boolean, user: string | undefined): Promise<{ objects: any[]; packages: string[]; otherUsers: any[] }> {

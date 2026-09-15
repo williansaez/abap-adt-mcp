@@ -49,8 +49,10 @@ export class CookieHttpClient {
 
   private jar = new Map<string, string>();
   private axiosInstance: AxiosInstance;
+  private readonly baseOrigin: string;
 
   constructor(private baseURL: string, cookies: HarvestedCookie[], allowUnauthorized = false, private sapClient?: string, agent?: https.Agent) {
+    this.baseOrigin = new URL(baseURL).origin;
     for (const c of cookies) this.jar.set(c.name, c.value);
     this.axiosInstance = axios.create({
       baseURL,
@@ -89,7 +91,21 @@ export class CookieHttpClient {
     }
   }
 
+  /**
+   * Resolve the library-supplied path without ever allowing the authenticated
+   * cookie jar to leave the configured SAP origin. Axios accepts absolute URLs
+   * and would otherwise let one override baseURL.
+   */
+  private requestUrl(rawUrl: string): URL {
+    const target = new URL(rawUrl, this.baseURL);
+    if (target.origin !== this.baseOrigin) {
+      throw new Error('Refusing a cross-origin request from the authenticated SAP cookie client');
+    }
+    return target;
+  }
+
   async request(options: HttpClientOptions): Promise<HttpClientResponse> {
+    const target = this.requestUrl(options.url);
     const headers = { ...(options.headers || {}) };
     // Force our jar's cookies onto every request, overriding the library's
     // (empty) jar so the harvested SSO session authenticates the call.
@@ -101,7 +117,7 @@ export class CookieHttpClient {
     if (this.sapClient && params['sap-client'] === undefined) params['sap-client'] = this.sapClient;
 
     const send = () => this.axiosInstance.request({
-      url: options.url,
+      url: target.toString(),
       method: (options.method as any) || 'GET',
       headers,
       params,
@@ -128,7 +144,7 @@ export class CookieHttpClient {
     // session-expired error instead of handing HTML to the ADT parser (or,
     // worse, returning it as "source code").
     const body = typeof res.data === 'string' ? res.data : String(res.data ?? '');
-    const isLogoff = /\/icf\/logoff\b/i.test(String(options.url || ''));
+    const isLogoff = /\/icf\/logoff\b/i.test(target.pathname);
     if (!isLogoff && CookieHttpClient.looksLikeLoginPage(res.status, res.headers?.['content-type'], body)) {
       const err: any = new Error('SSO session expired: the identity provider returned a login page instead of an ADT response. Re-authenticate (login) and retry.');
       err.code = 'SESSION_EXPIRED';

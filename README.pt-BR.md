@@ -99,7 +99,7 @@ Crie uma pasta `.abap-adt-mcp` na sua pasta pessoal e, dentro dela, um arquivo `
 }
 ```
 
-O padrão para qualquer sistema produtivo ou de teste é a entrada `PRD`: acrescente `"policy": { "readOnly": true }` e o servidor recusa toda escrita ali, seja o que for que peçam ao modelo. `sso` abre um navegador real uma vez para usuários nomeados do S/4HANA Cloud; `basic` é para usuários on-premise e Communication Users; `oauth` é para clientes não assistidos. `${env:VAR}` lê um segredo do ambiente para que ele nunca fique no arquivo, `policy` é aplicada pelo servidor, e `tls.ca` acrescenta uma CA corporativa com a verificação mantida ligada (`tls.servername` nomeia o certificado quando o sistema é acessado por endereço IP). `$*` (pacotes locais) aparece só na entrada on-premise porque o tenant Public Cloud testado recusa `$TMP`.
+O padrão para qualquer sistema produtivo ou de teste é a entrada `PRD`: acrescente `"policy": { "readOnly": true }` e o servidor recusa toda escrita ali, seja o que for que peçam ao modelo. `sso` abre um navegador real uma vez para usuários nomeados do S/4HANA Cloud; `sso2` aceita opcionalmente um ticket efêmero de um provedor SNC/RFC local confiável para acesso on-premise headless; `basic` é para usuários on-premise e Communication Users; `oauth` é para clientes não assistidos. `${env:VAR}` lê um segredo do ambiente para que ele nunca fique no arquivo, `policy` é aplicada pelo servidor, e `tls.ca` acrescenta uma CA corporativa com a verificação mantida ligada (`tls.servername` nomeia o certificado quando o sistema é acessado por endereço IP). `$*` (pacotes locais) aparece só na entrada on-premise porque o tenant Public Cloud testado recusa `$TMP`.
 
 Se tiver um terminal, restrinja o arquivo ao seu usuário:
 
@@ -270,6 +270,7 @@ Cada destino escolhe o seu `authType` (`sso`, a menos que `SAP_AUTH_TYPE` diga o
 | Modo | Use para | O que você configura | Configuração do lado SAP |
 |---|---|---|---|
 | `sso` (padrão) | Usuários nomeados do S/4HANA Cloud, exatamente como o Eclipse ADT (SAML2/OIDC via IAS) | Um navegador Chromium (Chrome, Edge, Brave) abre uma vez por host; os cookies de sessão são lidos pelo protocolo DevTools e mantidos em memória, com `sap-client` fixado em toda requisição. A sessão do provedor de identidade vive em um perfil dedicado em `~/.abap-adt-mcp/sso/<host>` (modo `0700`). `SAP_BROWSER_PATH` substitui o navegador, `SAP_BROWSER_PROFILE_DIR` reutiliza um perfil personalizado com passkeys salvas (o perfil padrão do navegador é rejeitado de propósito). | Nada além da business role de desenvolvedor de que o seu usuário já precisa para o Eclipse ADT |
+| `sso2` | Usuários nomeados on-premise em modo headless quando uma ponte SNC/RFC local aprovada consegue emitir um ticket temporário | Comando absoluto do provedor, lista de argumentos e timeout. Ele retorna `{"ticket":"..."}`; a saída não é registrada e o cookie `MYSAPSSO2` fica em memória. | Mapeamento SNC, emissão/aceitação de tickets e logon ICF do ADT configurados pelo Basis; a disponibilidade depende da versão e da política |
 | `basic` | AS ABAP on-premise, Communication Users do S/4HANA Cloud | `user` e `password` (use `${env:VAR}`). Autentica na primeira chamada, `login` é opcional. | Um usuário com autorizações ADT |
 | `oauth` | Clientes não assistidos do S/4HANA Cloud | `oauth.tokenUrl`, `oauth.clientId`, `oauth.clientSecret`, `oauth.scope` opcional (client credentials grant; o token é armazenado em cache até pouco antes de expirar e invalidado em um 401). | Um Communication User, um Communication System com OAuth 2.0 e um Communication Arrangement para o cenário que expõe o ADT no seu tenant (varia por tenant e não é listado aqui; o arrangement fornece o endpoint de token). As ferramentas então rodam com as autorizações do Communication User. |
 
@@ -314,7 +315,7 @@ Campos: `ts`, `requestId`, `tool`, `destination`, `durationMs`, `outcome` (`ok`,
 
 | Tema | S/4HANA Cloud (edição pública) | On-premise / privado |
 |---|---|---|
-| Autenticação | Usuários nomeados: só SSO pelo navegador. Não assistido: OAuth2 a partir de um Communication Arrangement, ou autenticação básica com um Communication User. | Autenticação básica; certificados de cliente via `tls`. |
+| Autenticação | Usuários nomeados: só SSO pelo navegador. Não assistido: OAuth2 a partir de um Communication Arrangement, ou autenticação básica com um Communication User. | Autenticação básica; certificados de cliente via `tls`; `sso2` headless opcional por um provedor local de tickets SNC/RFC confiável. |
 | Objetos locais | `$TMP` foi recusado no tenant testado (objeto de autorização S_ABPLNGVS: objetos em `$TMP` recebem a versão de linguagem Standard); use um pacote de cliente com ABAP for Cloud Development e sua ordem de transporte, `resolveTransport` a escolhe. `runSnippet` precisa de `packageName`, `transport` e `responsible` lá. | `$TMP` disponível, sem ordem de transporte; `runSnippet` assume `$TMP`. |
 | Toolsets | Gerador RAP ausente no tenant testado; depurador, traces e abapGit dependem do tenant e das autorizações. `dumps`/`dumpDetails` são o caminho de causa raiz quando o depurador falta. `sourceTextSearch` recorre a `grepPackage` quando o tenant responde "Source Search is not supported". | Conjunto completo de coleções ADT em uma versão atual. |
 | APIs liberadas | `apiReleaseState` verifica nomes, uma URL de objeto ou um fonte inteiro; variante ATC `ABAP_CLOUD_DEVELOPMENT_DEFAULT`. `createObject` precisa de `responsible`. | Opcional. |
@@ -326,9 +327,9 @@ Lições que valem em todo lugar: instruções de `runQuery` são quebradas no l
 
 Toda opção com seu padrão, as barreiras de política ferramenta por ferramenta, trechos por host e notas operacionais estão em [docs/CONFIGURATION.md](docs/CONFIGURATION.md); esta seção é o resumo.
 
-Fontes de configuração, em ordem de precedência: `SAP_SYSTEMS` (JSON inline), `SAP_SYSTEMS_FILE`, um `systems.json` ao lado da instalação, depois as variáveis legadas de sistema único (`SAP_URL`, `SAP_CLIENT`, `SAP_USER`, `SAP_PASSWORD`, `SAP_LANGUAGE`, `SAP_TLS_INSECURE`, `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE`, veja [.env.example](.env.example)).
+Fontes de configuração, em ordem de precedência: `SAP_SYSTEMS` (JSON inline), `SAP_SYSTEMS_FILE`, um `systems.json` ao lado da instalação, depois as variáveis legadas de sistema único (`SAP_URL`, `SAP_CLIENT`, `SAP_USER`, `SAP_PASSWORD`, `SAP_LANGUAGE`, `SAP_TLS_INSECURE`, `SAP_SSO2_COMMAND`, `SAP_SSO2_ARGS`, `SAP_SSO2_TIMEOUT_MS`, `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE`, veja [.env.example](.env.example)).
 
-Chaves por destino no `systems.json`: `url`, `client`, `language`, `authType`, `default`, `user`/`password` (basic), `oauth` (`tokenUrl`, `clientId`, `clientSecret`, `scope`), `insecureTls`, `gitUser`/`gitPassword`, `policy` e `tls` (`ca`, `servername`, `cert` + `key`, `pfx` + `passphrase`). Qualquer valor de string pode ser `${env:VAR}`. Chaves que começam com `_` são ignoradas, então entradas `_comment` são aceitas. Toda saída operacional (avisos de inicialização, mensagens de barreira, o aviso do arquivo de auditoria) vai para stderr, que os hosts MCP capturam em seus logs.
+Chaves por destino no `systems.json`: `url`, `client`, `language`, `authType`, `default`, `user`/`password` (basic), `sso2` (`command`, `args`, `timeoutMs`), `oauth` (`tokenUrl`, `clientId`, `clientSecret`, `scope`), `insecureTls`, `gitUser`/`gitPassword`, `policy` e `tls` (`ca`, `servername`, `cert` + `key`, `pfx` + `passphrase`). Qualquer valor de string pode ser `${env:VAR}`. Chaves que começam com `_` são ignoradas, então entradas `_comment` são aceitas. Toda saída operacional (avisos de inicialização, mensagens de barreira, o aviso do arquivo de auditoria) vai para stderr, que os hosts MCP capturam em seus logs.
 
 Toda variável declarada em [server.json](server.json):
 
@@ -337,7 +338,7 @@ Toda variável declarada em [server.json](server.json):
 | `SAP_SYSTEMS_FILE` | Caminho do arquivo de destinos | Recomendado; mantenha modo `0600` |
 | `SAP_SYSTEMS` | O mesmo mapa inline | Contém credenciais, prefira o arquivo |
 | `SAP_DEFAULT_DESTINATION` | Destino usado quando uma chamada omite `destination` | Ou marque uma entrada com `"default": true` |
-| `SAP_AUTH_TYPE` | Tipo de autenticação padrão para entradas sem um, e o modo da configuração legada de sistema único | `sso`; `basic` ou `oauth` |
+| `SAP_AUTH_TYPE` | Tipo de autenticação padrão para entradas sem um, e o modo da configuração legada de sistema único | `sso`; `sso2`, `basic` ou `oauth` |
 | `MCP_TOOLSETS` | Toolsets a publicar: preset `all` ou `focused`, ou uma lista separada por vírgulas | `all` |
 | `MCP_DISABLED_TOOLSETS` | Toolsets a ocultar, lista separada por vírgulas | `core` não pode ser desabilitado |
 | `MCP_READ_ONLY` | `1` torna todo destino somente leitura, do lado do servidor | Desligado |
@@ -349,6 +350,9 @@ Toda variável declarada em [server.json](server.json):
 | `SAP_ALLOW_REENTRANCE_TICKET` | `1` habilita a ferramenta `reentranceTicket` | Desabilitado |
 | `SAP_BROWSER_PATH` | SSO: caminho de um binário Chromium, Chrome ou Edge | Detectado automaticamente |
 | `SAP_BROWSER_PROFILE_DIR` | SSO: perfil de navegador persistente que guarda a sessão do provedor de identidade | `~/.abap-adt-mcp/sso/<host>` |
+| `SAP_SSO2_COMMAND` | `sso2` legado de sistema único: caminho absoluto do provedor de tickets confiável | Obrigatório nesse modo |
+| `SAP_SSO2_ARGS` | `sso2` legado de sistema único: argumentos do provedor como array JSON | `[]`; nunca coloque um ticket aqui |
+| `SAP_SSO2_TIMEOUT_MS` | `sso2` legado de sistema único: timeout do provedor | 30000; faixa 1000–300000 |
 | `MCP_HTTP_PORT` | Serve Streamable HTTP em `http://127.0.0.1:<porta>/mcp` com autenticação bearer em vez de stdio | Não definido (stdio); aceita 1024 a 65535 |
 | `MCP_HTTP_HOST` | Endereço de escuta do transporte HTTP | `127.0.0.1`; `0.0.0.0` só em contêineres |
 | `MCP_HTTP_TOKEN` | Token bearer do transporte HTTP | Gerado em `~/.abap-adt-mcp/http-token` |
@@ -480,6 +484,16 @@ npm test
 ```
 
 As suítes Jest cobrem handlers, dicas de erro, dimensionamento de respostas, toolsets e o contrato do catálogo contra `docs/tools.snapshot.json`; o CI as executa em Node 22 e 24, constrói a imagem de contêiner e confere que ela inicia e lista as ferramentas. Após mudar a descrição ou o esquema de uma ferramenta, rode `npm run tools:docs` e faça commit do `docs/TOOLS.md` regenerado, do snapshot e das contagens do README (os READMEs traduzidos incluídos), ou o CI os marca como desatualizados; `npm run docs:check` roda a barreira de higiene da documentação (sem identificadores de clientes, sem travessões, sem links quebrados, toda variável de ambiente declarada em `server.json`). Os releases são guiados por tag: npm via trusted publishing (GitHub OIDC, proveniência anexada) mais a imagem GHCR. Faça fork, crie um branch, abra um pull request. Relatórios de sessão para [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) são bem-vindos, sem nomes de clientes, tenants ou números de ordem de transporte.
+
+## Colaboração
+
+Este servidor cresce com quem o roda em paisagens reais e devolve o que encontrou.
+
+- [João Gementi](https://github.com/JoaoVTGementi) contribuiu o modo headless `sso2`: uma ponte opcional que pede a um provedor local confiável um ticket de logon SAP de vida curta, para que um usuário nomeado on-prem que já se autentica por SNC conecte sem navegador e sem senha armazenada. Ele também endureceu o cliente de cookies, que agora recusa qualquer requisição que levaria a sessão SAP para fora da origem configurada.
+- [Alexandre Leite](https://github.com/Dregus) relatou o cenário do Secure Login Client que abriu o marco 2.1.0 e testou os caminhos de autenticação on-prem.
+- O servidor original `mcp-abap-abap-adt-api` de [mario-andreschak](https://github.com/mario-andreschak) é onde este projeto começou.
+
+Achou algo, corrigiu algo ou rodou um modo em uma paisagem que ninguém aqui tem? Abra uma issue ou um pull request, e veja [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licença
 

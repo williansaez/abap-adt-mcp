@@ -100,6 +100,22 @@ describe('activatePackage', () => {
     expect(res).toMatchObject({ status: 'success', packages: ['ZROOT', 'ZSUB'], success: true, stillInactive: [] });
   });
 
+  it('treats every auth-mode placeholder as "no known user", not as a SAP user name', async () => {
+    // The cookie modes pass their mode name as the client's username. Reading
+    // one as a real owner filters the package tree down to objects nobody owns.
+    for (const placeholder of ['sso', 'sso2', 'oauth', 'browser']) {
+      const { client, handler } = make([
+        { ...rec('ZCL_A', '/sap/bc/adt/oo/classes/zcl_a', '/sap/bc/adt/packages/zroot'), 'adtcore:responsible': 'DEV' },
+      ]);
+      client.username = placeholder;
+      const res = parse(await handler.handle('activatePackage', { packageName: 'ZROOT' }));
+      expect(client.activate).toHaveBeenCalledTimes(1);
+      expect(client.activate.mock.calls[0][0].map((o: any) => o['adtcore:name'])).toEqual(['ZCL_A']);
+      expect(res).toMatchObject({ status: 'success', success: true, stillInactive: [] });
+      expect(res.otherUsers ?? []).toEqual([]);
+    }
+  });
+
   it('is a no-op when nothing is inactive and flags activation failures', async () => {
     const { client, handler } = make([]);
     const res = parse(await handler.handle('activatePackage', { packageName: 'ZROOT' }));
