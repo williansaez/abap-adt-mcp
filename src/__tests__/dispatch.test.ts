@@ -6,6 +6,9 @@
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 
 jest.mock('puppeteer-core', () => ({}));
+jest.mock('../lib/sso2TicketProvider', () => ({
+  getSso2Cookies: jest.fn(async () => [{ name: 'MYSAPSSO2', value: 'temporary-ticket' }]),
+}));
 process.env.SAP_SYSTEMS = JSON.stringify({
   DEV: { url: 'https://example.invalid', authType: 'basic', user: 'u', password: 'p', client: '100' },
   RO: { url: 'https://ro.invalid', authType: 'basic', user: 'u', password: 'p', client: '100', policy: { readOnly: true, allowedPackages: ['Z*'] } },
@@ -34,6 +37,23 @@ describe('dispatch', () => {
     await expect(server.dispatch('getObjectSource', { destination: 'NOPE' }, () => undefined)).rejects.toMatchObject({ code: ErrorCode.InvalidParams });
     await expect(server.dispatch('noSuchTool', {}, () => undefined)).rejects.toMatchObject({ code: ErrorCode.MethodNotFound });
     await expect(server.dispatch('debuggerListen', {}, () => undefined)).rejects.toThrow(/toolset "debugger"/);
+  });
+
+  it('uses the opt-in SSO2 provider without opening a browser or affecting existing destinations', async () => {
+    const ticketProvider = require('../lib/sso2TicketProvider').getSso2Cookies;
+    server.systems.set('TICKET', {
+      name: 'TICKET', url: 'https://ticket.invalid', client: '100', authType: 'sso2',
+      sso2: { command: '/usr/bin/provider', args: ['--system', 'QAS'], timeoutMs: 30_000 },
+    });
+    const dest = server.getDestination('TICKET');
+    dest.adtClient.login = jest.fn(async () => undefined);
+
+    await server.ensureLogin('TICKET', false);
+
+    expect(ticketProvider).toHaveBeenCalledWith(server.systems.get('TICKET').sso2);
+    expect(dest.adtClient.login).toHaveBeenCalledTimes(1);
+    expect([...dest.cookieClient.jar.entries()]).toEqual([['MYSAPSSO2', 'temporary-ticket']]);
+    expect(server.getDestination('DEV').system.authType).toBe('basic');
   });
 
   it('applies the destination policy before calling the handler', async () => {

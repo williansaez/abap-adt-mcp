@@ -19,7 +19,7 @@
       "environmentVariables": [
         {
           "name": "SAP_SYSTEMS_FILE",
-          "description": "Path to a JSON file mapping destination names to system configs (url, client, authType basic/sso/oauth, credentials). Recommended; keep the file mode 0600. See systems.example.json",
+          "description": "Path to a JSON file mapping destination names to system configs (url, client, authType basic/sso/sso2/oauth, credentials). Recommended; keep the file mode 0600. See systems.example.json",
           "isRequired": false
         },
         {
@@ -35,7 +35,7 @@
         },
         {
           "name": "SAP_AUTH_TYPE",
-          "description": "Default auth type for entries that don't specify one: sso (default), basic, or oauth",
+          "description": "Default auth type for entries that don't specify one: sso (default), sso2, basic, or oauth",
           "isRequired": false
         },
         {
@@ -148,6 +148,21 @@
         {
           "name": "SAP_BROWSER_PROFILE_DIR",
           "description": "SSO destinations: directory of the persistent browser profile that keeps the identity-provider session (default ~/.abap-adt-mcp/sso/<host>)",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_SSO2_COMMAND",
+          "description": "Legacy single-system sso2 mode: absolute path to the trusted local ticket provider",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_SSO2_ARGS",
+          "description": "Legacy single-system sso2 mode: JSON array of provider arguments (never put a ticket here)",
+          "isRequired": false
+        },
+        {
+          "name": "SAP_SSO2_TIMEOUT_MS",
+          "description": "Legacy single-system sso2 mode: provider timeout in milliseconds (default 30000; range 1000-300000)",
           "isRequired": false
         },
         {

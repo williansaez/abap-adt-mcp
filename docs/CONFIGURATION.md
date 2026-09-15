@@ -13,11 +13,11 @@ The server reads its destinations once at startup (`src/lib/systems.ts`), in thi
 | 1 | `SAP_SYSTEMS` | Inline JSON map with the same shape as `systems.json`. Invalid JSON fails with `SAP_SYSTEMS is not valid JSON: ...`. When set, `SAP_SYSTEMS_FILE` is not even looked at. |
 | 2 | `SAP_SYSTEMS_FILE` | Path to the JSON file. If the file does not exist the loader falls through silently to the legacy variables (source 4), not to the auto-detected `systems.json`, because the variable replaces that path; a typo in the path therefore ends with `No ABAP systems configured`. |
 | 3 | `systems.json` next to the install | Resolved as `../../systems.json` from `dist/lib/` (where the loader lives), that is, the package root: the repository root for a source checkout, the package directory inside the npm cache for an `npx` install (where you will not put it). Useful for source checkouts only. |
-| 4 | Legacy single-system variables | `SAP_URL` plus `SAP_CLIENT`, `SAP_LANGUAGE`, `SAP_USER`, `SAP_PASSWORD`, `SAP_TLS_INSECURE` and the `SAP_OAUTH_*` set. One implicit destination named `default` (or the value of `SAP_DEFAULT_DESTINATION`). |
+| 4 | Legacy single-system variables | `SAP_URL` plus `SAP_CLIENT`, `SAP_LANGUAGE`, `SAP_USER`, `SAP_PASSWORD`, `SAP_TLS_INSECURE`, the `SAP_SSO2_*` set and the `SAP_OAUTH_*` set. One implicit destination named `default` (or the value of `SAP_DEFAULT_DESTINATION`). |
 
 With none of the four the server exits with `[abap-adt-mcp] Fatal: No ABAP systems configured. Provide systems.json, SAP_SYSTEMS, SAP_SYSTEMS_FILE, or SAP_URL.` and status 1. A `.env` file next to `package.json` is loaded with `dotenv` before anything else, so a source checkout can keep the legacy variables there (see [.env.example](../.env.example)); variables already present in the environment are not overridden by `.env`.
 
-**One file per deployment.** A `systems.json` is not portable between a desktop and a headless host, because `sso` entries need a browser and a screen. Ship a separate file per deployment: the desktop file may hold `sso`, `basic` and `oauth` entries; the file for a container or a shared HTTP instance holds `basic` and `oauth` entries only. Section 6 says exactly what happens when an `sso` entry reaches a headless host (nothing at startup, a failure at the first call).
+**One file per deployment.** A `systems.json` is not portable between a desktop and a headless host, because `sso` entries need a browser and a screen. Ship a separate file per deployment: a desktop may hold any mode; a headless personal instance may use `sso2`, `basic` or `oauth`; a shared HTTP instance should use purpose-built `basic` or `oauth` technical identities. Section 6 explains why a named `sso2` identity is still unsuitable for sharing.
 
 ### `${env:VAR}` references
 
@@ -33,11 +33,12 @@ Entries are parsed and validated eagerly so that a broken destination fails the 
 | `url` is not an `http:` or `https:` URL | `System "NAME": url "..." is not a valid http(s) URL` |
 | `client` present but not exactly three digits | `System "NAME": client must be a 3-digit number, got "..."` (a JSON number such as `100` is converted to the string `"100"` first) |
 | `authType: "basic"` without `user` and `password` (after `${env:VAR}` resolution) | `System "NAME": authType=basic requires user and password (use ${env:VAR} to keep them out of the file)` |
+| `authType: "sso2"` without an absolute `sso2.command`, with non-array `args`, or with a timeout outside 1–300 seconds | A `System "NAME": sso2...` error naming the invalid field; provider output and tickets are never included |
 | `authType: "oauth"` without `oauth.tokenUrl`, `oauth.clientId` and `oauth.clientSecret` | `System "NAME" authType=oauth requires oauth.tokenUrl/clientId/clientSecret` |
 | `tls.cert` without `tls.key` (and no `pfx`), or `tls.key` without `tls.cert` | `System "NAME": tls.cert requires tls.key` / `tls.key requires tls.cert` |
 | Map with no entries after skipping `_` keys | `No ABAP systems configured: the systems map is empty` |
 
-Keys that start with `_` (`_comment`, `_notes`) are skipped, which is how [systems.example.json](../systems.example.json) carries its explanation. `auth` is accepted as an alias of `authType`, and `browser` as an alias of `sso`. The legacy single-system variables (source 4) skip these checks entirely: a bad `SAP_URL` or a missing `SAP_PASSWORD` only surfaces on the first call.
+Keys that start with `_` (`_comment`, `_notes`) are skipped, which is how [systems.example.json](../systems.example.json) carries its explanation. `auth` is accepted as an alias of `authType`, `browser` as an alias of `sso`, and `ticket` as an alias of `sso2`. The legacy single-system variables validate the SSO2 provider eagerly; some older URL/basic checks still surface only on the first call.
 
 **The trap validation does not catch: a forgotten `authType`.** The default is `sso` (or `SAP_AUTH_TYPE`), and an unknown value falls back to that default without an error. An on-prem entry that carries `user` and `password` but no `authType`, or a misspelt one (`"Basic "` with a trailing space, `"basc"`), is loaded as `sso`: the credentials are dropped from the parsed entry, `listSystems` reports `authType: "sso"`, and the first call opens a browser window against a system that has no identity provider, where it sits until the 300-second SSO timeout. Write `authType` explicitly on every entry and read it back with `listSystems` after any edit. Setting `SAP_AUTH_TYPE=basic` on a host that only serves on-prem systems is the belt to that pair of braces.
 
@@ -80,13 +81,14 @@ One object per destination; the key is the name you will use in `destination` an
 | Key | Type | Required | Meaning |
 |---|---|---|---|
 | `url` | string | yes | Base URL of the system, scheme and host, port when not the default (`https://sap.example.com:44300`, `https://myXXXXXX.s4hana.cloud.sap`). No path. |
-| `client` | string or number | no | SAP client, three digits. How it is sent depends on the mode: in `sso` the cookie client pins `sap-client` on every request (the harvested cookies alone would land in the tenant's default client); in `basic` and `oauth` the ADT library sends `sap-client` on the login request that opens the SAP session (`/sap/bc/adt/compatibility/graph`), and the session cookie carries the client from then on. It is never sent to an OAuth token endpoint. Omitted means the system's default client. |
+| `client` | string or number | no | SAP client, three digits. How it is sent depends on the mode: in `sso` and `sso2` the cookie client pins `sap-client` on every request; in `basic` and `oauth` the ADT library sends it on the login request that opens the SAP session (`/sap/bc/adt/compatibility/graph`), and the session cookie carries the client from then on. It is never sent to an OAuth token endpoint. Omitted means the system's default client. |
 | `language` | string | no | Logon language (`EN`), sent as `sap-language` with the login. Affects message texts and, when writing message classes with `setObjectSource`, the master language (see [docs/FIELD-NOTES.md](FIELD-NOTES.md)). |
-| `authType` | `sso`, `basic`, `oauth` | no, but write it | Defaults to `SAP_AUTH_TYPE`, otherwise `sso`; an unknown value also falls back to that default (see the trap above). `browser` is an alias of `sso`; `auth` an alias of the key. |
-| `user`, `password` | string | with `basic` | Both required for `basic`; silently dropped for the other modes (an SSO client is labelled `sso`, an OAuth client with its `clientId`). Use `${env:VAR}` for `password`. |
+| `authType` | `sso`, `sso2`, `basic`, `oauth` | no, but write it | Defaults to `SAP_AUTH_TYPE`, otherwise `sso`; an unknown value also falls back to that default (see the trap above). `browser` is an alias of `sso`, `ticket` of `sso2`; `auth` is an alias of the key. |
+| `user`, `password` | string | with `basic` | Both required for `basic`; silently dropped for the other modes (cookie clients are labelled by their auth type, an OAuth client with its `clientId`). Use `${env:VAR}` for `password`. |
+| `sso2` | object | with `sso2` | `command` is an absolute path to a trusted local ticket provider; `args` is an optional string array (default `[]`), and `timeoutMs` is an optional integer from 1000 to 300000 (default 30000). The provider runs without a shell and must print only `{"ticket":"..."}`. Its output is never logged; the ticket becomes an in-memory `MYSAPSSO2` cookie and is refreshed once after session expiry. See [AUTH.md](AUTH.md#mode-sso2-headless-ticket-provider-on-prem-opt-in). |
 | `oauth` | object | with `oauth` | `tokenUrl`, `clientId`, `clientSecret` required, `scope` optional. Client-credentials grant: `clientId:clientSecret` go to the token endpoint as HTTP Basic authentication, `scope` in the form body when set. The token is cached until 60 seconds before `expires_in` (3600 seconds when the endpoint omits it), concurrent calls share one token request, and the cache is dropped after a 401 so the retry fetches a fresh one. The token request uses Node's global `fetch`: it is not covered by the destination's `tls` block or by `insecureTls`, and it ignores `HTTPS_PROXY`. |
 | `insecureTls` | boolean | no | Disables certificate verification for this destination's ADT calls only. Announced on stderr at every start: `WARNING: TLS certificate verification disabled (insecureTls) for destination(s): NAME`. Use `tls.ca` instead whenever the certificate's names match the host (next section). |
-| `tls` | object | no | `ca`, `cert`, `key`, `pfx`, `passphrase`, `servername`. `servername` is the name the certificate is verified against (and sent as SNI) when `url` names an IP address or a short hostname; verification stays on (next section). `cert` and `key` go together; `pfx` (PKCS#12) is the alternative, with `passphrase`. The resulting `https.Agent` (keep-alive) is used for basic, OAuth and SSO API calls; the browser window of an SSO login uses its own trust store. |
+| `tls` | object | no | `ca`, `cert`, `key`, `pfx`, `passphrase`, `servername`. `servername` is the name the certificate is verified against (and sent as SNI) when `url` names an IP address or a short hostname; verification stays on (next section). `cert` and `key` go together; `pfx` (PKCS#12) is the alternative, with `passphrase`. The resulting `https.Agent` (keep-alive) is used for basic, OAuth, SSO and SSO2 API calls; the browser window of an SSO login uses its own trust store. |
 | `gitUser`, `gitPassword` | string | no | abapGit remote credentials. Backfilled into `gitExternalRepoInfo`, `gitCreateRepo`, `gitPullRepo`, `stageRepo`, `pushRepo`, `checkRepo`, `remoteRepoInfo` and `switchRepoBranch` when the call omits `user`/`password`, so the token never has to pass through the model. Explicit arguments win. |
 | `default` | boolean | no | Marks the entry used when `destination` is omitted. `SAP_DEFAULT_DESTINATION` overrides it. |
 | `policy` | object | no | Server-side guard rails, see [section 3](#3-policy-in-depth). A destination without `policy` is fully writable within the SAP user's authorizations. |
@@ -458,7 +460,7 @@ All variables declared in [server.json](../server.json), plus the two the server
 | `SAP_SYSTEMS_FILE` | unset | Path to the destinations file. Recommended; mode `0600`. |
 | `SAP_SYSTEMS` | unset | The same map inline. Takes precedence over the file. Secret. |
 | `SAP_DEFAULT_DESTINATION` | unset | Name used when a call omits `destination`; must be a configured entry, otherwise ignored. In legacy mode it names the implicit destination. |
-| `SAP_AUTH_TYPE` | `sso` | Default `authType` for entries without one (and for unknown values), and the mode of the legacy single-system setup. Set it to `basic` on hosts that only serve on-prem systems. In legacy mode an unset value is inferred from the credentials present (`basic` from `SAP_USER` and `SAP_PASSWORD`, `oauth` from the three `SAP_OAUTH_*` variables), with a stderr line saying so. |
+| `SAP_AUTH_TYPE` | `sso` | Default `authType` for entries without one (and for unknown values), and the mode of the legacy single-system setup. Accepted values are `sso`, `sso2`, `basic` and `oauth`. In legacy mode an unset value is inferred from the credentials present (`basic` from `SAP_USER` and `SAP_PASSWORD`, `oauth` from the three `SAP_OAUTH_*` variables), with a stderr line saying so. |
 
 **Policy and safety**
 
@@ -510,13 +512,22 @@ All variables declared in [server.json](../server.json), plus the two the server
 | `SAP_BROWSER_PATH` | auto-detected | Path to a Chromium-based browser executable. Auto-detection only knows the macOS locations of Chrome, Edge and Brave under `/Applications`; on Windows and Linux the variable is required, otherwise the login fails with `No Chrome/Edge/Brave found for SSO login`. |
 | `SAP_BROWSER_PROFILE_DIR` | `~/.abap-adt-mcp/sso/<host>` | Directory of the persistent browser profile that keeps the identity-provider session. Created if missing. Chrome's default profile on macOS (`~/Library/Application Support/Google/Chrome`) is rejected explicitly; do not point it at any browser's live profile on other platforms either, Chrome refuses automation on it and the login window would expose every site's cookies. |
 
+**Headless SSO2 provider**
+
+| Variable | Default | Effect |
+|---|---|---|
+| `SAP_SSO2_COMMAND` | unset | Legacy single-system `sso2`: absolute executable path of the trusted local provider. Required in this mode. |
+| `SAP_SSO2_ARGS` | `[]` | Provider arguments encoded as a JSON array of strings. Never place a live ticket here. |
+| `SAP_SSO2_TIMEOUT_MS` | `30000` | Provider timeout in milliseconds, integer from 1000 to 300000. |
+
 **Legacy single-system mode** (used only when none of `SAP_SYSTEMS`, `SAP_SYSTEMS_FILE` or `systems.json` is present)
 
 | Variable | Effect |
 |---|---|
 | `SAP_URL` | Base URL; its presence switches the mode on. |
 | `SAP_CLIENT`, `SAP_LANGUAGE` | Client and logon language. |
-| `SAP_USER`, `SAP_PASSWORD` | Basic credentials. `SAP_AUTH_TYPE=basic` selects them; when `SAP_AUTH_TYPE` is unset their presence selects `basic`, and under an explicit `sso` or `oauth` they are reported on stderr as unused. |
+| `SAP_USER`, `SAP_PASSWORD` | Basic credentials. `SAP_AUTH_TYPE=basic` selects them; when `SAP_AUTH_TYPE` is unset their presence selects `basic`, and under an explicit `sso`, `sso2` or `oauth` they are reported on stderr as unused. |
+| `SAP_SSO2_COMMAND`, `SAP_SSO2_ARGS`, `SAP_SSO2_TIMEOUT_MS` | Trusted external ticket provider. Read only when `SAP_AUTH_TYPE=sso2`. |
 | `SAP_TLS_INSECURE` | Disables certificate verification for that system. |
 | `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE` | OAuth2 client. Read when `SAP_AUTH_TYPE=oauth`, or when `SAP_AUTH_TYPE` is unset and the first three are all present; a missing one under `oauth` fails with `OAuth mode requires environment variables: ...`. |
 
@@ -606,7 +617,7 @@ Without `MCP_HTTP_TOKEN`, the token is generated at every start and overwrites `
 
 ### SSO destinations on a shared or headless host
 
-Binding to anything but loopback prints `WARNING: HTTP transport bound to 0.0.0.0, reachable beyond this machine. Keep the bearer token secret, restrict MCP_HTTP_ALLOWED_ORIGINS/HOSTS and put TLS in front.` and, when SSO destinations exist, a second warning naming them: every remote caller would share the browser login of the user running the server, and the browser window opens on that user's screen. That is the shared-instance case; the headless case is stricter. An `sso` entry loaded on a machine without a browser or a display does not fail at startup: the loader accepts it, `listSystems` and `healthcheck` list it, and the two warnings above are the only hint. It fails at the first call that needs the destination (any tool except `listSystems`, `healthcheck`, `logout`, or a call already refused by `readOnly` or `deniedTools`): on Linux or in the container, without `SAP_BROWSER_PATH`, with `No Chrome/Edge/Brave found for SSO login. Set SAP_BROWSER_PATH to a Chromium-based browser executable.`; with `SAP_BROWSER_PATH` set on a host without a display, with the browser's own launch error. The other destinations of the same file keep working. Hence the rule in section 1: a separate `systems.json` per deployment, and `basic` or `oauth` entries only, ideally with `readOnly` or `allowedPackages` policies, for anything shared. The transport provides no TLS, no rate limiting and no caller identity in the audit log: a reverse proxy in front supplies TLS and an access log.
+Binding to anything but loopback prints `WARNING: HTTP transport bound to 0.0.0.0, reachable beyond this machine. Keep the bearer token secret, restrict MCP_HTTP_ALLOWED_ORIGINS/HOSTS and put TLS in front.` Browser-SSO destinations produce a second warning because every remote caller shares the browser login of the server user; SSO2 destinations produce the equivalent warning for the SAP identity behind the local ticket provider. An `sso` entry loaded on a machine without a browser or a display does not fail at startup: the loader accepts it, `listSystems` and `healthcheck` list it, and it fails only on the first call that needs that destination. The other destinations keep working. An `sso2` entry is headless but still represents one named identity, so use one server instance per person. For shared services prefer purpose-built `basic` or `oauth` technical identities, ideally with `readOnly` or `allowedPackages` policies. The transport provides no TLS, no rate limiting and no caller identity in the audit log: a reverse proxy in front supplies TLS and an access log.
 
 ### Reverse proxy with TLS
 

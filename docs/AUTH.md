@@ -1,7 +1,7 @@
 # Authentication
 
 The server connects to ABAP systems through the ADT (`/sap/bc/adt/...`) endpoints
-using the [`abap-adt-api`](https://www.npmjs.com/package/abap-adt-api) client. Three
+using the [`abap-adt-api`](https://www.npmjs.com/package/abap-adt-api) client. Four
 authentication modes are supported.
 
 ## Multiple systems (destinations)
@@ -137,6 +137,66 @@ cookie harvest → `adt.login()` (CSRF ok) → `reentranceTicket()` and
 `nodeContents('DEVC/K','$TMP')` returned real data. Since then `reentranceTicket`
 is refused unless the server is started with `SAP_ALLOW_REENTRANCE_TICKET=1`,
 because it returns a live logon credential into the conversation.
+
+## Mode sso2: headless ticket provider (on-prem, opt-in)
+
+This mode adds a narrow adapter for environments that already authenticate a named
+user headlessly through SNC. A trusted local program obtains a short-lived SAP
+logon or assertion ticket and prints exactly one JSON object to stdout. The server
+uses the ticket as the `MYSAPSSO2` cookie for ADT HTTP requests:
+
+```json
+{
+  "ONPREM-QAS": {
+    "url": "https://sap.example.com:44300",
+    "client": "100",
+    "authType": "sso2",
+    "sso2": {
+      "command": "/opt/company/bin/sap-sso2-provider",
+      "args": ["--system", "QAS", "--user", "DEVELOPER"],
+      "timeoutMs": 30000
+    },
+    "policy": {
+      "readOnly": true,
+      "allowFreeSql": false,
+      "deniedTools": ["exportPackageSources"]
+    }
+  }
+}
+```
+
+Provider contract and security properties:
+
+- stdout must contain only `{"ticket":"<value>"}`. The ticket must already be a
+  valid cookie value; the server never rewrites signed ticket bytes.
+- `command` must be an absolute path. It is run directly with `shell: false`, a
+  128 KiB output limit and a configurable 1–300 second timeout. Arguments remain
+  separate strings, so shell metacharacters are not evaluated.
+- The provider is trusted local code and inherits the server environment. Do not
+  point it at scripts from writable/shared locations. It must never persist or log
+  the ticket.
+- Provider stdout and stderr are discarded on errors. The ticket is held only in
+  the in-memory cookie jar, is never returned by a tool or written to the audit log,
+  and a fresh ticket is requested once if the ADT session expires.
+- This is opt-in per destination. Existing `sso`, `basic` and `oauth` destinations
+  do not invoke the provider and keep their previous behaviour.
+- The destination URL must use HTTPS. Configuration loading rejects `http://`
+  for `authType: "sso2"`, and the cookie client rejects any request URL that
+  resolves outside the configured SAP origin before attaching `MYSAPSSO2`.
+
+A provider based on SAP NW RFC SDK can open an RFC client connection through SNC
+with `SNC_SSO=1` and `GETSSO2=1`, then call `RfcGetPartnerSSOTicket()`. Issuance is
+backend- and policy-dependent: Basis must confirm the relevant profile parameters,
+user mapping and ICF logon procedure. SAP recommends assertion tickets for ADT and
+documents `login/create_sso2_ticket=3` plus `login/accept_sso2_ticket=1` for that
+scenario in its [ADT back-end configuration guide](https://help.sap.com/doc/2e65ad9a26c84878b1413009f8ac07c3/202210.000/en-US/config_guide_system_backend_abap_development_tools.pdf).
+The target ADT ICF service must accept the `MYSAPSSO2` ticket and HTTPS must remain
+enabled. See SAP's [HTTP logon check order](https://help.sap.com/docs/SAP_NETWEAVER_AS_ABAP_FOR_SOH_740/753088fc00704d0a80e7fbd6803c8adb/48d65106553b3e49e10000000a421937.html)
+and [ticket profile parameters](https://help.sap.com/docs/ABAP_PLATFORM_NEW/e815bb97839a4d83be6c4fca48ee5777/09adc1073ccf4a838d4d241c49384955.html).
+
+The repository deliberately does not bundle SAP's proprietary SDK or a provider
+binary. Build and review that bridge in the environment that owns the SDK and SNC
+credentials. A provider failure affects only its `sso2` destination.
 
 ## Mode basic: basic auth
 

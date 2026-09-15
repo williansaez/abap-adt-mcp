@@ -36,13 +36,14 @@ The set of tools the server marks `destructiveHint` is `DESTRUCTIVE_TOOLS` in [s
 
 ### Who the attacker is
 
-Three actors matter:
+Four actors matter:
 
 1. **The model, steered by content it reads.** Source comments, table rows, ATC finding texts, dump feeds and abapGit remotes are all inputs the model sees. A string in any of them can ask the model to release a transport or delete a class. See [Prompt injection](#prompt-injection).
 2. **A local or network caller that reaches the MCP endpoint.** On stdio the caller is whoever can start the process. On HTTP the caller is whoever holds the bearer token and can reach the bind address. See [HTTP transport hardening](#http-transport-hardening).
 3. **A reader of local files or the process environment**: `systems.json`, `.env`, the audit file, the SSO profile directory, `docker inspect`. See [Secrets handling](#secrets-handling) and [Local files written](#local-files-written).
+4. **A malicious or replaced SSO2 provider.** `authType: "sso2"` deliberately executes the absolute local command configured for that destination. The provider inherits the server environment and authenticates as its SNC identity. Treat the executable and every directory in its path as trusted, owner-writable only local code.
 
-A fourth actor is not modeled: **the MCP host itself.** The host holds the bearer token (HTTP) or spawns the process directly (stdio), and every tool result, including source code and business data, passes through its transcript and logging before the model or the person sees it. This document assumes the host is trustworthy; nothing in the server verifies or bounds it.
+Another actor is not modeled: **the MCP host itself.** The host holds the bearer token (HTTP) or spawns the process directly (stdio), and every tool result, including source code and business data, passes through its transcript and logging before the model or the person sees it. This document assumes the host is trustworthy; nothing in the server verifies or bounds it.
 
 The SAP system itself is trusted for the authenticity of its answers over TLS, not for the safety of their content.
 
@@ -71,6 +72,7 @@ A production destination that must never be written to is therefore configured a
 - `password`, `oauth.clientSecret`, `tls.passphrase` and `MCP_HTTP_TOKEN` are used by the process and never serialised into a tool result.
 - The OAuth access token is held in a closure in [src/lib/oauth.ts](src/lib/oauth.ts), refreshed a minute before expiry and invalidated when SAP answers 401 (the next call fetches a fresh one); it is not returned by any tool.
 - SSO session cookies are harvested from the login browser over the DevTools protocol, kept in the in-memory jar of [src/lib/cookieHttpClient.ts](src/lib/cookieHttpClient.ts), and neither written to disk by the server nor returned. The `login` tool takes no arguments.
+- SSO2 provider stdout must be one JSON object containing the ticket. It is parsed into the same in-memory jar; stdout and stderr are discarded on provider errors and never copied to MCP or audit output. The server cannot prevent the external provider itself from persisting or logging the ticket, so that executable is part of the trusted computing base.
 - `gitUser`/`gitPassword` from the destination are backfilled by [src/handlers/GitHandlers.ts](src/handlers/GitHandlers.ts) when the git tools are called without `user`/`password`, so a remote token can stay in the configuration. The schemas still accept those arguments for compatibility; a token the model is given in the conversation is in the host's transcript, so prefer the configuration.
 - `reentranceTicket` returns a live SAP logon credential into the conversation. It is refused unless the server was started with `SAP_ALLOW_REENTRANCE_TICKET=1`; nothing else in the server needs it.
 
@@ -85,6 +87,7 @@ The server opens outbound connections to exactly these places:
 | The configured SAP hosts (`url` of each destination) | Every tool call | `abap-adt-api` over axios, with the destination's `tls` agent |
 | The OAuth token endpoint (`oauth.tokenUrl`) | `authType: "oauth"`, on first use and near expiry | Node's built-in `fetch` (system trust store; the destination's `tls` block does not apply to this request) |
 | The identity provider | `authType: "sso"`, during login | The Chromium-based browser the server launches (Chrome, Edge, Brave or `SAP_BROWSER_PATH`), not the server process; the server only reads the resulting cookies for the SAP host |
+| The configured local ticket provider | `authType: "sso2"`, during login and one retry after expiry | A child process executed directly, without a shell; it may itself open an SNC/RFC connection according to its implementation |
 | `raw.githubusercontent.com/SAP/abap-atc-cr-cv-s4hc` | `apiReleaseState`, at most once per file per 24 hours | Node's built-in `fetch`, 15-second timeout, disk cache under `~/.abap-adt-mcp/cache`; a cached copy is used when the download fails |
 | Whatever remote URL the git tools are given | `gitExternalRepoInfo`, `gitCreateRepo`, `gitPullRepo`, `pushRepo` | The SAP system's abapGit, not the server |
 
