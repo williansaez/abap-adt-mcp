@@ -82,7 +82,7 @@ Enable a subset with `MCP_TOOLSETS` (comma list, or a preset: `all`, `focused`) 
 | 📖 [`objectRegistrationInfo`](#objectregistrationinfo) | Get registration information for an ABAP object | `objectUrl`* |
 | 📖 [`creatableTypeDetails`](#creatabletypedetails) | List the object types createObject supports, with per-type required fields, label and max name length (SAP-style get_object_type_details). Filter with typeId. For the system-reported creatable catalog see loadTypes. | `typeId` |
 | 📖 [`validateNewObject`](#validatenewobject) | Validate name, package and type for a new ABAP object BEFORE calling createObject. Returns field-level validation errors. Use loadTypes to discover valid objtype values first. | `objtype`*, `objname`*, `description`*, `packagename`, `fugrname`, `swcomp`, `transportLayer`, `packagetype` |
-| ✏️ [`createObject`](#createobject) | Create a new ABAP object skeleton. Recommended flow: loadTypes to pick objtype (e.g. CLAS/OC) -> validateNewObject to check name/package -> createTransport if the package is not local ($TMP) -> createObject. Afterwards edit source with lock + setObjectSourc... | `objtype`*, `name`*, `parentName`*, `description`*, `parentPath`*, `responsible`, `transport`, `swcomp`, `transportLayer`, `packagetype`, `recordChanges`, `abapLanguageVersion` |
+| ✏️ [`createObject`](#createobject) | Create a new ABAP object skeleton. Recommended flow: pick objtype (e.g. CLAS/OC, PROG/P, INTF/OI; creatableTypeDetails lists what the system can create) -> validateNewObject to check name/package -> resolveTransport if the package is not local ($TMP) -> cre... | `objtype`*, `name`*, `parentName`*, `description`*, `parentPath`*, `responsible`, `transport`, `swcomp`, `transportLayer`, `packagetype`, `recordChanges`, `abapLanguageVersion` |
 | 📖 [`nodeContents`](#nodecontents) | Retrieves the contents of a node in the ABAP repository tree. For large packages/namespaces, use startIndex/maxItems to page through the node list instead of retrieving it all at once. | `parent_type`*, `parent_name`, `user_name`, `parent_tech_name`, `rebuild_tree`, `parentnodes`, `startIndex`, `maxItems` |
 | 📖 [`mainPrograms`](#mainprograms) | Retrieves the main programs for a given include. | `includeUrl`* |
 | 📖 [`typeHierarchy`](#typehierarchy) | Type hierarchy (subtypes or supertypes) of the class/interface at a given source position. Pass the source URL (…/source/main) and the 1-based line/column of the type name; the current source is re-read from SAP unless you pass it in "source". superTypes=tr... | `objectSourceUrl`*, `line`*, `offset`*, `superTypes`, `source` |
@@ -1012,7 +1012,7 @@ See also: [`creatableTypeDetails`](#creatabletypedetails), [`loadTypes`](#loadty
 
 ✏️ Create Object · toolset `objects` · writes
 
-Create a new ABAP object skeleton. Recommended flow: loadTypes to pick objtype (e.g. CLAS/OC) -> validateNewObject to check name/package -> createTransport if the package is not local ($TMP) -> createObject. Afterwards edit source with lock + setObjectSource, then activate with activateByName and run unitTestRun.
+Create a new ABAP object skeleton. Recommended flow: pick objtype (e.g. CLAS/OC, PROG/P, INTF/OI; creatableTypeDetails lists what the system can create) -> validateNewObject to check name/package -> resolveTransport if the package is not local ($TMP) -> createObject. Afterwards write the source with setObjectSource and activate=true (it locks and unlocks by itself), then run unitTestRun.
 
 | Parameter | Type | Required | Description | Example |
 |---|---|---|---|---|

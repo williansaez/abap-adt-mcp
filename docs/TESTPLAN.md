@@ -139,3 +139,23 @@ Same tenant, 2026-09-03: `getMethodSource` / `setMethodSource(activate=true)` / 
 
 Same tenant, 2026-09-03 (items 23-25): progress notifications observed over stdio with a `progressToken` (runSnippet 1/4…3/4 steps, SSO login message, heartbeat after 10 s during `atcSummary`); `atcSummary(mainUrl=/sap/bc/adt/packages/zsandbox)` ran ATC (14 s, 2 objects, no findings); `exportPackageSources` wrote `zsandbox/zcube_cds.ddls.asddls` plus `EXPORT.json`.
 
+
+## Layer 5, GitHub Copilot in VS Code (2026-09-28)
+
+Phase 1 of #17 (#18). Windows 11 ARM64 VM, VS Code with Copilot agent mode (auto model routing), Node 24.19.0 installed with winget. Destination: on-prem S/4HANA (PCE 2023) reached over VPN, `sso`, client 100, `policy.allowedPackages: ["$TMP"]`. Server: 2.1.1 from npm, then 2.1.1 plus the #56 fix from a local tarball, then from a git install of a branch (#57).
+
+| # | Test | Result |
+|---|---|---|
+| 1.1 | User `mcp.json` with `servers`, `npx -y abap-adt-mcp`, `focused` | **passed**: Running, 114 tools, 6 prompts; startup about 16 s on the first `npx` download; no errors in the output channel |
+| 1.2 | Tool count, then `MCP_TOOLSETS=all` | **passed**: 173 tools, 225 selected in the picker counting VS Code's own; no 128-tool warning, requests worked |
+| 1.3 | `${input:...}` into `${env:...}` in `systems.json` | **passed**: asked once, masked, resolved (the destination URL was the test value), not asked again on Restart |
+| 1.4 | Read path | **passed**: `searchObject` and `getObjectSource` on `CL_ABAP_CHAR_UTILITIES` (278 lines) |
+| 1.5 | `sso` login from VS Code | **passed with workaround**: failed first with "No Chrome/Edge/Brave found", then on `mkdir` of a profile directory whose name kept the port's colon (#58, fixed by #59); with `SAP_BROWSER_PATH` and `SAP_BROWSER_PROFILE_DIR` Edge opened and the login succeeded |
+| 1.6 | Approval UX | **passed**: read tools run without asking; writes ask per tool with ⚠ "changes workspace source", `deleteObject` with ❌ "permanently removes source" |
+| 1.7 | Prompts | **passed**: `/mcp.abap-adt-mcp.clean-core-check` asked for `destination` and `target` and filled the prompt text |
+| 1.8 | Policy guard rail | **passed**: `createObject` in a package outside `allowedPackages` was refused, the model explained it and did not retry |
+| 1.9 | Write cycle in `$TMP` (short form, the full cycle is Layer 3) | **passed**: `ZCL_MCP_COPILOT` created, written, activated, one method changed with `getMethodSource`/`setMethodSource`, deleted, search empty. `runSnippet` returned the runner's "does not implement if_oo_adt_classrun~main" as success output (#60, fixed by #61) |
+| 1.10 | Output cap | **passed**: VS Code did not truncate 200,000 or 1,000,000 characters (the whole 14,429-line `CL_GUI_ALV_GRID`); the server's 40,000 default is the binding limit |
+| 1.11 | `chat.mcp.discovery.enabled` with a Claude Desktop config | **passed**: off by default; ticked, the second entry is listed `Disabled` with no tools loaded |
+
+Bugs found: #54 (array schemas without `items`, every chat request refused; fixed by #56), #58 (browser SSO on Windows; fixed by #59), #60 (`runSnippet` race on on-prem; fixed by #61). Documentation: #55 (`${env:HOME}` on Windows, "MCP: Show Output", the 128-tool claim, discovery behaviour; this section and the VS Code section of HOSTS.md). The `createObject` description and the server instructions named `loadTypes`, which `focused` does not publish; both now point at `creatableTypeDetails`.

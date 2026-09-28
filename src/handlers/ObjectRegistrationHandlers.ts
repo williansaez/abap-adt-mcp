@@ -47,7 +47,7 @@ export class ObjectRegistrationHandlers extends BaseHandler {
       },
       {
         name: 'createObject',
-        description: 'Create a new ABAP object skeleton. Recommended flow: loadTypes to pick objtype (e.g. CLAS/OC) -> validateNewObject to check name/package -> createTransport if the package is not local ($TMP) -> createObject. Afterwards edit source with lock + setObjectSource, then activate with activateByName and run unitTestRun.',
+        description: 'Create a new ABAP object skeleton. Recommended flow: pick objtype (e.g. CLAS/OC, PROG/P, INTF/OI; creatableTypeDetails lists what the system can create) -> validateNewObject to check name/package -> resolveTransport if the package is not local ($TMP) -> createObject. Afterwards write the source with setObjectSource and activate=true (it locks and unlocks by itself), then run unitTestRun.',
         inputSchema: {
           type: 'object',
           properties: {
