@@ -60,6 +60,42 @@ export function cookieHostOf(sapUrl: string): string {
   return new URL(sapUrl).hostname;
 }
 
+/**
+ * The origin to configure instead, when the login ended on another host. A URL
+ * such as `http://10.0.0.5:8000` that the ICF redirects to
+ * `https://sap.example.com:44300` leaves the session cookie on the redirect
+ * target, so the poll below would wait for a cookie of the configured host
+ * that never comes. `navigations` are the URLs the login window navigated to
+ * (redirects included); the page URL itself is useless here, because once the
+ * discovery document is refused as a download the tab shows `about:blank` or
+ * an error page. Returns the origin of the first ADT navigation on another
+ * host that already holds a session cookie, otherwise undefined. Only ADT
+ * paths count, so an identity provider that is itself an ABAP system (and sets
+ * its own SAP_SESSIONID) cannot end a SAML login early.
+ */
+export function redirectedOrigin(
+  cookies: { name: string; domain: string }[],
+  cookieHost: string,
+  navigations: Iterable<string>
+): string | undefined {
+  for (const nav of navigations) {
+    let url: URL;
+    try {
+      url = new URL(nav);
+    } catch {
+      continue;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
+    if (!url.pathname.startsWith('/sap/bc/adt/')) continue;
+    if (belongsToHost(url.hostname, cookieHost)) continue;
+    const hasSession = cookies.some(
+      (c) => SESSION_COOKIE_RE.test(c.name) && belongsToHost(c.domain, url.hostname)
+    );
+    if (hasSession) return url.origin;
+  }
+  return undefined;
+}
+
 export interface BrowserLoginOptions {
   timeoutMs?: number;
 }
@@ -119,6 +155,12 @@ export async function browserLogin(
     // The discovery doc downloads once authenticated; suppress the file save.
     await cdp.send('Page.setDownloadBehavior', { behavior: 'deny' }).catch(() => {});
 
+    // Every URL the tab navigates to, redirect targets included.
+    const navigations = new Set<string>();
+    page.on('request', (req: any) => {
+      if (req.isNavigationRequest()) navigations.add(req.url());
+    });
+
     const base = sapUrl.replace(/\/$/, '');
     const discovery = `${base}/sap/bc/adt/core/discovery${client ? `?sap-client=${client}` : ''}`;
     // Navigation may "fail" when the response is a download — that is expected.
@@ -142,6 +184,13 @@ export async function browserLogin(
       const forHost = cookies.filter((c) => belongsToHost(c.domain, cookieHost));
       if (forHost.some((c) => SESSION_COOKIE_RE.test(c.name))) {
         return forHost.map((c) => ({ name: c.name, value: c.value }));
+      }
+      const moved = redirectedOrigin(cookies, cookieHost, navigations);
+      if (moved) {
+        throw new Error(
+          `SSO login landed on ${moved}, not on the configured ${new URL(sapUrl).origin}: the SAP system redirected ` +
+            `the login and the session cookie belongs to that host. Set this destination's "url" to ${moved} and log in again.`
+        );
       }
       await new Promise((r) => setTimeout(r, 1500));
     }
