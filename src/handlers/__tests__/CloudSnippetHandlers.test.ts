@@ -108,4 +108,13 @@ describe('runSnippet', () => {
     await expect(failing.handler.handle('runSnippet', { code: 'x.', className: 'ZCL_T' })).rejects.toThrow(/runSnippet failed after created, source written, activated/);
     expect(failing.client.deleteObject).toHaveBeenCalled();
   });
+  it('retries a run the class runner answered before it saw the activation', async () => {
+    const { client, handler } = make();
+    client.runClass
+      .mockResolvedValueOnce('Error: Class does not implement if_oo_adt_classrun~main method!')
+      .mockResolvedValueOnce('Hello from snippet');
+    const res = parse(await handler.handle('runSnippet', { code: 'x.', className: 'ZCL_T' }));
+    expect(res).toMatchObject({ status: 'success', output: 'Hello from snippet', attempts: 2 });
+    expect(client.deleteObject).toHaveBeenCalled();
+  });
 });

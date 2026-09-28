@@ -4,7 +4,7 @@ import type { ToolDefinition } from '../types/tools.js';
 import { session_types } from 'abap-adt-api';
 import { withLock } from '../lib/lockLedger.js';
 import { hardTruncateJson } from '../lib/responseSizing.js';
-import { runClassFresh } from '../lib/runFresh.js';
+import { runClassWhenReady } from '../lib/runFresh.js';
 import crypto from 'crypto';
 import { reportProgress } from '../lib/progress.js';
 
@@ -115,12 +115,20 @@ export class SnippetHandlers extends BaseHandler {
             steps.push('activated');
             reportProgress('activated, running', 3, 4);
 
-            const run = await runClassFresh(this.adtclient, className);
+            const run = await runClassWhenReady(this.adtclient, className);
             const output = run.output;
             steps.push('ran');
             const cleanupError = await cleanup();
+            if (run.notReady) {
+                this.trackRequest(startTime, false);
+                return { content: [{ type: 'text', text: JSON.stringify({
+                    status: 'error', phase: 'run', className, wrapped, output, attempts: run.attempts, steps, cleanupError,
+                    hint: 'The class runner did not see the activated class in time. Call runSnippet again with keep=true, then runClass on the kept class a few seconds later.'
+                }) }], isError: true };
+            }
             this.trackRequest(startTime, true);
             const payload: any = { status: 'success', className, packageName, wrapped, kept: args.keep === true, output, runMode: run.mode, steps, cleanupError };
+            if (run.attempts > 1) payload.attempts = run.attempts;
             if (run.locksInvalidated.length) payload.locksInvalidated = run.locksInvalidated;
             const text = JSON.stringify(payload);
             return { content: [{ type: 'text', text: text.length > 40000 ? hardTruncateJson(payload) : text }] };
