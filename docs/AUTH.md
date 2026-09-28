@@ -138,6 +138,33 @@ cookie harvest → `adt.login()` (CSRF ok) → `reentranceTicket()` and
 is refused unless the server is started with `SAP_ALLOW_REENTRANCE_TICKET=1`,
 because it returns a live logon credential into the conversation.
 
+### Browser SSO on on-premise and Private Cloud systems
+
+The same mode works on an on-premise or S/4HANA Private Cloud system whose ICF
+answers ADT with `401` and `WWW-Authenticate: Basic`, with no identity provider at
+all: the login window shows the browser's own user/password dialog, the system
+sets `SAP_SESSIONID_<SID>_<client>`, and that cookie is harvested like any other.
+The password is typed into the browser and never stored in `systems.json` or in
+the host's environment, which makes `sso` the better choice than `basic` whenever
+someone is at the keyboard to log in. `basic` stays the mode for unattended use.
+
+Point `url` at the host the system actually serves ADT on. Check it first:
+
+```bash
+curl -sk -o /dev/null -w '%{http_code} %{redirect_url}\n' '<url>/sap/bc/adt/discovery?sap-client=<client>'
+```
+
+`401` means the URL is right. A `3xx` to another host (typically `http://<ip>:8000`
+redirected to `https://<fqdn>:44300`) means the session cookie will belong to the
+redirect target: use that URL instead. Since 2.1.1 the login stops with
+`SSO login landed on <origin> ...` naming it, instead of waiting 300 seconds for a
+cookie that never arrives. A private network address needs the VPN up both for
+the probe and for the login.
+
+Verified on an S/4HANA 2023 Private Cloud Edition system (client `100`, Basic
+challenge, public-CA certificate on the FQDN): browser login, cookie harvest and
+`systemProfile` with the on-prem feature set.
+
 ## Mode sso2: headless ticket provider (on-prem, opt-in)
 
 This mode adds a narrow adapter for environments that already authenticate a named
