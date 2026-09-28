@@ -147,7 +147,11 @@ export class CodeAnalysisHandlers extends BaseHandler {
                 inputSchema: {
                     type: 'object',
                     properties: {
-                        references: { type: 'array' },
+                        references: {
+                            type: 'array',
+                            items: { type: 'object' },
+                            description: 'Usage references to fetch snippets for, as returned by usageReferences.'
+                        },
                         startIndex: {
                             type: 'number',
                             description: '0-based index of the first snippet to return (default 0). Use with maxItems to page through large result sets.',

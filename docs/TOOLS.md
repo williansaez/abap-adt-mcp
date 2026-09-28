@@ -1815,7 +1815,7 @@ Retrieves usage reference snippets (source excerpts) for a list of usage referen
 
 | Parameter | Type | Required | Description | Example |
 |---|---|---|---|---|
-| `references` | array | yes |  |  |
+| `references` | array | yes | Usage references to fetch snippets for, as returned by usageReferences. |  |
 | `startIndex` | number | no | 0-based index of the first snippet to return (default 0). Use with maxItems to page through large result sets. |  |
 | `maxItems` | number | no | Maximum number of snippets to return from startIndex. Omit to return the rest. |  |
 
