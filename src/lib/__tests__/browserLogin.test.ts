@@ -1,4 +1,4 @@
-import { belongsToHost, cookieHostOf, redirectedOrigin } from '../browserLogin';
+import { belongsToHost, candidateBrowsers, cookieHostOf, profileDirName, redirectedOrigin } from '../browserLogin';
 
 describe('browser SSO cookie host matching', () => {
   it('matches cookies against the hostname, never the host with its port', () => {
@@ -49,5 +49,31 @@ describe('browser SSO login redirected to another host', () => {
 
   it('ignores navigations without a usable URL', () => {
     expect(redirectedOrigin([session], '10.1.2.3', ['about:blank', 'chrome-error://chromewebdata/', ''])).toBeUndefined();
+  });
+});
+
+describe('browser SSO on Windows and Linux', () => {
+  it('looks for Edge under Program Files (x86), where Windows 11 installs it, and for per-user installs', () => {
+    const env = { ProgramFiles: 'C:\\Program Files', 'ProgramFiles(x86)': 'C:\\Program Files (x86)', LOCALAPPDATA: 'C:\\Users\\me\\AppData\\Local' };
+    const list = candidateBrowsers('win32', env);
+    expect(list).toContain('C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe');
+    expect(list).toContain('C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe');
+    expect(list).toContain('C:\\Users\\me\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe');
+    expect(list.every(p => !p.startsWith('/'))).toBe(true);
+  });
+
+  it('skips unset Windows roots', () => {
+    expect(candidateBrowsers('win32', { ProgramFiles: 'C:\\Program Files' })).toHaveLength(3);
+  });
+
+  it('has Linux and macOS candidates', () => {
+    expect(candidateBrowsers('linux', {})).toContain('/usr/bin/google-chrome');
+    expect(candidateBrowsers('darwin', {})[0]).toMatch(/^\/Applications\//);
+  });
+
+  it('names the profile directory without a colon on Windows and keeps it elsewhere', () => {
+    expect(profileDirName('sap.example.com:44300', 'win32')).toBe('sap.example.com_44300');
+    expect(profileDirName('sap.example.com', 'win32')).toBe('sap.example.com');
+    expect(profileDirName('sap.example.com:44300', 'darwin')).toBe('sap.example.com:44300');
   });
 });

@@ -27,18 +27,54 @@ import os from 'os';
 import path from 'path';
 import { HarvestedCookie } from './cookieHttpClient.js';
 
-const CANDIDATE_BROWSERS = [
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-  '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
-];
+/**
+ * Chromium-based browsers to try, in order, where their installers put them.
+ * On Windows each browser can sit under Program Files, Program Files (x86)
+ * (Edge's default, even on ARM64) or a per-user LOCALAPPDATA install.
+ */
+export function candidateBrowsers(platform: NodeJS.Platform = process.platform, env: NodeJS.ProcessEnv = process.env): string[] {
+  if (platform === 'darwin') {
+    return [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+      '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+    ];
+  }
+  if (platform === 'win32') {
+    const roots = [env.ProgramFiles, env['ProgramFiles(x86)'], env.LOCALAPPDATA].filter((r): r is string => !!r);
+    const exes = [
+      ['Google', 'Chrome', 'Application', 'chrome.exe'],
+      ['Microsoft', 'Edge', 'Application', 'msedge.exe'],
+      ['BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'],
+    ];
+    return exes.flatMap(exe => roots.map(root => path.win32.join(root, ...exe)));
+  }
+  return [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/microsoft-edge',
+    '/usr/bin/brave-browser',
+  ];
+}
 
 function detectBrowser(): string {
   if (process.env.SAP_BROWSER_PATH) return process.env.SAP_BROWSER_PATH;
-  for (const p of CANDIDATE_BROWSERS) if (fs.existsSync(p)) return p;
+  for (const p of candidateBrowsers()) if (fs.existsSync(p)) return p;
   throw new Error(
     'No Chrome/Edge/Brave found for SSO login. Set SAP_BROWSER_PATH to a Chromium-based browser executable.'
   );
+}
+
+/**
+ * Directory name of the per-host login profile. The host carries the port
+ * (`sap.example.com:44300`), and a colon is not allowed in a Windows file
+ * name, so there it becomes an underscore. Other platforms keep the host as
+ * is, so existing profiles (and their "keep me signed in") stay where they are.
+ */
+export function profileDirName(host: string, platform: NodeJS.Platform = process.platform): string {
+  return platform === 'win32' ? host.replace(/[<>:"/\\|?*]/g, '_') : host;
 }
 
 const SESSION_COOKIE_RE = /MYSAPSSO2|SAP_SESSIONID/i;
@@ -133,7 +169,7 @@ export async function browserLogin(
     }
     fs.mkdirSync(userDataDir, { recursive: true });
   } else {
-    userDataDir = path.join(os.homedir(), '.abap-adt-mcp', 'sso', host);
+    userDataDir = path.join(os.homedir(), '.abap-adt-mcp', 'sso', profileDirName(host));
     fs.mkdirSync(userDataDir, { recursive: true, mode: 0o700 });
     fs.chmodSync(path.dirname(userDataDir), 0o700);
     fs.chmodSync(userDataDir, 0o700);
