@@ -25,6 +25,7 @@ Whatever the host, the server is the same process:
 | Roo Code | stdio or HTTP | Not surfaced at the time of writing | Per tool, `alwaysAllow` list per server | `env` map in `mcp_settings.json` or `.roo/mcp.json` |
 | Cursor | stdio or HTTP | Not surfaced at the time of writing | Per tool, or auto-run mode | `env` map in `mcp.json` |
 | VS Code (Copilot agent mode) | stdio or HTTP | Yes, `/mcp.abap-adt-mcp.<prompt>` | Per tool with session, workspace or always | `env` map in `.vscode/mcp.json`, `${input:...}` and `${env:...}` |
+| GitHub Copilot CLI | stdio (`"type": "local"`) | Not checked | Read tools ran without a prompt; writes not exercised | `env` map in `~/.copilot/mcp-config.json` with `${VAR}` expansion; only `PATH` is inherited |
 | Windsurf | stdio or HTTP | Check the Windsurf docs | Per tool with auto-run toggles | `env` map in `mcp_config.json` |
 | Generic Streamable HTTP client | HTTP | Depends on the client | Depends on the client | Set on the server process, not the client |
 
@@ -269,6 +270,39 @@ An HTTP entry is `"type": "http"` with `"url"` and `"headers": { "Authorization"
 - Output size: VS Code passed a 1,000,000-character tool result (the whole 14,429-line `CL_GUI_ALV_GRID`) without truncating it. The server's own 40,000-character default is the binding limit; raise `MCP_MAX_RESPONSE_CHARS` only if the model's context can take it.
 - Organisation policies can restrict which MCP servers Copilot may use (an allowlist in the GitHub organisation or enterprise settings); when the server never appears although the file is correct, check that policy before the JSON.
 - `chat.mcp.discovery.enabled` is off by default for every source. With Claude Desktop ticked, VS Code lists its entry as a second `abap-adt-mcp`, `Disabled`, with no tools loaded; it only duplicates the tools if someone starts it. Keep one.
+
+## GitHub Copilot CLI
+
+Verified with Copilot CLI 1.0.89 on Windows 11 ARM64, 2026-09-28 (#20), against the same on-prem `sso` destination as the VS Code run; the execution record is in [TESTPLAN.md](TESTPLAN.md#layer-5-github-copilot-in-vs-code-2026-09-28).
+
+**Install and sign in.** `npm install -g @github/copilot` (on Windows PowerShell with the default execution policy, call `npm.cmd`; `npm.ps1` is blocked), then `copilot` and `/login`, which opens the browser for the GitHub OAuth grant. The CLI asks once per session whether to trust the current folder.
+
+**Config file.** `~/.copilot/mcp-config.json`, an `mcpServers` map; a local server is `"type": "local"`:
+
+```json
+{
+  "mcpServers": {
+    "abap-adt-mcp": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "abap-adt-mcp"],
+      "env": {
+        "SAP_SYSTEMS_FILE": "C:/Users/<name>/.abap-adt-mcp/systems.json",
+        "MCP_TOOLSETS": "focused"
+      },
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+`/mcp show abap-adt-mcp` lists the server's status and tools (114 with `focused`, 173 with `all`); `/mcp list`, `/mcp edit`, `/mcp disable` and `/mcp enable` manage it. The GitHub MCP server is built in, so `/mcp` reports two servers.
+
+**Environment and secrets.** Only `PATH` reaches the server from the CLI's environment; everything else goes in `env`. A value of the form `${VAR}` is replaced with that variable from the CLI's own environment, which GitHub's documentation does not mention. There is no secret store like VS Code's `${input:...}`: the value lives in the OS environment. When the variable is not set, the literal text `${VAR}` is passed on, and a `systems.json` entry that reads it through `${env:VAR}` stops the server at startup with `Fatal: System "DEV": url "${GV_URL}" is not…`. A Windows user variable set with `setx` or `[Environment]::SetEnvironmentVariable(..., 'User')` is only seen by processes started after it was set, so a terminal inside an editor that was already open does not have it: start a new terminal from a fresh editor or sign-in.
+
+**Browser SSO.** Works from the terminal: the server started by the CLI opens the browser window and the first read succeeds after the login, the same as in VS Code (on Windows before 2.5.0 with the #58 workaround). Each CLI start is a new server process and so a new SAP session.
+
+**Tool count.** No limit observed: with `all` (173 tools) requests worked and no warning appeared.
 
 ## Windsurf
 

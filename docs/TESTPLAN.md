@@ -159,3 +159,14 @@ Phase 1 of #17 (#18). Windows 11 ARM64 VM, VS Code with Copilot agent mode (auto
 | 1.11 | `chat.mcp.discovery.enabled` with a Claude Desktop config | **passed**: off by default; ticked, the second entry is listed `Disabled` with no tools loaded |
 
 Bugs found: #54 (array schemas without `items`, every chat request refused; fixed by #56), #58 (browser SSO on Windows; fixed by #59), #60 (`runSnippet` race on on-prem; fixed by #61). Documentation: #55 (`${env:HOME}` on Windows, "MCP: Show Output", the 128-tool claim, discovery behaviour; this section and the VS Code section of HOSTS.md). The `createObject` description and the server instructions named `loadTypes`, which `focused` does not publish; both now point at `creatableTypeDetails`.
+
+### Phase 3, GitHub Copilot CLI (#20), 2026-09-28
+
+Same VM. Copilot CLI 1.0.89 from `npm install -g @github/copilot`, server from `npx -y github:williansaez/abap-adt-mcp#milestone/2.5.0` (integration branch of this milestone's PRs).
+
+| # | Test | Result |
+|---|---|---|
+| 3.1 | `~/.copilot/mcp-config.json` stdio entry | **passed**: `/mcp show` enabled, 114 tools; `listSystems` returned the destination |
+| 3.2 | SSO login from the terminal | **passed**: the browser opened from the CLI's server process, `getObjectSource` returned the source after the login |
+| 3.3 | Tool cap | **passed**: `all` loaded 173 tools, requests worked, no warning |
+| 3.4 | Secret handling | **passed, documented**: no secret store; `${VAR}` in `env` is expanded from the CLI's environment (undocumented by GitHub); unset, the literal is passed and the server stops with a clear fatal naming the variable; a Windows user variable only reaches processes started after it was set |
