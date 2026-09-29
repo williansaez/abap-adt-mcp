@@ -14,7 +14,7 @@ process.env.SAP_SYSTEMS = JSON.stringify({
   RO: { url: 'https://ro.invalid', authType: 'basic', user: 'u', password: 'p', client: '100', policy: { readOnly: true, allowedPackages: ['Z*'] } },
 });
 process.env.SAP_DEFAULT_DESTINATION = 'DEV';
-process.env.MCP_TOOLSETS = 'source,objects';
+process.env.MCP_TOOLSETS = 'source,objects,data';
 delete process.env.MCP_DISABLED_TOOLSETS;
 delete process.env.MCP_PROFILE_GATE;
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -64,6 +64,22 @@ describe('dispatch', () => {
     // exportPackageSources only writes locally and stays allowed on read-only destinations.
     stub(server, 'RO', 'navigation', async () => ({ exported: true }));
     expect(text(await server.dispatch('exportPackageSources', { destination: 'RO', packageName: 'ZX', targetDir: '/tmp/x' }, () => undefined))).toEqual({ exported: true });
+  });
+
+  it('refuses table data on a destination without a policy and shows the effective data access in listSystems', async () => {
+    const dest = stub(server, 'DEV', 'query', async () => ({ rows: [] }));
+    await expect(server.dispatch('tableContents', { destination: 'DEV', ddicEntityName: 'T000' }, () => undefined))
+      .rejects.toThrow(/Policy: tableContents blocked on destination DEV \(allowDataPreview\)/);
+    await expect(server.dispatch('runQuery', { destination: 'DEV', sqlQuery: 'select * from t000' }, () => undefined))
+      .rejects.toThrow(/Policy: runQuery blocked on destination DEV \(allowFreeSql\)/);
+    expect(dest.handlers.query.handle).not.toHaveBeenCalled();
+    const listed = text(await server.dispatch('listSystems', {}, () => undefined)).systems;
+    for (const s of listed) expect(s.dataAccess).toEqual({ allowDataPreview: false, allowFreeSql: false });
+
+    server.systems.get('DEV').policy = { allowDataPreview: true };
+    expect(text(await server.dispatch('tableContents', { destination: 'DEV', ddicEntityName: 'T000' }, () => undefined))).toEqual({ rows: [] });
+    expect(text(await server.dispatch('listSystems', {}, () => undefined)).systems.find((s: any) => s.destination === 'DEV').dataAccess)
+      .toEqual({ allowDataPreview: true, allowFreeSql: false });
   });
 
   it('serializes calls per destination in arrival order', async () => {
@@ -131,7 +147,7 @@ describe('dispatch', () => {
     process.env.MCP_PROFILE_GATE = 'off';
     expect(text(await server.dispatch('debuggerListen', {}, () => undefined))).toEqual({ listened: true });
     delete process.env.MCP_PROFILE_GATE;
-    process.env.MCP_TOOLSETS = 'source,objects';
+    process.env.MCP_TOOLSETS = 'source,objects,data';
   });
 
   it('forgets the package memo after objects are created, deleted, renamed or moved', async () => {

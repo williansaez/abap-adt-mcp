@@ -30,6 +30,7 @@ Source: `docs/ANALISE-ECOSSISTEMA-SAP-MCP.md` (research across 30+ SAP MCP proje
 | 24 | ATC summary by priority, historic ATC results | done (`atcSummary`); historic result listing not built: endpoint undocumented |
 | 25 | Source export in abapGit layout, `debugSession` composition | done (`exportPackageSources`); `debugSession` not built: on-prem only, no system to validate |
 | 26 | Headless on-premise logon without a stored password (`authType: sso2`, external ticket provider) | done in 2.1.0, contributed (#45); the browser Secure Login Client path and `authType: cert` stay unbuilt, no landscape with `icm/HTTPS/verify_client` to validate them |
+| 27 | SAP API Policy page (`docs/API-POLICY.md`), table data closed by default (`allowDataPreview`, `allowFreeSql`, `MCP_ALLOW_DATA_PREVIEW`, `MCP_ALLOW_FREE_SQL`), `apiPolicy` in `apiReleaseState` | done on the branch, unreleased; breaking, so it ships in a major release. The prohibited classification SAP announced for the cloudification repository is not published yet: the reader is ready for it, the content is not there |
 
 The earlier plan based on SAP's official documentation (`docs/IMPROVEMENTS.md`) is complete since 0.3.1 and kept for history.
 
