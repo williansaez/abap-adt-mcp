@@ -304,6 +304,16 @@ Verified with Copilot CLI 1.0.89 on Windows 11 ARM64, 2026-09-28 (#20), against 
 
 **Tool count.** No limit observed: with `all` (173 tools) requests worked and no warning appeared.
 
+## Copilot in JetBrains, Eclipse and Xcode
+
+From GitHub's documentation as of 2026-09-28 (#21); not run against this server, since none of these IDEs was at hand. All three read a `mcp.json` with a top-level `servers` key, the VS Code shape, so the VS Code snippet above works with the `inputs` array dropped. None of the three documents `${input:...}` or `${env:...}` expansion: put literal values in `env`, or keep secrets in the OS environment and reference them from `systems.json` with `${env:VAR}`. On Copilot Business or Enterprise the organisation must enable the "MCP servers in Copilot" policy.
+
+- **JetBrains IDEs** (IntelliJ IDEA and the rest of the family): Copilot Chat in Agent mode > tools icon > **Add MCP Tools** opens `mcp.json`. The on-disk location is not documented.
+- **Eclipse** (2024-09 or later): the Copilot status-bar icon > Open Chat > **Configure Tools...**, or Preferences > GitHub Copilot > MCP > **Server Configurations**.
+- **Xcode** (GitHub Copilot for Xcode extension): the extension's Settings (also Editor > GitHub Copilot > Open GitHub Copilot for Xcode Settings) > **MCP** tab > **Edit Config**. Xcode is a GUI app and GitHub does not say how it finds `npx`; expect the same rule as Claude Desktop on macOS and give the absolute path (`/opt/homebrew/bin/npx` with Homebrew, `/usr/local/bin/npx` with the Node installer) when the server does not start.
+
+**Eclipse next to ADT.** An ABAP developer on Eclipse usually has ADT open against the same system. The server keeps its own ADT session, separate from Eclipse's, so an object open for editing in ADT is locked for the server too: a write from Copilot fails with the lock owner in the message until the editor releases it, and a write from the server can likewise block ADT. `listLocks` shows what the server holds and `forceUnlock` releases it. Expected from how ADT locking works, not yet observed with Copilot in Eclipse.
+
 ## Windsurf
 
 **Config file.** `~/.codeium/windsurf/mcp_config.json`, opened from the MCP panel in Cascade (Settings > Cascade > MCP servers, or the plugins icon). Same `mcpServers` shape as Cursor; HTTP servers use `"serverUrl"` instead of `"url"` at the time of writing.

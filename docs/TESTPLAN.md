@@ -170,3 +170,11 @@ Same VM. Copilot CLI 1.0.89 from `npm install -g @github/copilot`, server from `
 | 3.2 | SSO login from the terminal | **passed**: the browser opened from the CLI's server process, `getObjectSource` returned the source after the login |
 | 3.3 | Tool cap | **passed**: `all` loaded 173 tools, requests worked, no warning |
 | 3.4 | Secret handling | **passed, documented**: no secret store; `${VAR}` in `env` is expanded from the CLI's environment (undocumented by GitHub); unset, the literal is passed and the server stops with a clear fatal naming the variable; a Windows user variable only reaches processes started after it was set |
+
+### Phase 4, Copilot in JetBrains, Eclipse and Xcode (#21), 2026-09-28
+
+| # | Test | Result |
+|---|---|---|
+| 4.1 | Config location, map key and secrets from GitHub's docs | **done**: all three use `mcp.json` with `servers`; no documented `${input:...}` or env expansion; recorded in HOSTS.md |
+| 4.2 | Live run where an IDE is available | **not run**: no JetBrains IDE, Eclipse or Copilot for Xcode installed |
+| 4.3 | Eclipse coexistence with ADT | **documented, not observed**: separate ADT sessions, so editor locks and server locks block each other |
