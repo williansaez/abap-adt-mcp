@@ -24,6 +24,8 @@ import { browserLogin } from './lib/browserLogin.js';
 import { getSso2Cookies } from './lib/sso2TicketProvider.js';
 import { readSystems, defaultDestination, SystemConfig } from './lib/systems.js';
 import { classifyAdtError } from './lib/adtErrorHints.js';
+import { redactSecrets } from './lib/redact.js';
+import { installProcessGuards } from './lib/processGuards.js';
 import { TOOL_ROUTES, HandlerKey, toolAnnotations, resolveToolsets, ToolsetSelection, TOOLSETS } from './toolManifest.js';
 import { buildSystemProfile, SystemProfile } from './lib/systemProfile.js';
 import { evaluatePolicy, objectUrlOf, summarizePolicy } from './lib/policy.js';
@@ -80,18 +82,6 @@ config({ path: path.resolve(__dirname, '../.env'), quiet: true });
  * constructor, where stderr is already redacted.
  */
 const tlsBypassRemoved = enforceTlsVerification();
-
-/**
- * Strip credential material from error text before it reaches the model/host.
- * Upstream HTTP errors can echo request headers or URLs with embedded secrets.
- */
-function redactSecrets(text: string): string {
-  return String(text)
-    .replace(/(authorization\s*[:=]\s*)(?:basic|bearer)?\s*[^\s,;"']+/gi, '$1[REDACTED]')
-    .replace(/((?:cookie|set-cookie)\s*[:=]\s*)[^\n"']+/gi, '$1[REDACTED]')
-    .replace(/((?:password|passwd|passphrase|client_secret|clientsecret|sap-password|token|api[_-]?key|secret|lock_?handle)\s*[=:]\s*)[^\s&,;"']+/gi, '$1[REDACTED]')
-    .replace(/(https?:\/\/)[^\/\s:@]+:[^\/\s:@]+@/gi, '$1[REDACTED]@');
-}
 
 /**
  * Every diagnostic this process prints goes through the same redaction as tool
@@ -754,13 +744,9 @@ export class AbapAdtServer extends Server {
       console.error(`MCP ABAP ADT API server running on stdio — ${this.systems.size} destination(s): ${[...this.systems.keys()].join(', ')}`);
     }
 
-    const shutdown = async (signal: string) => {
-      console.error(`[abap-adt-mcp] ${signal}: releasing locks and sessions`);
-      await Promise.race([this.close().catch(() => undefined), new Promise((r) => setTimeout(r, 5000))]);
-      process.exit(0);
-    };
-    process.on('SIGINT', () => { void shutdown('SIGINT'); });
-    process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+    // SIGINT, SIGTERM, uncaught exceptions and rejections nobody handles: locks
+    // and sessions are released before the process ends (src/lib/processGuards.ts).
+    installProcessGuards({ close: () => this.close() });
     this.onerror = (error) => { console.error('[MCP Error]', error); };
   }
 
