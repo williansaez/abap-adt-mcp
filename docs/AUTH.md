@@ -108,7 +108,7 @@ SAP_AUTH_TYPE=sso
 
 Requirements & behaviour:
 
-- A local **Chromium browser** (Chrome, Edge, or Brave) must be installed. Since 2.5.0 the
+- A local **Chromium browser** (Chrome, Edge, or Brave) must be installed. Since 2.7.0 the
   default install locations are auto-detected on macOS, Windows and Linux; override with
   `SAP_BROWSER_PATH`. Driven via `puppeteer-core`
   (no browser is downloaded).

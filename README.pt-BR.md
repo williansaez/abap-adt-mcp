@@ -16,6 +16,7 @@ abap-adt-mcp é um servidor [Model Context Protocol](https://modelcontextprotoco
 
 ## Sumário
 
+- [O que há de novo na 2.7.0](#o-que-há-de-novo-na-270)
 - [O que há de novo na 2.6.0](#o-que-há-de-novo-na-260)
 - [O que há de novo na 2.0.0](#o-que-há-de-novo-na-200)
 - [Instalação](#instalação)
@@ -36,6 +37,15 @@ abap-adt-mcp é um servidor [Model Context Protocol](https://modelcontextprotoco
 - [Solução de problemas](#solução-de-problemas)
 - [Testes e contribuição](#testes-e-contribuição)
 - [Licença](#licença)
+
+## O que há de novo na 2.7.0
+
+Lançada em 2026-09-30. A lista completa está no [CHANGELOG.md](CHANGELOG.md#270---2026-09-30---copilot-verified-a-new-object-readable-at-once-registry-published-by-the-release). Nada muda para uma instalação existente.
+
+- **GitHub Copilot verificado**: o modo agente do VS Code e o Copilot CLI rodaram o servidor contra um sistema real ([docs/TESTPLAN.md](docs/TESTPLAN.md), camada 5, [docs/HOSTS.md](docs/HOSTS.md)). Os quatro defeitos que essa rodada achou estão corrigidos: parâmetros de lista sem `items` (o VS Code recusava toda requisição), SSO pelo navegador no Windows e no Linux, `runSnippet` executando antes de a ativação ficar visível, e a seção do VS Code no guia de hosts.
+- **Objeto novo legível logo após `createObject`.** Criado dentro da sessão com estado, o objeto respondia 400 a toda leitura até o fonte ser gravado; a criação agora roda fora dessa sessão, e o caso que resta (bloqueios ativos) é nomeado na resposta e na dica de erro.
+- **SSO pelo navegador recusa na hora onde nenhuma janela pode abrir** (executor de CI, contêiner, servidor) e indica `oauth` ou `sso2`.
+- A entrada no registro MCP é atualizada pelo fluxo de release.
 
 ## O que há de novo na 2.6.0
 

@@ -16,6 +16,7 @@ abap-adt-mcp is a [Model Context Protocol](https://modelcontextprotocol.io) serv
 
 ## Table of contents
 
+- [What is new in 2.7.0](#what-is-new-in-270)
 - [What is new in 2.6.0](#what-is-new-in-260)
 - [What is new in 2.0.0](#what-is-new-in-200)
 - [Setup](#setup)
@@ -36,6 +37,15 @@ abap-adt-mcp is a [Model Context Protocol](https://modelcontextprotocol.io) serv
 - [Troubleshooting](#troubleshooting)
 - [Testing and contributing](#testing-and-contributing)
 - [License](#license)
+
+## What is new in 2.7.0
+
+Released 2026-09-30. The full list is in [CHANGELOG.md](CHANGELOG.md#270---2026-09-30---copilot-verified-a-new-object-readable-at-once-registry-published-by-the-release). Nothing changes for an existing setup.
+
+- **GitHub Copilot verified**: VS Code agent mode and the Copilot CLI ran the server against a real system ([docs/TESTPLAN.md](docs/TESTPLAN.md) Layer 5, [docs/HOSTS.md](docs/HOSTS.md)). The four defects that run found are fixed: array parameters without `items` (VS Code refused every request), browser SSO on Windows and Linux, `runSnippet` running before the activation was visible, and the VS Code section of the hosts guide.
+- **A new object is readable right after `createObject`.** Created inside the stateful session, an object answered 400 to every read until its source was written; the creation now runs outside that session, and the case that remains (locks held) is named in the answer and in the error hint.
+- **Browser SSO refuses at once where no window can open** (a CI runner, a container, a server) and names `oauth` or `sso2` instead.
+- The MCP registry entry is updated by the release workflow.
 
 ## What is new in 2.6.0
 
