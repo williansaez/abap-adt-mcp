@@ -107,4 +107,16 @@ describe('classifyAdtError', () => {
       expect(classifyAdtError({ code: 'CERT_HAS_EXPIRED', message: 'certificate has expired | status code 401' }).kind).toBe('tlsCertificate');
     });
   });
+
+  it('explains "wrong input data" on an object created earlier in the same session', () => {
+    const e: any = new Error('Resource  ZCL_NEW: wrong input data for processing'); e.err = 400; e.type = 'ExceptionResourceWrongData'; e.namespace = 'com.sap.adt';
+    const c = classifyAdtError(e);
+    expect(c).toMatchObject({ kind: 'wrongInputData', status: 400 });
+    expect(c.hint).toMatch(/created earlier in this same session/);
+    expect(c.hint).toMatch(/setObjectSource/);
+    expect(c.nextTools).toEqual(expect.arrayContaining(['setObjectSource', 'dropSession']));
+    expect(classifyAdtError({ message: 'Failed to get object structure: Resource  ZCL_NEW: wrong input data for processing' }).kind).toBe('wrongInputData');
+    // A plain 400 keeps its own kind.
+    expect(classifyAdtError({ message: 'Request failed with status code 400' }).kind).toBe('ambiguous400');
+  });
 });

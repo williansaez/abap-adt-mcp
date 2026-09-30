@@ -7,7 +7,7 @@
 
 export type AdtErrorKind =
   | 'policyDenied' | 'tlsCertificate' | 'sessionExpired' | 'csrf' | 'locked' | 'staleLockHandle' | 'transportRequired'
-  | 'authorization' | 'notFound' | 'rateLimited' | 'ambiguous400' | 'serverError' | 'unknown';
+  | 'authorization' | 'notFound' | 'rateLimited' | 'wrongInputData' | 'ambiguous400' | 'serverError' | 'unknown';
 
 export interface AdtErrorClassification {
   kind: AdtErrorKind;
@@ -58,6 +58,10 @@ const HINTS: Record<Exclude<AdtErrorKind, 'unknown' | 'tlsCertificate'>, { hint:
   rateLimited: {
     hint: 'SAP throttled the request (429/503). The server already retried once; wait a few seconds before calling again.',
     nextTools: [],
+  },
+  wrongInputData: {
+    hint: 'SAP answered "wrong input data for processing" (ExceptionResourceWrongData). Seen on an object created earlier in this same session and read before its source was written: write the source with setObjectSource (every read works afterwards), or call dropSession and read again. If the object was not just created, the request itself is wrong: an object URL (not a name), /source/main for source tools, and an object that exists (searchObject).',
+    nextTools: ['setObjectSource', 'dropSession', 'searchObject'],
   },
   ambiguous400: {
     hint: 'SAP rejected the request as invalid (400). Do not retry login. Check the parameters: ADT object URLs (not names), /source/main for source tools, a lockHandle from lock, JSON where the schema asks for it.',
@@ -170,6 +174,8 @@ export function classifyAdtError(input: unknown, context?: AdtErrorContext): Adt
     kind = 'locked';
   } else if (status === 409 || has(/transport request|not assigned to a (transport|request)|request\/task|recording of changes|is not modifiable|already in (a|another) (transport|request)/i)) {
     kind = 'transportRequired';
+  } else if (err.type === 'ExceptionResourceWrongData' || has(/ExceptionResourceWrongData|wrong input data for processing/i)) {
+    kind = 'wrongInputData';
   } else if (status === 403 || has(/not authorized|no authorization|missing authorization|authorization check|su53/i)) {
     kind = 'authorization';
   } else if (status === 404 || has(/not found|does not exist|could not be found|resource .* unknown/i)) {

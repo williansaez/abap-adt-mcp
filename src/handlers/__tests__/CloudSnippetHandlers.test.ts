@@ -47,7 +47,7 @@ describe('runSnippet', () => {
   function make(opts: { activationFails?: boolean; runFails?: boolean } = {}) {
     const client: any = {
       stateful: 'stateless',
-      createObject: jest.fn(async () => undefined),
+      createObject: jest.fn(async () => { client.sessionTypeAtCreate = client.stateful; }),
       lock: jest.fn(async () => ({ LOCK_HANDLE: 'H' })),
       unLock: jest.fn(async () => undefined),
       setObjectSource: jest.fn(async () => undefined),
@@ -81,6 +81,9 @@ describe('runSnippet', () => {
     const { client, handler } = make();
     const res = parse(await handler.handle('runSnippet', { code: "out->write( 'hi' ).", className: 'zcl_t', responsible: 'dev' }));
     expect(client.createObject).toHaveBeenCalledWith('CLAS/OC', 'ZCL_T', '$TMP', expect.any(String), '/sap/bc/adt/packages/%24tmp', 'DEV', undefined);
+    // The class is created outside the stateful context, so the session can read it at once; the write path that follows is stateful again.
+    expect(client.sessionTypeAtCreate).toBe('stateless');
+    expect(client.lock).toHaveBeenCalled();
     expect(client.setObjectSource).toHaveBeenCalledWith('/sap/bc/adt/oo/classes/zcl_t/source/main', expect.stringContaining('if_oo_adt_classrun'), 'H', undefined);
     expect(client.activate).toHaveBeenCalledWith('ZCL_T', '/sap/bc/adt/oo/classes/zcl_t');
     expect(client.runClass).toHaveBeenCalledWith('ZCL_T');

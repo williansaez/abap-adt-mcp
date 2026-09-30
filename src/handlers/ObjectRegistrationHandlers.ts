@@ -2,6 +2,7 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler';
 import type { ToolDefinition } from '../types/tools';
 import { CreatableTypes } from 'abap-adt-api';
+import { createOutsideStatefulContext } from '../lib/createFresh';
 
 export class ObjectRegistrationHandlers extends BaseHandler {
   getTools(): ToolDefinition[] {
@@ -47,7 +48,7 @@ export class ObjectRegistrationHandlers extends BaseHandler {
       },
       {
         name: 'createObject',
-        description: 'Create a new ABAP object skeleton. Recommended flow: loadTypes to pick objtype (e.g. CLAS/OC) -> validateNewObject to check name/package -> createTransport if the package is not local ($TMP) -> createObject. Afterwards edit source with lock + setObjectSource, then activate with activateByName and run unitTestRun.',
+        description: 'Create a new ABAP object skeleton. Recommended flow: loadTypes to pick objtype (e.g. CLAS/OC) -> validateNewObject to check name/package -> createTransport if the package is not local ($TMP) -> createObject. Afterwards edit source with lock + setObjectSource, then activate with activateByName and run unitTestRun. The creation is sent outside the stateful session so the new object can be read at once; when locks are held it stays inside, and the answer carries a note: the object then answers 400 to reads until its source is written.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -235,6 +236,7 @@ export class ObjectRegistrationHandlers extends BaseHandler {
     const startTime = performance.now();
     try {
       let result;
+      let creation: { context?: string; locksHeld?: string[]; note?: string } = {};
       if (args.objtype === 'DEVC/K') {
         if (!args.swcomp) {
           throw new McpError(
@@ -244,7 +246,8 @@ export class ObjectRegistrationHandlers extends BaseHandler {
         }
         result = await this.createPackage(args);
       } else {
-        result = await this.adtclient.createObject(
+        // Outside the stateful context, or the new object cannot be read in this session (src/lib/createFresh.ts).
+        const outcome = await createOutsideStatefulContext(this.adtclient, () => this.adtclient.createObject(
           args.objtype,
           args.name,
           args.parentName,
@@ -252,7 +255,9 @@ export class ObjectRegistrationHandlers extends BaseHandler {
           args.parentPath,
           args.responsible,
           args.transport
-        );
+        ));
+        result = outcome.result;
+        creation = { context: outcome.context, ...(outcome.locksHeld.length ? { locksHeld: outcome.locksHeld } : {}), ...(outcome.note ? { note: outcome.note } : {}) };
       }
       this.trackRequest(startTime, true);
       return {
@@ -260,7 +265,8 @@ export class ObjectRegistrationHandlers extends BaseHandler {
           type: 'text',
           text: JSON.stringify({
             status: 'success',
-            result
+            result,
+            ...creation
           })
         }]
       };

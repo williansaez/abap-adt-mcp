@@ -3,6 +3,7 @@ import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
 import { session_types } from 'abap-adt-api';
 import { withLock } from '../lib/lockLedger.js';
+import { createOutsideStatefulContext } from '../lib/createFresh.js';
 import { hardTruncateJson } from '../lib/responseSizing.js';
 import { runClassFresh } from '../lib/runFresh.js';
 import crypto from 'crypto';
@@ -93,7 +94,8 @@ export class SnippetHandlers extends BaseHandler {
         try {
             const { source, wrapped } = buildSnippetClass(className, String(args.code));
             this.adtclient.stateful = session_types.stateful;
-            await this.adtclient.createObject('CLAS/OC', className, packageName, 'abap-adt-mcp temporary snippet', `/sap/bc/adt/packages/${encodeURIComponent(packageName.toLowerCase())}`, args.responsible ? String(args.responsible).toUpperCase() : undefined, args.transport);
+            // Outside the stateful context where possible: the write that follows does not need it, and a class created inside it is unreadable there (src/lib/createFresh.ts).
+            await createOutsideStatefulContext(this.adtclient, () => this.adtclient.createObject('CLAS/OC', className, packageName, 'abap-adt-mcp temporary snippet', `/sap/bc/adt/packages/${encodeURIComponent(packageName.toLowerCase())}`, args.responsible ? String(args.responsible).toUpperCase() : undefined, args.transport));
             created = true;
             steps.push('created');
             reportProgress(`class ${className} created`, 1, 4);
