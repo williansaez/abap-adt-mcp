@@ -20,7 +20,7 @@ abap-adt-mcp ist ein [Model Context Protocol](https://modelcontextprotocol.io)-S
 
 Das ist die ganze Idee. Sie schreiben einen Satz. Das Modell wählt die Tools, der Server sperrt das Objekt, schreibt, aktiviert und gibt es frei, und die Unit-Tests kommen grün zurück, mit der Transportnummer daran. Verlangen Sie dieselbe Änderung auf einem Produktivsystem, lautet die Antwort `policyDenied`, bevor ein einziger SAP-Aufruf hinausgeht: Die Leitplanken sitzen im Server, nicht im Chatfenster.
 
-Sieben kurze Filme zeigen das und die einzelnen Aufgaben dahinter, einen Kurzdump bis zur Zeile verfolgt, einen ATC-Lauf mit seinen Quickfixes, eine Transportprüfung, eine Klasse samt Test angelegt, eine Prüfung der ABAP-Cloud-Reife. Sie stehen auf der [Projektseite](https://williansaez.github.io/abap-adt-mcp/de/#watch), mit Untertiteln.
+Sieben kurze Filme zeigen das und die einzelnen Aufgaben dahinter, einen Kurzdump bis zur Zeile verfolgt, einen ATC-Lauf mit seinen Quickfixes, eine Transportprüfung, eine Klasse samt Test angelegt, eine Prüfung der ABAP-Cloud-Reife. Sie stehen auf der [Projektseite](https://williansaez.github.io/abap-adt-mcp/de/#watch).
 
 ## Inhalt
 

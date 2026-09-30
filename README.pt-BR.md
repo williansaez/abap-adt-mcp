@@ -20,7 +20,7 @@ abap-adt-mcp é um servidor [Model Context Protocol](https://modelcontextprotoco
 
 A ideia é essa. Você escreve uma frase. O modelo escolhe as ferramentas, o servidor bloqueia o objeto, grava, ativa e desbloqueia, e os testes unitários voltam verdes com o número da ordem de transporte. Peça a mesma mudança num sistema produtivo e a resposta é `policyDenied` antes de qualquer chamada ao SAP: as salvaguardas vivem no servidor, não na janela do chat.
 
-Sete filmes curtos mostram isso e os trabalhos por trás, um dump rastreado até a linha, uma execução do ATC com seus quickfixes, uma revisão de transporte, uma classe criada com o seu teste, uma verificação de prontidão para ABAP Cloud. Estão no [site do projeto](https://williansaez.github.io/abap-adt-mcp/pt-BR/#watch), com legendas.
+Sete filmes curtos mostram isso e os trabalhos por trás, um dump rastreado até a linha, uma execução do ATC com seus quickfixes, uma revisão de transporte, uma classe criada com o seu teste, uma verificação de prontidão para ABAP Cloud. Estão no [site do projeto](https://williansaez.github.io/abap-adt-mcp/pt-BR/#watch).
 
 ## Sumário
 
