@@ -48,3 +48,33 @@ export async function runClassFresh(client: FreshClient, className: string): Pro
     client.stateful = previous ?? session_types.stateful;
   }
 }
+
+/**
+ * What the class runner answers when it runs a class whose activation it does
+ * not see yet. Observed live on an on-prem S/4HANA (PCE 2023): runClass right
+ * after activate printed this, and the same call a few seconds later ran fine.
+ */
+export const CLASSRUN_NOT_READY = /does not implement if_oo_adt_classrun~main/i;
+
+/**
+ * runClassFresh, retried while the runner still reports the class as not
+ * implementing IF_OO_ADT_CLASSRUN~MAIN. `notReady` is true when every attempt
+ * got that answer, so the caller can report an error instead of the text.
+ */
+export async function runClassWhenReady(
+  client: FreshClient,
+  className: string,
+  delaysMs: number[] = [1000, 2000, 4000],
+  sleep: (ms: number) => Promise<void> = (ms) => new Promise(r => setTimeout(r, ms))
+): Promise<FreshRunResult & { attempts: number; notReady: boolean }> {
+  let run = await runClassFresh(client, className);
+  let attempts = 1;
+  for (const delay of delaysMs) {
+    if (!CLASSRUN_NOT_READY.test(run.output)) break;
+    await sleep(delay);
+    const next = await runClassFresh(client, className);
+    run = { ...next, locksInvalidated: [...run.locksInvalidated, ...next.locksInvalidated] };
+    attempts++;
+  }
+  return { ...run, attempts, notReady: CLASSRUN_NOT_READY.test(run.output) };
+}
