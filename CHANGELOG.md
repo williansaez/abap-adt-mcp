@@ -215,5 +215,5 @@ The GitHub Copilot milestone (#17): VS Code agent mode and the Copilot CLI were 
 
 ### Release and dependencies
 - **The MCP registry is updated by the release workflow.** A new job runs after the npm publish: a pinned `mcp-publisher` release with its checksum verified, `login github-oidc` (no stored secret), `publish` unless the registry already holds that version. 2.0.1, 2.1.0 and 2.1.1 had never reached the registry because the step was manual.
-- Dependencies (Dependabot #48, #52, #53): `@modelcontextprotocol/sdk` 1.30.1, `puppeteer-core` 25.11.0, `jest` 30.5.2 and its tooling, `@types/node` 22.20.4. Lock file only; the ranges in `package.json` are unchanged.
+- Dependencies (Dependabot #48, #52, #53, #67): `@modelcontextprotocol/sdk` 1.30.1, `puppeteer-core` 25.11.0, `jest` 30.5.2 and its tooling, `@types/node` 22.20.4, and the security group `fast-uri` 3.1.8 (GHSA-hrr3-gc8f-f4qj), `brace-expansion` 2.1.7, `ip-address` 10.7.2. Lock file only; the ranges in `package.json` are unchanged.
 
