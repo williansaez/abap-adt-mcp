@@ -13,7 +13,7 @@ Create `~/.abap-adt-mcp/systems.json` (mode 0600) with one entry per destination
   "DEV": { "url": "https://myXXXXXX.s4hana.cloud.sap", "client": "080", "authType": "sso", "default": true,
            "policy": { "allowedPackages": ["Z*"] } },
   "PRD": { "url": "https://myYYYYYY.s4hana.cloud.sap", "client": "100", "authType": "sso",
-           "policy": { "readOnly": true, "deniedTables": ["PA*", "HR*"], "allowFreeSql": false } },
+           "policy": { "readOnly": true, "allowDataPreview": true, "deniedTables": ["PA*", "HR*"] } },
   "ECC": { "url": "https://sap.example.com:44300", "client": "100", "authType": "basic",
            "user": "DEVELOPER", "password": "${env:ECC_PASSWORD}",
            "policy": { "allowedPackages": ["Z*", "$*"] }, "tls": { "ca": "/etc/ssl/corp-ca.pem" } }

@@ -74,7 +74,7 @@ production system stays safe even if the host auto-approves everything.
   "DEV": { "url": "https://myXXXXXX.s4hana.cloud.sap", "client": "080",
            "policy": { "allowedPackages": ["Z*", "$*"], "allowedTransports": ["DEVK9*"] } },
   "PRD": { "url": "https://myYYYYYY.s4hana.cloud.sap", "client": "100",
-           "policy": { "readOnly": true, "deniedTables": ["PA*", "HR*", "USR02"], "allowFreeSql": false } }
+           "policy": { "readOnly": true, "allowDataPreview": true, "deniedTables": ["PA*", "HR*", "USR02"] } }
 }
 ```
 

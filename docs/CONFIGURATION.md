@@ -216,7 +216,7 @@ The server checks none of the SAP authorizations itself; it only refuses tools. 
     "url": "https://myYYYYYY.s4hana.cloud.sap",
     "client": "100",
     "authType": "sso",
-    "policy": { "readOnly": true, "deniedTables": ["PA*", "HR*", "USR02"], "allowFreeSql": false }
+    "policy": { "readOnly": true, "allowDataPreview": true, "deniedTables": ["PA*", "HR*", "USR02"] }
   }
 }
 ```
