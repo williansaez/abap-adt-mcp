@@ -82,7 +82,7 @@
       "^.+\\.ts$": [
         "ts-jest",
         {
-          "tsconfig": "tsconfig.test.json"
+          "tsconfig": "src/__tests__/tsconfig.json"
         }
       ]
     },

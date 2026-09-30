@@ -294,7 +294,7 @@ npm ci
 npm run build
 ```
 
-Depois aponte o host para `node /caminho/absoluto/abap-adt-mcp/dist/index.js`. Um `systems.json` ao lado do checkout é encontrado automaticamente; `.env` (veja [.env.example](.env.example)) funciona para configurações de sistema único. Ambos são ignorados pelo git.
+Depois aponte o host para `node /caminho/absoluto/abap-adt-mcp/dist/index.js`. Um `systems.json` ao lado do checkout é encontrado automaticamente; `.env` (veja [docs/env.example](docs/env.example)) funciona para configurações de sistema único. Ambos são ignorados pelo git.
 
 ## Autenticação
 
@@ -361,7 +361,7 @@ Lições que valem em todo lugar: instruções de `runQuery` são quebradas no l
 
 Toda opção com seu padrão, as barreiras de política ferramenta por ferramenta, trechos por host e notas operacionais estão em [docs/CONFIGURATION.md](docs/CONFIGURATION.md); esta seção é o resumo.
 
-Fontes de configuração, em ordem de precedência: `SAP_SYSTEMS` (JSON inline), `SAP_SYSTEMS_FILE`, um `systems.json` ao lado da instalação, depois as variáveis legadas de sistema único (`SAP_URL`, `SAP_CLIENT`, `SAP_USER`, `SAP_PASSWORD`, `SAP_LANGUAGE`, `SAP_TLS_INSECURE`, `SAP_SSO2_COMMAND`, `SAP_SSO2_ARGS`, `SAP_SSO2_TIMEOUT_MS`, `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE`, veja [.env.example](.env.example)).
+Fontes de configuração, em ordem de precedência: `SAP_SYSTEMS` (JSON inline), `SAP_SYSTEMS_FILE`, um `systems.json` ao lado da instalação, depois as variáveis legadas de sistema único (`SAP_URL`, `SAP_CLIENT`, `SAP_USER`, `SAP_PASSWORD`, `SAP_LANGUAGE`, `SAP_TLS_INSECURE`, `SAP_SSO2_COMMAND`, `SAP_SSO2_ARGS`, `SAP_SSO2_TIMEOUT_MS`, `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE`, veja [docs/env.example](docs/env.example)).
 
 Chaves por destino no `systems.json`: `url`, `client`, `language`, `authType`, `default`, `user`/`password` (basic), `sso2` (`command`, `args`, `timeoutMs`), `oauth` (`tokenUrl`, `clientId`, `clientSecret`, `scope`), `insecureTls`, `gitUser`/`gitPassword`, `policy` e `tls` (`ca`, `servername`, `cert` + `key`, `pfx` + `passphrase`). Qualquer valor de string pode ser `${env:VAR}`. Chaves que começam com `_` são ignoradas, então entradas `_comment` são aceitas. Toda saída operacional (avisos de inicialização, mensagens de barreira, o aviso do arquivo de auditoria) vai para stderr, que os hosts MCP capturam em seus logs.
 

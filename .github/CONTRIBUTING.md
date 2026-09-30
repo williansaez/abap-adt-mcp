@@ -40,12 +40,12 @@ git clone https://github.com/williansaez/abap-adt-mcp.git
 cd abap-adt-mcp
 npm ci                                   # exact versions from package-lock.json
 npm run build                            # tsc -p tsconfig.json, output in dist/
-npx tsc --noEmit -p tsconfig.test.json   # type-check the tests (they are excluded from the build)
+npx tsc --noEmit -p src/__tests__/tsconfig.json   # type-check the tests (they are excluded from the build)
 npm test                                 # jest with coverage (npm test -- --coverage=false is faster)
 npm run tools:docs                       # rebuild and regenerate docs/TOOLS.md and the snapshot
 ```
 
-`npm run build` first removes `dist/` (the `prebuild` script), compiles `src/` with `strict: true` and leaves `src/**/__tests__/**` out, so nothing from the test tree reaches the npm package (`files` in `package.json` excludes `dist/**/__tests__` as a second guard). `tsconfig.test.json` extends the main config with `noEmit` and the `jest` and `node` types, and CI runs it separately: a test that no longer compiles fails the build even though `npm run build` ignores it.
+`npm run build` first removes `dist/` (the `prebuild` script), compiles `src/` with `strict: true` and leaves `src/**/__tests__/**` out, so nothing from the test tree reaches the npm package (`files` in `package.json` excludes `dist/**/__tests__` as a second guard). `src/__tests__/tsconfig.json` extends the main config with `noEmit` and the `jest` and `node` types, and CI runs it separately: a test that no longer compiles fails the build even though `npm run build` ignores it.
 
 `npm test` uses `ts-jest` with `roots: ['<rootDir>/src']` and `testMatch: ['**/__tests__/**/*.test.ts']`. Most sources import siblings with a `.js` suffix (`./lib/cookieHttpClient.js`); `moduleNameMapper` in the `jest` block in [package.json](../package.json) maps that suffix back to the `.ts` file, which is what makes `../lib/lockLedger.js` resolve; an extensionless import such as `../ObjectSourceHandlers` (what the tests use) resolves through `moduleFileExtensions` and needs no mapper. `collectCoverage` is on by default, but the config sets no `coverageThreshold`, so a change that lowers the printed coverage percentage does not fail the build; treat the numbers as information, not a gate. `npm run test:watch` and `npm run test:coverage` exist for longer sessions; to run one suite instead of the whole tree, `npx jest src/handlers/__tests__/ObjectSourceHandlers.test.ts` (or `npm test -- <path>`, which forwards to the same Jest CLI).
 
@@ -65,7 +65,7 @@ To exercise the built server without an MCP host, `npm run dev` starts the MCP I
 | `scripts/gen-tools-docs.js` | Generates `docs/TOOLS.md` and `docs/tools.snapshot.json` from the built server and syncs the tool counts in `README.md`, `README.pt-BR.md`, `README.de.md`, `skills/abap-adt-mcp-setup/SKILL.md` and `.claude-plugin/plugin.json`. |
 | `docs/` | `TOOLS.md` (generated), `tools.snapshot.json` (generated, contract-tested), `tool-notes.json` (curated usage notes merged into TOOLS.md), `ARCHITECTURE.md`, `CONFIGURATION.md`, `WORKFLOWS.md`, `HOSTS.md`, `CLOUD.md`, `TROUBLESHOOTING.md`, `AUTH.md`, `ROUTING.md`, `TESTPLAN.md`, `FIELD-NOTES.md`, `ROADMAP.md`, `IMPROVEMENTS.md`, `agents.template.md` (a starting point for a project's agent instructions). |
 | `skills/` | The two agent skills, `abap-adt-mcp` and `abap-adt-mcp-setup`; `.claude-plugin/plugin.json` is the plugin manifest that ships them and `.claude-plugin/marketplace.json` lets the repository be added as a Claude Code plugin marketplace. |
-| `server.json` | MCP registry manifest; `package.json` holds the npm metadata (`mcpName` ties the two together); `Dockerfile` the two-stage image. |
+| `server.json` | MCP registry manifest; `package.json` holds the npm metadata (`mcpName` ties the two together); `docker/Dockerfile` the two-stage image (its `.dockerignore` sits next to it as `Dockerfile.dockerignore`). |
 | `.github/workflows/ci.yml`, `release.yml` | Tests on Node 22 and 24, docs freshness, version agreement (`scripts/check-versions.js`), Docker smoke test; tag-driven publish to npm and GHCR, final tags only, tag commit must be on `main`. There is no other file under `.github/`, no PR template, no issue templates. |
 
 ## Adding a tool
@@ -276,7 +276,7 @@ Before you open the pull request, run locally what CI runs, with one deliberate 
 
 ```bash
 npm ci && npm run build
-npx tsc --noEmit -p tsconfig.test.json
+npx tsc --noEmit -p src/__tests__/tsconfig.json
 npm run tools:docs                         # regenerate before testing if a tool changed
 npm test -- --coverage=false
 git status --short                         # nothing generated should be left uncommitted
