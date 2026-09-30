@@ -2,7 +2,7 @@
 
 **Let Claude read, write, test and check ABAP code on your SAP systems.**
 
-English · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md) · [Project site](https://williansaez.github.io/abap-adt-mcp/)
+English · [Português (Brasil)](docs/i18n/README.pt-BR.md) · [Deutsch](docs/i18n/README.de.md) · [Project site](https://williansaez.github.io/abap-adt-mcp/)
 
 [![npm version](https://img.shields.io/npm/v/abap-adt-mcp)](https://www.npmjs.com/package/abap-adt-mcp)
 [![CI](https://github.com/williansaez/abap-adt-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/williansaez/abap-adt-mcp/actions/workflows/ci.yml)
@@ -396,7 +396,7 @@ npm test
 - Releases are tag driven: npm through trusted publishing with provenance, the GHCR image and the MCP registry entry.
 - Fork, branch, open a pull request; [CONTRIBUTING.md](.github/CONTRIBUTING.md) has the details. Session reports for [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) are welcome, without customer names, tenants or transport numbers.
 
-The English README is the reference for the [Portuguese](README.pt-BR.md) and [German](README.de.md) versions. The roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md) and every release in [CHANGELOG.md](CHANGELOG.md).
+The English README is the reference for the [Portuguese](docs/i18n/README.pt-BR.md) and [German](docs/i18n/README.de.md) versions. The roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md) and every release in [CHANGELOG.md](CHANGELOG.md).
 
 ## Credits
 

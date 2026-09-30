@@ -2,11 +2,11 @@
 
 **Lassen Sie Claude ABAP-Code auf Ihren SAP-Systemen lesen, schreiben, testen und prüfen.**
 
-[English](README.md) · [Português (Brasil)](README.pt-BR.md) · Deutsch · [Projektseite](https://williansaez.github.io/abap-adt-mcp/de/)
+[English](../../README.md) · [Português (Brasil)](README.pt-BR.md) · Deutsch · [Projektseite](https://williansaez.github.io/abap-adt-mcp/de/)
 
 [![npm version](https://img.shields.io/npm/v/abap-adt-mcp)](https://www.npmjs.com/package/abap-adt-mcp)
 [![CI](https://github.com/williansaez/abap-adt-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/williansaez/abap-adt-mcp/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../LICENSE)
 [![Node.js](https://img.shields.io/node/v/abap-adt-mcp)](https://nodejs.org)
 [![MCP Registry](https://img.shields.io/badge/MCP%20registry-listed-informational)](https://registry.modelcontextprotocol.io/?search=abap-adt-mcp)
 [![Projektseite](https://img.shields.io/badge/Projektseite-williansaez.github.io-4db1ff)](https://williansaez.github.io/abap-adt-mcp/de/)
@@ -23,7 +23,7 @@ Sie schreiben einen Satz in Claude. Zurück kommen eine aktivierte Klasse, grün
 
 ## So sieht es aus
 
-![Ein Satz im Chat wird zu searchObject, getObjectSource, editObjectSource und unitTestRun, danach eine Ergebniskarte: 3 Tests bestanden, Transportauftrag DEVK900123](docs/media/brag/film-flow.gif)
+![Ein Satz im Chat wird zu searchObject, getObjectSource, editObjectSource und unitTestRun, danach eine Ergebniskarte: 3 Tests bestanden, Transportauftrag DEVK900123](../../docs/media/brag/film-flow.gif)
 
 Das ist die ganze Idee. Sie schreiben einen Satz. Das Modell wählt die Tools, der Server sperrt das Objekt, schreibt, aktiviert und gibt es frei, und die Unit-Tests kommen grün zurück, mit der Transportnummer daran. Verlangen Sie dieselbe Änderung auf einem Produktivsystem, lautet die Antwort `policyDenied`, bevor ein einziger SAP-Aufruf hinausgeht: Die Leitplanken sitzen im Server, nicht im Chatfenster.
 
@@ -117,9 +117,9 @@ Dasselbe in der Windows-PowerShell:
 claude mcp add -s user abap-adt-mcp -e SAP_SYSTEMS_FILE=$env:USERPROFILE\.abap-adt-mcp\systems.json -e MCP_TOOLSETS=focused -- npx -y abap-adt-mcp
 ```
 
-**VS Code mit GitHub Copilot**: derselbe Eintrag in `.vscode/mcp.json` unter einem obersten Schlüssel `servers` statt `mcpServers`; [docs/HOSTS.md](docs/HOSTS.md#vs-code-with-github-copilot-agent-mode) (auf Englisch) enthält die Datei, wie sie getestet wurde, mit `${input:}` für Geheimnisse.
+**VS Code mit GitHub Copilot**: derselbe Eintrag in `.vscode/mcp.json` unter einem obersten Schlüssel `servers` statt `mcpServers`; [docs/HOSTS.md](../../docs/HOSTS.md#vs-code-with-github-copilot-agent-mode) (auf Englisch) enthält die Datei, wie sie getestet wurde, mit `${input:}` für Geheimnisse.
 
-- Cursor, Cline, Windsurf, das Copilot CLI und Eclipse: [docs/HOSTS.md](docs/HOSTS.md).
+- Cursor, Cline, Windsurf, das Copilot CLI und Eclipse: [docs/HOSTS.md](../../docs/HOSTS.md).
 - Behalten Sie den Schlüssel `abap-adt-mcp`: er ist der Name, den der Host anzeigt, das Präfix jedes Tools und das, wonach die Agent-Skills dieses Projekts suchen.
 
 ### 3. Sagen Sie hallo
@@ -137,7 +137,7 @@ Zwei Dinge, die Sie vor der ersten Änderung wissen sollten:
 
 ### 4. Produktiv- und On-Premise-Systeme hinzufügen
 
-Dieselbe Datei mit einem Produktiv- und einem On-Premise-Eintrag ([systems.example.json](docs/systems.example.json) enthält jede Option):
+Dieselbe Datei mit einem Produktiv- und einem On-Premise-Eintrag ([systems.example.json](../../docs/systems.example.json) enthält jede Option):
 
 ```json
 {
@@ -200,24 +200,24 @@ Was der Server von sich aus tut, damit Sie es nicht ausbuchstabieren müssen:
 - Die Anlage- und Änderungsabläufe reisen im MCP-Feld `instructions`, und sechs fertige Abläufe kommen als MCP-Prompts (`create-object`, `safe-edit`, `review-transport`, `fix-atc`, `clean-core-check`, `debug-dump`; in Claude Code `/mcp__abap-adt-mcp__safe-edit DEV ZCL_ORDER_SERVICE "früh zurückkehren, wenn die Eingabetabelle leer ist"`).
 - Jedes Tool trägt die Annotationen `readOnlyHint`/`destructiveHint`, damit Hosts, die Genehmigungen daran knüpfen, nur bei Schreibzugriffen fragen.
 
-Die Abläufe Tool für Tool, die Argumentformen und Rezepte stehen in [docs/WORKFLOWS.md](docs/WORKFLOWS.md) (auf Englisch).
+Die Abläufe Tool für Tool, die Argumentformen und Rezepte stehen in [docs/WORKFLOWS.md](../../docs/WORKFLOWS.md) (auf Englisch).
 
 ## Für Administratoren
 
 Was der Server ist, in den Begriffen, nach denen ein Landschaftsverantwortlicher fragt:
 
-- **Identität.** Jeder Aufruf erreicht SAP als der Benutzer der Destination, mit dessen Berechtigungen; der Server entfernt keine SAP-Prüfung und hat keinen Zugang, den der Benutzer nicht hat. Bei `sso` und `sso2` ist dieser Benutzer die Person an der Tastatur; `basic` und `oauth` tragen gespeicherte Zugangsdaten, bevorzugen Sie also benannte Benutzer, wo Nachvollziehbarkeit zählt. Die Berechtigungen eines reinen Anzeige-Benutzers stehen in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#on-prem-production-read-only-with-a-dedicated-display-user).
-- **Prozess.** Ein Prozess je Person, vom MCP-Host gestartet, über stdio; nichts lauscht im Netz, außer Sie starten den optionalen [HTTP-Transport](docs/CONFIGURATION.md#6-http-transport).
+- **Identität.** Jeder Aufruf erreicht SAP als der Benutzer der Destination, mit dessen Berechtigungen; der Server entfernt keine SAP-Prüfung und hat keinen Zugang, den der Benutzer nicht hat. Bei `sso` und `sso2` ist dieser Benutzer die Person an der Tastatur; `basic` und `oauth` tragen gespeicherte Zugangsdaten, bevorzugen Sie also benannte Benutzer, wo Nachvollziehbarkeit zählt. Die Berechtigungen eines reinen Anzeige-Benutzers stehen in [docs/CONFIGURATION.md](../../docs/CONFIGURATION.md#on-prem-production-read-only-with-a-dedicated-display-user).
+- **Prozess.** Ein Prozess je Person, vom MCP-Host gestartet, über stdio; nichts lauscht im Netz, außer Sie starten den optionalen [HTTP-Transport](../../docs/CONFIGURATION.md#6-http-transport).
 - **Netz.** Er spricht mit den konfigurierten SAP-Hosts, mit dem Identity Provider während des Browser-SSO und mit `raw.githubusercontent.com` für SAPs Cloudification-Repository, wenn `apiReleaseState` läuft (24 Stunden zwischengespeichert; `deniedTools: ["apiReleaseState"]` hält das vom Netz fern). Keine Telemetrie, keine Update-Prüfung; `npx` selbst kontaktiert die npm-Registry.
 - **Was das Modell sieht.** Das Ergebnis jedes Tool-Aufrufs, den der Benutzer genehmigt (Quelltext, Tabellenzeilen wo geöffnet, Dumps, ATC-Befunde, Fehlertext nach der Schwärzung), geht an den MCP-Host und von dort zu den Datenbedingungen des Hosts an den Modellanbieter (den Anbieter wählt der Host, nicht dieser Server); der Server sendet nichts an eine andere Stelle. `readOnly`, `deniedTables` und `deniedTools` begrenzen diese Menge je Destination.
 - **Platte.** `~/.abap-adt-mcp/`: `systems.json` (Ihre), das SSO-Browserprofil je Host (`sso/<host>`, Modus `0700`), der Cloudification-Cache, Paketexporte (`exports/`, nur wo `exportPackageSources` schreiben darf), das HTTP-Token und, wenn aktiviert, das Audit-Protokoll. SAP-Sitzungscookies werden nie auf die Platte geschrieben.
 - **Geheimnisse.** `${env:VAR}` funktioniert in jedem String von `systems.json`; eine für andere lesbare Datei wird abgelehnt, wenn sie Klartext-Passwörter enthält. Fehlermeldungen durchlaufen eine Schwärzung (Bearer-Tokens, Cookies, Passwörter, `user:password@host`-URLs); erfolgreiche Tool-Ergebnisse werden nicht geschwärzt, also begrenzen `readOnly`, `deniedTables` und `deniedTools` sie. `reentranceTicket` (ein Anmeldeticket, das das Modell anderswohin tragen könnte) bleibt deaktiviert, außer bei `SAP_ALLOW_REENTRANCE_TICKET=1`.
 - **Was die Richtlinie nicht sieht.** ABAP, das das Modell ausführt (`runSnippet`, `runClass`, `unitTestRun`), läuft mit den Berechtigungen des Benutzers; `deniedTables` prüft den Text des Schnipsels, aber dynamisches SQL und alles, was der Code aufruft, werden nicht inspiziert. Wo Codeausführung nicht akzeptabel ist, tragen Sie diese Tools in `deniedTools` ein oder verwenden Sie `readOnly`.
 - **Nicht vertrauenswürdige Eingaben.** Kommentare, Tabellenzeilen und Feeds aus SAP können Text enthalten, der das Modell zu steuern versucht. Verwenden Sie einen Host, der vor Tool-Aufrufen fragt, und prüfen Sie die fett gesetzten Tools im [Tool-Katalog](#tool-katalog) (die destruktiven), bevor Sie genehmigen.
-- **Audit.** `MCP_AUDIT_FILE=/var/log/abap-adt-mcp/audit.jsonl` hängt je Aufruf eine JSON-Zeile an: Tool, Destination, Ergebnis, Dauer, die ablehnende Richtlinienschranke und die Argumente mit geschwärzten Geheimnissen. Die Datei wird je Workstation vom Prozess des Benutzers selbst geschrieben; zentrale Sammlung und Manipulationsschutz sind Ihre Sache. [docs/CONFIGURATION.md](docs/CONFIGURATION.md#7-audit-log-record-format) beschreibt das Satzformat.
+- **Audit.** `MCP_AUDIT_FILE=/var/log/abap-adt-mcp/audit.jsonl` hängt je Aufruf eine JSON-Zeile an: Tool, Destination, Ergebnis, Dauer, die ablehnende Richtlinienschranke und die Argumente mit geschwärzten Geheimnissen. Die Datei wird je Workstation vom Prozess des Benutzers selbst geschrieben; zentrale Sammlung und Manipulationsschutz sind Ihre Sache. [docs/CONFIGURATION.md](../../docs/CONFIGURATION.md#7-audit-log-record-format) beschreibt das Satzformat.
 - **SAP API Policy.** SAP nennt die ADT-Services, die dieser Server nutzt, intern, für Entwicklung über die von SAP empfohlenen Kanäle, und dieses Projekt gehört nicht dazu; nicht veröffentlichte Schnittstellen werden auf eigenes Risiko genutzt. Fragen Sie Ihren SAP-Ansprechpartner und beschränken Sie den Server auf Entwicklungs- und Testsysteme. Details unter [SAP API Policy](#sap-api-policy).
-- **Widerruf.** Ein verlorener Laptop oder ein geleaktes Geheimnis wird Stück für Stück geschlossen (SSO-Profil, Sitzung beim Identity Provider, OAuth-Geheimnis, SAP-Passwort, lokale Dateien): [SECURITY.md, Decommissioning](.github/SECURITY.md#decommissioning).
-- **Releases.** Nur das neueste Release erhält Korrekturen; für einen kontrollierten Rollout legen Sie die Version fest statt des ungepinnten `npx -y abap-adt-mcp` der Einrichtung ([Weitere Installationswege](#weitere-installationswege)). Getestete Modi: `sso`, `sso2` und `basic` On-Premise; `oauth` und `basic` mit Communication User nicht ([Authentifizierung](#authentifizierung)). Schwachstellen: [SECURITY.md, Reporting a vulnerability](.github/SECURITY.md#reporting-a-vulnerability).
+- **Widerruf.** Ein verlorener Laptop oder ein geleaktes Geheimnis wird Stück für Stück geschlossen (SSO-Profil, Sitzung beim Identity Provider, OAuth-Geheimnis, SAP-Passwort, lokale Dateien): [SECURITY.md, Decommissioning](../../.github/SECURITY.md#decommissioning).
+- **Releases.** Nur das neueste Release erhält Korrekturen; für einen kontrollierten Rollout legen Sie die Version fest statt des ungepinnten `npx -y abap-adt-mcp` der Einrichtung ([Weitere Installationswege](#weitere-installationswege)). Getestete Modi: `sso`, `sso2` und `basic` On-Premise; `oauth` und `basic` mit Communication User nicht ([Authentifizierung](#authentifizierung)). Schwachstellen: [SECURITY.md, Reporting a vulnerability](../../.github/SECURITY.md#reporting-a-vulnerability).
 
 ### Richtlinienschlüssel
 
@@ -233,11 +233,11 @@ Im Server durchgesetzt, vor jedem SAP-Aufruf, je Destination in `systems.json`:
 | `allowedPackages` | Schreibzugriffe nur in diesen Paketen (`["Z*", "$*"]`); ein nicht auflösbares Paket wird abgelehnt. |
 | `allowedTransports` | Schreibzugriffe nur auf diesen Transporten; neue anzulegen wird abgelehnt. |
 
-Ablehnungen kommen als `kind: "policyDenied"` zurück und nennen die Schranke; `listSystems` zeigt jede Richtlinie und das wirksame `dataAccess`. Das Bedrohungsmodell und die Restrisiken stehen in [SECURITY.md](.github/SECURITY.md); die Schranken Tool für Tool, mit Rezepten, in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#3-policy-in-depth); die Einordnung unter SAPs API Policy in [docs/API-POLICY.md](docs/API-POLICY.md). Alle drei Dokumente sind auf Englisch.
+Ablehnungen kommen als `kind: "policyDenied"` zurück und nennen die Schranke; `listSystems` zeigt jede Richtlinie und das wirksame `dataAccess`. Das Bedrohungsmodell und die Restrisiken stehen in [SECURITY.md](../../.github/SECURITY.md); die Schranken Tool für Tool, mit Rezepten, in [docs/CONFIGURATION.md](../../docs/CONFIGURATION.md#3-policy-in-depth); die Einordnung unter SAPs API Policy in [docs/API-POLICY.md](../../docs/API-POLICY.md). Alle drei Dokumente sind auf Englisch.
 
 ## Authentifizierung
 
-Jede Destination wählt ihren eigenen `authType`. Details und die Schritte auf SAP-Seite stehen in [docs/AUTH.md](docs/AUTH.md) (auf Englisch).
+Jede Destination wählt ihren eigenen `authType`. Details und die Schritte auf SAP-Seite stehen in [docs/AUTH.md](../../docs/AUTH.md) (auf Englisch).
 
 | Modus | Wofür | Was Sie konfigurieren | SAP-Seite |
 |---|---|---|---|
@@ -252,7 +252,7 @@ Jede Destination wählt ihren eigenen `authType`. Details und die Schritte auf S
 
 ## S/4HANA Cloud versus On-Premise
 
-`systemProfile(destination)` meldet, ob eine Destination Cloud oder On-Premise ist und welche Toolsets dem Backend fehlen; diese Tools werden vor dem SAP-Aufruf abgelehnt. Was [docs/TESTPLAN.md](docs/TESTPLAN.md) auf einem Public-Cloud-Tenant festgehalten hat:
+`systemProfile(destination)` meldet, ob eine Destination Cloud oder On-Premise ist und welche Toolsets dem Backend fehlen; diese Tools werden vor dem SAP-Aufruf abgelehnt. Was [docs/TESTPLAN.md](../../docs/TESTPLAN.md) auf einem Public-Cloud-Tenant festgehalten hat:
 
 | Thema | S/4HANA Cloud (Public Edition) | On-Premise / Private |
 |---|---|---|
@@ -262,13 +262,13 @@ Jede Destination wählt ihren eigenen `authType`. Details und die Schritte auf S
 | Freigegebene APIs | `apiReleaseState` prüft Namen, eine Objekt-URL oder einen ganzen Quelltext; ATC-Variante `ABAP_CLOUD_DEVELOPMENT_DEFAULT`. `createObject` braucht `responsible`. | Optional. |
 | Geschäftsdaten | `runQuery`/`tableContents` respektieren Anzeigeberechtigungen, und die Destination muss sie erlauben. `runSnippet` braucht `S_DEVELOP`, also nur Entwicklungssysteme. | Ebenso. |
 
-Mehr in [docs/CLOUD.md](docs/CLOUD.md) und, aus echten Sitzungen, [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) (beide auf Englisch).
+Mehr in [docs/CLOUD.md](../../docs/CLOUD.md) und, aus echten Sitzungen, [docs/FIELD-NOTES.md](../../docs/FIELD-NOTES.md) (beide auf Englisch).
 
 ## Weitere Installationswege
 
 - **Version festlegen.** `npx -y abap-adt-mcp` holt bei jedem Start das neueste Release; für einen kontrollierten Rollout legen Sie es fest (`npx -y abap-adt-mcp@X.Y.Z`, oder das Container-Tag `vX.Y.Z`). Releases tragen eine npm-Provenance-Attestierung, prüfbar mit `npm audit signatures`.
 - **Claude-Code-Plugin.** Zwei Befehle registrieren den Server und installieren die beiden Agent-Skills (`abap-adt-mcp` lehrt den Entwicklungsablauf, `abap-adt-mcp-setup` führt durch die Installation): `/plugin marketplace add williansaez/abap-adt-mcp`, dann `/plugin install abap-adt-mcp@abap-adt-mcp`. Das Plugin legt das Release fest, mit dem es ausgeliefert wurde, und veröffentlicht jedes Toolset; `systems.json` aus Schritt 1 schreiben weiterhin Sie.
-- **Container.** `ghcr.io/williansaez/abap-adt-mcp:latest` (auch `vX.Y.Z`), gebaut aus `node:22-alpine`, läuft als uid 1000. Hängen Sie `systems.json` schreibgeschützt ein und reichen Sie referenzierte Geheimnisse durch; Browser-SSO braucht einen lokalen Browser, betreiben Sie `sso`-Destinationen also aus npm auf der Workstation. [docs/HOSTS.md](docs/HOSTS.md#docker-based-hosts) enthält die `docker run`-Zeile und die Fallstricke bei Dateibesitz.
+- **Container.** `ghcr.io/williansaez/abap-adt-mcp:latest` (auch `vX.Y.Z`), gebaut aus `node:22-alpine`, läuft als uid 1000. Hängen Sie `systems.json` schreibgeschützt ein und reichen Sie referenzierte Geheimnisse durch; Browser-SSO braucht einen lokalen Browser, betreiben Sie `sso`-Destinationen also aus npm auf der Workstation. [docs/HOSTS.md](../../docs/HOSTS.md#docker-based-hosts) enthält die `docker run`-Zeile und die Fallstricke bei Dateibesitz.
 - **MCP-Registry.** Gelistet als `io.github.williansaez/abap-adt-mcp` für Hosts, die die Registry durchsuchen.
 - **Aus dem Quelltext.** `git clone https://github.com/williansaez/abap-adt-mcp.git`, `npm ci`, `npm run build`, dann den Host auf `node /absoluter/pfad/abap-adt-mcp/dist/index.js` richten. Eine `systems.json` neben dem Checkout wird automatisch gelesen.
 
@@ -291,11 +291,11 @@ Die Variablen, die Sie am ehesten setzen:
 | `MCP_HTTP_PORT` | Streamable HTTP auf `127.0.0.1:<port>/mcp` mit Bearer-Token statt stdio | Nicht gesetzt (stdio) |
 | `SAP_BROWSER_PATH` | SSO: die zu verwendende Chromium-Binärdatei | Automatisch erkannt |
 
-Jede Variable mit Standardwert und Wirkung, der HTTP-Transport (Token, Sitzungs- und Body-Grenzen, Schutz vor DNS-Rebinding, was eine geteilte Instanz bedeutet) und das Audit-Satzformat stehen in [docs/CONFIGURATION.md](docs/CONFIGURATION.md) (auf Englisch).
+Jede Variable mit Standardwert und Wirkung, der HTTP-Transport (Token, Sitzungs- und Body-Grenzen, Schutz vor DNS-Rebinding, was eine geteilte Instanz bedeutet) und das Audit-Satzformat stehen in [docs/CONFIGURATION.md](../../docs/CONFIGURATION.md) (auf Englisch).
 
 ## Tool-Katalog
 
-Die Referenz Tool für Tool (Beschreibung, Parameter, Annotationen nur-lesen/destruktiv) ist [docs/TOOLS.md](docs/TOOLS.md), erzeugt aus der echten `tools/list`-Antwort und durch einen Vertragstest in der CI geprüft. Jedes Tool außer `listSystems` und `healthcheck` akzeptiert ein optionales `destination`.
+Die Referenz Tool für Tool (Beschreibung, Parameter, Annotationen nur-lesen/destruktiv) ist [docs/TOOLS.md](../../docs/TOOLS.md), erzeugt aus der echten `tools/list`-Antwort und durch einen Vertragstest in der CI geprüft. Jedes Tool außer `listSystems` und `healthcheck` akzeptiert ein optionales `destination`.
 
 Tool-Schemata kosten Kontext. `MCP_TOOLSETS` nimmt ein Preset (`all`, der Standard, oder `focused` = 114 Entwicklungs-Tools) oder eine kommagetrennte Liste der Toolset-Namen unten; `MCP_DISABLED_TOOLSETS` entfernt einige; `core` wird immer veröffentlicht.
 
@@ -333,7 +333,7 @@ Ein Tool kann aus zwei Gründen fehlen: sein Toolset ist nicht veröffentlicht (
 
 ## Vergleich mit dem offiziellen ADT MCP Server von SAP
 
-SAPs ADT MCP Server wird mit ADT für VS Code und Eclipse ausgeliefert und veröffentlicht unter dem Serverschlüssel `abap-adt` mit eigenen Tool-Namen. Dieses Projekt veröffentlicht unter `abap-adt-mcp`, bedient viele Destinationen aus einem Prozess, setzt Richtlinien serverseitig durch und ergänzt Kompositionen wie `resolveTransport`, `editObjectSource`, `grepPackage`, `apiReleaseState`, `runSnippet` und `objectDiff`. Beide können nebeneinander im selben Host laufen; [docs/ROUTING.md](docs/ROUTING.md) bildet SAPs Namen auf unsere ab.
+SAPs ADT MCP Server wird mit ADT für VS Code und Eclipse ausgeliefert und veröffentlicht unter dem Serverschlüssel `abap-adt` mit eigenen Tool-Namen. Dieses Projekt veröffentlicht unter `abap-adt-mcp`, bedient viele Destinationen aus einem Prozess, setzt Richtlinien serverseitig durch und ergänzt Kompositionen wie `resolveTransport`, `editObjectSource`, `grepPackage`, `apiReleaseState`, `runSnippet` und `objectDiff`. Beide können nebeneinander im selben Host laufen; [docs/ROUTING.md](../../docs/ROUTING.md) bildet SAPs Namen auf unsere ab.
 
 Namen, wie die SAP-Help-Seite "Model Context Protocol Tools" sie auflistet (September 2026). SAPs Server legt an, aktiviert, testet, prüft und transportiert; er liest und sucht keinen Quelltext, schreibt keinen, sperrt nicht und zeigt keine Dumps: das kommt nur von diesem Server.
 
@@ -359,7 +359,7 @@ Namen, wie die SAP-Help-Seite "Model Context Protocol Tools" sie auflistet (Sept
 - **Was das für Sie heißt.** Ob SAP Ihre Nutzung akzeptiert, ist eine Frage an Ihren SAP-Ansprechpartner, nicht an dieses Projekt.
 - **Was zu tun ist.** Stellen Sie diese Frage, und beschränken Sie den Server auf Entwicklungsarbeit in Entwicklungs- und Testsystemen.
 
-Was der Server auf seiner Seite tut: er läuft als der angemeldete SAP-Benutzer und entfernt keine Berechtigungsprüfung von SAP, er liest keine Tabellendaten, bis eine Destination es erlaubt, er führt die Aufrufe an eine Destination nacheinander aus, und `apiReleaseState` kennzeichnet jedes geprüfte SAP-Objekt als `released`, `classic`, `notReleased` oder `prohibited`. [docs/API-POLICY.md](docs/API-POLICY.md) (auf Englisch) enthält die Policy Abschnitt für Abschnitt, die Fragen an SAP und eine vorsichtige Konfiguration.
+Was der Server auf seiner Seite tut: er läuft als der angemeldete SAP-Benutzer und entfernt keine Berechtigungsprüfung von SAP, er liest keine Tabellendaten, bis eine Destination es erlaubt, er führt die Aufrufe an eine Destination nacheinander aus, und `apiReleaseState` kennzeichnet jedes geprüfte SAP-Objekt als `released`, `classic`, `notReleased` oder `prohibited`. [docs/API-POLICY.md](../../docs/API-POLICY.md) (auf Englisch) enthält die Policy Abschnitt für Abschnitt, die Fragen an SAP und eine vorsichtige Konfiguration.
 
 ## Fehlerbehebung
 
@@ -378,7 +378,7 @@ Was der Server auf seiner Seite tut: er läuft als der angemeldete SAP-Benutzer 
 - **`editObjectSource` meldet 0 Treffer, oder mehrere.** Nichts wurde geschrieben. Der Anker muss der exakte aktuelle Text auf SAP sein, Einrückung eingeschlossen; bei mehreren Treffern nehmen Sie mehr umgebende Zeilen hinzu.
 - **`runQuery` scheitert an einer Tabelle, die der Benutzer anzeigen kann.** Die Datenvorschau lehnt Tabellen mit eingeschränktem `dataMaintenance` ab; verwenden Sie `tableContents`.
 
-Weitere Fälle, mit den genauen Meldungen, in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) (auf Englisch).
+Weitere Fälle, mit den genauen Meldungen, in [docs/TROUBLESHOOTING.md](../../docs/TROUBLESHOOTING.md) (auf Englisch).
 
 ## Tests und Mitarbeit
 
@@ -394,9 +394,9 @@ npm test
 - Nach einer Änderung an einem Tool führen Sie `npm run tools:docs` aus und committen die neu erzeugten `docs/TOOLS.md`, den Snapshot und den README-Katalog (die übersetzten READMEs eingeschlossen).
 - `npm run docs:check` ist die Dokumentationsschranke: keine Kundenkennungen, keine Geviertstriche, keine toten Links, jede Umgebungsvariable in `server.json` deklariert.
 - Releases sind tag-gesteuert: npm per Trusted Publishing mit Provenance, das GHCR-Image und der Eintrag in der MCP-Registry.
-- Forken, Branch anlegen, Pull Request öffnen; [CONTRIBUTING.md](.github/CONTRIBUTING.md) enthält die Details. Sitzungsberichte für [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) sind willkommen, ohne Kundennamen, Tenants oder Transportnummern.
+- Forken, Branch anlegen, Pull Request öffnen; [CONTRIBUTING.md](../../.github/CONTRIBUTING.md) enthält die Details. Sitzungsberichte für [docs/FIELD-NOTES.md](../../docs/FIELD-NOTES.md) sind willkommen, ohne Kundennamen, Tenants oder Transportnummern.
 
-Das englische README ist die Referenz für die [portugiesische](README.pt-BR.md) und die [deutsche](README.de.md) Fassung. Die Roadmap steht in [docs/ROADMAP.md](docs/ROADMAP.md) und jedes Release in [CHANGELOG.md](CHANGELOG.md).
+Das englische README ist die Referenz für die [portugiesische](README.pt-BR.md) und die [deutsche](README.de.md) Fassung. Die Roadmap steht in [docs/ROADMAP.md](../../docs/ROADMAP.md) und jedes Release in [CHANGELOG.md](../../CHANGELOG.md).
 
 ## Danksagung
 
@@ -406,8 +406,8 @@ Dieser Server wächst mit den Menschen, die ihn gegen echte Landschaften betreib
 - [Alexandre Leite](https://github.com/Dregus) hat das Secure-Login-Client-Szenario gemeldet, das den Meilenstein 2.1.0 eröffnet hat, und die On-Premise-Authentifizierungswege getestet.
 - Der ursprüngliche Server `mcp-abap-abap-adt-api` von [mario-andreschak](https://github.com/mario-andreschak) ist der Ausgangspunkt dieses Projekts.
 
-Etwas gefunden, etwas behoben oder einen Modus auf einer Landschaft ausprobiert, die hier niemand hat? Öffnen Sie ein Issue oder einen Pull Request, siehe [CONTRIBUTING.md](.github/CONTRIBUTING.md).
+Etwas gefunden, etwas behoben oder einen Modus auf einer Landschaft ausprobiert, die hier niemand hat? Öffnen Sie ein Issue oder einen Pull Request, siehe [CONTRIBUTING.md](../../.github/CONTRIBUTING.md).
 
 ## Lizenz
 
-[MIT](LICENSE). Aufgebaut auf [abap-adt-api](https://github.com/marcellourbani/abap-adt-api) von Marcello Urbani. Wenn das Projekt Ihnen Zeit spart, können Sie [den Autor unterstützen](https://github.com/sponsors/williansaez).
+[MIT](../../LICENSE). Aufgebaut auf [abap-adt-api](https://github.com/marcellourbani/abap-adt-api) von Marcello Urbani. Wenn das Projekt Ihnen Zeit spart, können Sie [den Autor unterstützen](https://github.com/sponsors/williansaez).

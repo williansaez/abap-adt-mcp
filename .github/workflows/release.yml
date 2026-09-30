@@ -41,7 +41,7 @@ jobs:
       - name: Tool catalog docs are up to date
         run: |
           node scripts/gen-tools-docs.js
-          git diff --exit-code -- docs/TOOLS.md docs/tools.snapshot.json README.md README.pt-BR.md README.de.md skills/abap-adt-mcp-setup/SKILL.md .claude-plugin/plugin.json
+          git diff --exit-code -- docs/TOOLS.md docs/tools.snapshot.json README.md docs/i18n/README.pt-BR.md docs/i18n/README.de.md skills/abap-adt-mcp-setup/SKILL.md .claude-plugin/plugin.json
       - name: Documentation hygiene
         run: npm run docs:check
       - name: Package contains no compiled tests
