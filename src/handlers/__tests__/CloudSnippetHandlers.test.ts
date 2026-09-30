@@ -92,7 +92,7 @@ describe('runSnippet', () => {
   it('creates, writes, activates, runs and deletes the temporary class', async () => {
     const { client, handler } = make();
     const res = parse(await handler.handle('runSnippet', { code: "out->write( 'hi' ).", className: 'zcl_t', responsible: 'dev' }));
-    expect(client.createObject).toHaveBeenCalledWith('CLAS/OC', 'ZCL_T', '$TMP', expect.any(String), '/sap/bc/adt/packages/%24tmp', 'DEV', undefined);
+    expect(client.createObject).toHaveBeenCalledWith({ objtype: 'CLAS/OC', name: 'ZCL_T', parentName: '$TMP', description: expect.any(String), parentPath: '/sap/bc/adt/packages/%24tmp', responsible: 'DEV', transport: '' });
     expect(client.setObjectSource).toHaveBeenCalledWith('/sap/bc/adt/oo/classes/zcl_t/source/main', expect.stringContaining('if_oo_adt_classrun'), 'H', undefined);
     expect(client.activate).toHaveBeenCalledWith('ZCL_T', '/sap/bc/adt/oo/classes/zcl_t');
     expect(client.runClass).toHaveBeenCalledWith('ZCL_T');

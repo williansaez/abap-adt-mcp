@@ -1,5 +1,5 @@
 {
-  "version": "2.1.1",
+  "version": "2.6.0",
   "count": 173,
   "toolsets": {
     "core": [
@@ -1040,6 +1040,8 @@
         "description",
         "parentPath",
         "responsible",
+        "language",
+        "masterLanguage",
         "transport",
         "swcomp",
         "transportLayer",

@@ -161,6 +161,7 @@ Refusals are described one at a time across this document and the README; this s
 | Not found | `notFound` | No | `404`; on cloud the hint adds "check systemProfile for the destination" since some ADT endpoints simply do not exist there | Section 5 |
 | Rate limited | `rateLimited` | Not by the dispatcher; on `sso` destinations the cookie client already retried a `GET`/`HEAD`/`OPTIONS` once, honouring `Retry-After` up to 5 seconds. The hint says to wait a few seconds | SAP answered `429` or `503` | Not cloud-specific |
 | Ambiguous request | `ambiguous400` | No | SAP rejected the request as invalid (`400`): usually a name where a URL was expected, a missing `/source/main`, or a missing `lockHandle` | Not cloud-specific |
+| Connection failure | `network` | No | The destination did not answer (name not resolved, VPN or proxy down, timeout, connection cut); no HTTP status. After a write, check whether it arrived before repeating it | Not cloud-specific |
 | Server error | `serverError` | No (the hint says check `dumps` before retrying a write) | SAP-side `5xx`, often a short dump | Section 7 |
 | Certificate | `tlsCertificate` | No | The TLS handshake to the destination failed: unknown issuer (`tls.ca`), name mismatch (`tls.servername`) or expired certificate; the hint carries the fix for that destination | Not cloud-specific; Public Cloud tenants carry public certificates, this is an on-prem case |
 | Unclassified | none (`kind` absent) | No | The classifier could not place the error; only the message comes back | Not cloud-specific |

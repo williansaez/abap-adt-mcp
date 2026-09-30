@@ -6,7 +6,7 @@
  */
 
 export type AdtErrorKind =
-  | 'policyDenied' | 'tlsCertificate' | 'sessionExpired' | 'csrf' | 'locked' | 'staleLockHandle' | 'transportRequired'
+  | 'policyDenied' | 'tlsCertificate' | 'network' | 'sessionExpired' | 'csrf' | 'locked' | 'staleLockHandle' | 'transportRequired'
   | 'authorization' | 'notFound' | 'rateLimited' | 'ambiguous400' | 'serverError' | 'unknown';
 
 export interface AdtErrorClassification {
@@ -22,7 +22,7 @@ export interface AdtErrorContext {
   url?: string;
 }
 
-const HINTS: Record<Exclude<AdtErrorKind, 'unknown' | 'tlsCertificate'>, { hint: string; nextTools: string[] }> = {
+const HINTS: Record<Exclude<AdtErrorKind, 'unknown' | 'tlsCertificate' | 'network'>, { hint: string; nextTools: string[] }> = {
   policyDenied: {
     hint: 'The server policy for this destination refuses the call. Retrying will not help: pick another destination (listSystems shows each policy) or ask the owner to change the policy in systems.json.',
     nextTools: ['listSystems'],
@@ -121,8 +121,42 @@ function tlsHint(failure: TlsFailure, text: string, ctx: AdtErrorContext | undef
     `then "tls": { "ca": "~/.abap-adt-mcp/${host}.pem" } on that destination in systems.json (docs/CONFIGURATION.md, "tls.ca"; a self-signed certificate is its own CA). ${escape}`;
 }
 
+/**
+ * Connection failures: the request never got an answer, so there is no HTTP
+ * status. By code where the error still carries one, by text where a wrapper
+ * kept only the message.
+ */
+const NETWORK_CODES = new Set(['ECONNRESET', 'ECONNREFUSED', 'ECONNABORTED', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH', 'EHOSTDOWN', 'EPIPE', 'ERR_NETWORK']);
+const NETWORK_TEXT = /\b(?:ECONNRESET|ECONNREFUSED|ECONNABORTED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|EHOSTUNREACH|ENETUNREACH|EHOSTDOWN|EPIPE)\b|socket hang up|timeout of \d+ ?ms exceeded/;
+
+function isNetworkFailure(err: any, text: string): boolean {
+  const codes = [err?.code, err?.parent?.code, err?.cause?.code];
+  return codes.some(c => typeof c === 'string' && NETWORK_CODES.has(c)) || NETWORK_TEXT.test(text);
+}
+
+function networkHint(ctx: AdtErrorContext | undefined): string {
+  const hp = hostPort(ctx?.url);
+  const where = ctx?.destination ? `destination ${ctx.destination}${hp ? ` (${hp.host}:${hp.port})` : ''}` : 'the SAP system';
+  return `${where.charAt(0).toUpperCase()}${where.slice(1)} did not answer: the connection failed or timed out (host name not resolved, VPN or proxy down, system stopped, connection cut). ` +
+    'This is not an ABAP error and there is no HTTP status. Check that the system is reachable from this machine and that url in systems.json is right, then call again. ' +
+    'If the failed call was a write, it may or may not have reached SAP: read the object (getObjectSource, inactiveObjects, listLocks) before repeating it.';
+}
+
+/**
+ * abap-adt-api wraps every error it does not recognise (a connection failure,
+ * an error thrown by the cookie client, a TypeError of its own parser) as an
+ * AdtErrorException with err 500. That 500 was never sent by SAP. A 500 that
+ * SAP did send carries the exception namespace, the response, or the
+ * "Error 500:" text of an empty body.
+ */
+function isSynthetic500(err: any): boolean {
+  if (Number(err?.err) !== 500) return false;
+  if (err.type === 'Unknown error') return true;
+  return err.type === '' && !err.namespace && !err.response && !/^Error 500:/.test(String(err.message || ''));
+}
+
 function extractStatus(err: any, text: string): number | undefined {
-  const candidates = [err?.status, err?.err, err?.response?.status, err?.parent?.status, err?.parent?.response?.status];
+  const candidates = [err?.status, isSynthetic500(err) ? undefined : err?.err, err?.response?.status, err?.parent?.status, err?.parent?.response?.status];
   for (const c of candidates) {
     const n = Number(c);
     if (Number.isInteger(n) && n >= 100 && n < 600) return n;
@@ -157,6 +191,10 @@ export function classifyAdtError(input: unknown, context?: AdtErrorContext): Adt
     return { kind: 'tlsCertificate', status: undefined, hint: tlsHint(tlsFailure, text, context), nextTools: ['listSystems'] };
   }
 
+  if (isNetworkFailure(err, text)) {
+    return { kind: 'network', status: undefined, hint: networkHint(context), nextTools: ['listSystems', 'listLocks'] };
+  }
+
   let kind: AdtErrorKind = 'unknown';
   if (err.code === 'POLICY_DENIED' || /^(?:MCP error -?\d+: )?Policy:/i.test(text) || has(/blocked by the destination policy/i)) {
     kind = 'policyDenied';
@@ -184,5 +222,5 @@ export function classifyAdtError(input: unknown, context?: AdtErrorContext): Adt
   void lower;
 
   if (kind === 'unknown') return { kind, status };
-  return { kind, status, ...HINTS[kind as Exclude<AdtErrorKind, 'unknown' | 'tlsCertificate'>] };
+  return { kind, status, ...HINTS[kind as Exclude<AdtErrorKind, 'unknown' | 'tlsCertificate' | 'network'>] };
 }

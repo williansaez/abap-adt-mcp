@@ -350,7 +350,7 @@
   "createObject": {
     "when": "Create an empty object skeleton (class, interface, program, CDS, package) after loadTypes and validateNewObject; then fill it with setObjectSource activate=true and run unitTestRun. DEVC/K packages are created with a hand-built ADT body that supports cloud tenants.",
     "returns": "`{status, result}`; `result` is usually empty because ADT answers the creation with no body (absent for DEVC/K). The new object is inactive with template content until you write and activate it.",
-    "pitfalls": "`parentPath` is the ADT path of the parent (/sap/bc/adt/packages/ztest), `parentName` the package; non-local packages need `transport` (resolveTransport with createIfMissing). DEVC/K requires `swcomp` and cloud tenants require change recording (recordChanges defaults to true when a transportLayer is given). Some S/4HANA Cloud tenants refuse $TMP; the `allowedPackages` policy checks `parentName` (or the package in `parentPath`).",
+    "pitfalls": "`parentPath` is the ADT path of the parent (/sap/bc/adt/packages/ztest), `parentName` the package; non-local packages need `transport` (resolveTransport with createIfMissing). DEVC/K requires `swcomp` and cloud tenants require change recording (recordChanges defaults to true when a transportLayer is given). Some S/4HANA Cloud tenants refuse $TMP; the `allowedPackages` policy checks `parentName` (or the package in `parentPath`). The object is created in the logon language of the destination (`language` in systems.json), EN when the destination names none; `language` and `masterLanguage` override it for one call.",
     "seeAlso": [
       "validateNewObject",
       "resolveTransport",
@@ -1282,7 +1282,7 @@
   "runQuery": {
     "when": "Run an ABAP SQL SELECT through the ADT data preview over tables and CDS views (released views included): the standard way to look at business data. Switch to tableContents when the preview refuses the table.",
     "returns": "{status, result {columns[] with name and type, values[]}, note?}; paged with totalRows, startRow, returnedRows, hasMore; note says when the statement was re-wrapped.",
-    "pitfalls": "The preview reads 255-character lines; the server re-flows long statements, but a single literal over 255 characters is an error. Keys keep their internal format (leading zeros). Errors carry hints for restricted tables and missing authorization. Refused unless the destination's policy states allowFreeSql=true (free SQL is off by default), and when the table is in deniedTables. The refusal is final: tell the user which key opens it instead of retrying or switching tools.",
+    "pitfalls": "The preview reads 255-character lines; the server re-flows long statements, but a single literal over 255 characters is an error. Values are the strings SAP sent: keys keep their leading zeros, amounts every digit, negative numbers carry the sign in front (-12.34). decode=true gives JSON numbers where the number is exact. Errors carry hints for restricted tables and missing authorization. Refused unless the destination's policy states allowFreeSql=true (free SQL is off by default), and when the table is in deniedTables. The refusal is final: tell the user which key opens it instead of retrying or switching tools.",
     "seeAlso": [
       "tableContents",
       "ddicElement",
@@ -1473,7 +1473,7 @@
   "tableContents": {
     "when": "Read rows of a table or CDS entity by name without SQL, and the fallback when runQuery is refused for a table with restricted dataMaintenance. Use runQuery for joins, projections and filters.",
     "returns": "{status, result {columns[], values[]}}; paged with totalRows, startRow, returnedRows, hasMore and autoPaged or capped flags when large.",
-    "pitfalls": "rowNumber (default 100) caps the rows requested from SAP; startRow and maxRows only page what was fetched. Refused unless the destination's policy states allowDataPreview=true or allowFreeSql=true (table data is off by default); sqlQuery on this tool counts as free SQL and needs allowFreeSql=true; deniedTables applies. Display authorization S_TABU_DIS or S_TABU_NAM is still required.",
+    "pitfalls": "rowNumber (default 100) caps the rows requested from SAP; startRow and maxRows only page what was fetched. Values are the strings SAP sent, with the sign of a negative number in front; decode=true gives JSON numbers where the number is exact. Refused unless the destination's policy states allowDataPreview=true or allowFreeSql=true (table data is off by default); sqlQuery on this tool counts as free SQL and needs allowFreeSql=true; deniedTables applies. Display authorization S_TABU_DIS or S_TABU_NAM is still required.",
     "seeAlso": [
       "runQuery",
       "ddicElement",

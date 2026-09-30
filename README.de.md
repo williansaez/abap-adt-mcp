@@ -16,6 +16,7 @@ abap-adt-mcp ist ein [Model Context Protocol](https://modelcontextprotocol.io)-S
 
 ## Inhalt
 
+- [Was ist neu in 2.6.0](#was-ist-neu-in-260)
 - [Was ist neu in 2.0.0](#was-ist-neu-in-200)
 - [Einrichtung](#einrichtung)
 - [Was Sie das Modell fragen können](#was-sie-das-modell-fragen-können)
@@ -35,6 +36,15 @@ abap-adt-mcp ist ein [Model Context Protocol](https://modelcontextprotocol.io)-S
 - [Fehlerbehebung](#fehlerbehebung)
 - [Tests und Mitarbeit](#tests-und-mitarbeit)
 - [Lizenz](#lizenz)
+
+## Was ist neu in 2.6.0
+
+Veröffentlicht am 2026-09-30. Die vollständige Liste steht in [CHANGELOG.md](CHANGELOG.md#260---2026-09-30---table-data-needs-a-decision-values-as-sap-sent-them-sap-api-policy-page); zwei Dinge ändern, was eine bestehende Installation bekommt:
+
+- **Tabellendaten zu lesen verlangt eine Entscheidung.** `tableContents` und `runQuery` werden auf jeder Destination abgelehnt, bis ihre Richtlinie es erlaubt: `"allowDataPreview": true` öffnet das Lesen nach Namen, `"allowFreeSql": true` öffnet SQL (und das Lesen nach Namen mit). Um das Verhalten von 2.1 zu behalten, setzen Sie `"allowFreeSql": true` auf den Destinationen, die Daten lesen sollen, oder starten Sie den Server mit `MCP_ALLOW_FREE_SQL=1`. `listSystems` zeigt den wirksamen `dataAccess` jeder Destination. Grund: die FAQ von SAP zur API Policy nennt das Lesen von Tabellen und das Ausführen von SQL unter den Zwecken, für die die ADT-Services nicht gedacht sind; [docs/API-POLICY.md](docs/API-POLICY.md) hat das ganze Bild.
+- **Tabellenwerte kommen so zurück, wie SAP sie gesendet hat.** Zahlen und Datumswerte sind jetzt Text: `"-12.34"`, `"000010"`, `"20260929"`. Der alte Decoder verlor das Vorzeichen von `12.34-`, die Nullen von `000010` und die Stellen langer Beträge. `decode=true` liefert JSON-Zahlen, wo die Zahl exakt ist, und Datumswerte als `YYYY-MM-DD`.
+
+Außerdem: `apiReleaseState` meldet `apiPolicy` (`released`, `classic`, `notReleased`, `prohibited`) und listet Schnittstellen, die SAP nicht erlaubt; Objekte werden in der Anmeldesprache der Destination angelegt statt in EN; ein Verbindungsfehler wird als `network` gemeldet, nicht als SAP-Serverfehler; Sperren werden freigegeben, wenn der Prozess an einem Fehler stirbt.
 
 ## Was ist neu in 2.0.0
 
@@ -195,7 +205,7 @@ Jedes Tool außer `listSystems` und `healthcheck` nimmt ein optionales `destinat
 
 **Einen Transport prüfen.** `transportDetails` listet Objekte, Eigentümer, Aufgaben und Status; `transportUnifiedDiff` vergleicht jedes im Transport erfasste Quelltextobjekt mit der Version davor, einschließlich `LIMU`-Klassen-Includes und -Methoden, `REPS`-Includes und `FUNC`-Bausteinen (Nachrichten und DDIC werden mit Begründung übersprungen). Verglichen wird mit dem aktuellen Quelltext, sodass bei einem bereits freigegebenen Transport auch spätere Änderungen an denselben Objekten auftauchen. Es läuft auf S/4HANA-Cloud-Tenants (die `LIMU`-Abdeckung stammt aus einer RAP-Sitzung dort, siehe [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md)). `objectDiff` deckt Objekte mit mehreren Revisionen ab. `userTransports`, `transportRelease`, `transportSetOwner` und `transportAddUser` vervollständigen das Bild.
 
-**Daten.** `runQuery(sqlQuery)` führt ein ABAP-SQL-`SELECT` über die ADT-Datenvorschau auf Tabellen und CDS-Views aus (nach Entitätsname, freigegebene API-Views eingeschlossen), zum Beispiel `SELECT carrid, connid, fldate FROM sflight WHERE carrid = 'LH' ORDER BY fldate DESCENDING`. `rowNumber` begrenzt, wie viele Zeilen SAP liefert (Standard 100), und `startRow`/`maxRows` blättern durch das Ergebnis. Anweisungen werden vor dem Senden auf die 255-Zeichen-Zeilengrenze der Vorschau umgebrochen (ein einzelnes längeres Literal scheitert weiterhin). Tabellen, deren DDIC-`dataMaintenance` eingeschränkt ist, lehnt die Vorschau ab: `tableContents(ddicEntityName)` liest sie (S_TABU_DIS/S_TABU_NAM gelten weiterhin). Schlüssel kommen im internen Format zurück, daher informieren `getDataElementProperties` und `getDomainProperties` über führende Nullen und Konvertierungsexits.
+**Daten.** `runQuery(sqlQuery)` führt ein ABAP-SQL-`SELECT` über die ADT-Datenvorschau auf Tabellen und CDS-Views aus (nach Entitätsname, freigegebene API-Views eingeschlossen), zum Beispiel `SELECT carrid, connid, fldate FROM sflight WHERE carrid = 'LH' ORDER BY fldate DESCENDING`. `rowNumber` begrenzt, wie viele Zeilen SAP liefert (Standard 100), und `startRow`/`maxRows` blättern durch das Ergebnis. Anweisungen werden vor dem Senden auf die 255-Zeichen-Zeilengrenze der Vorschau umgebrochen (ein einzelnes längeres Literal scheitert weiterhin). Tabellen, deren DDIC-`dataMaintenance` eingeschränkt ist, lehnt die Vorschau ab: `tableContents(ddicEntityName)` liest sie (S_TABU_DIS/S_TABU_NAM gelten weiterhin). Schlüssel kommen im internen Format zurück, daher informieren `getDataElementProperties` und `getDomainProperties` über führende Nullen und Konvertierungsexits. Die Werte kommen so zurück, wie SAP sie gesendet hat, als Text: Schlüssel behalten ihre führenden Nullen, Beträge jede Stelle, und eine negative Zahl trägt ihr Vorzeichen vorn (`-12.34`, wo SAP `12.34-` schreibt). `decode=true` macht aus Zahlen JSON-Zahlen, wenn die Zahl exakt ist, und aus Datumswerten `YYYY-MM-DD`; NUMC bleibt immer Text.
 
 **Dumps und Debugger.** `dumps(from, to, user, contains)` liefert kompakte Zusammenfassungen (Laufzeitfehler, Ausnahme, Programm, Abbruchstelle mit Quelltext-URL und Zeile, oberster Stack) und `dumpDetails(dumpId)` die vollständige Analyse; `getObjectSource` rund um `terminatedAt.line` und `whereUsed` finden die Ursache. Die Toolsets `debugger` und `traces` gibt es nur, wo das Backend sie anbietet (`systemProfile` sagt es) und nur, wenn das Toolset veröffentlicht ist (`focused` lässt beide weg). Ohne Debugger sind die Wege: ein Dump (`dumps`), den Fehler mit `runSnippet` oder `runClass` auf einem Entwicklungssystem nachstellen und die Ausgabe lesen, und `traces`, wo das Backend sie liefert. Ist der Debugger verfügbar, braucht `debuggerListen` `debuggingMode`, `terminalId`, `ideId` und `user`, wie in Eclipse.
 

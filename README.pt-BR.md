@@ -16,6 +16,7 @@ abap-adt-mcp é um servidor [Model Context Protocol](https://modelcontextprotoco
 
 ## Sumário
 
+- [O que há de novo na 2.6.0](#o-que-há-de-novo-na-260)
 - [O que há de novo na 2.0.0](#o-que-há-de-novo-na-200)
 - [Instalação](#instalação)
 - [O que pedir ao modelo](#o-que-pedir-ao-modelo)
@@ -35,6 +36,15 @@ abap-adt-mcp é um servidor [Model Context Protocol](https://modelcontextprotoco
 - [Solução de problemas](#solução-de-problemas)
 - [Testes e contribuição](#testes-e-contribuição)
 - [Licença](#licença)
+
+## O que há de novo na 2.6.0
+
+Lançada em 2026-09-30. A lista completa está no [CHANGELOG.md](CHANGELOG.md#260---2026-09-30---table-data-needs-a-decision-values-as-sap-sent-them-sap-api-policy-page); duas coisas mudam o que uma instalação existente recebe:
+
+- **Ler dados de tabelas passa a exigir uma decisão.** `tableContents` e `runQuery` são recusados em todo destino até a política permitir: `"allowDataPreview": true` abre a leitura por nome, `"allowFreeSql": true` abre o SQL (e a leitura por nome junto). Para manter o comportamento da 2.1, declare `"allowFreeSql": true` nos destinos que devem ler dados, ou inicie o servidor com `MCP_ALLOW_FREE_SQL=1`. `listSystems` mostra o `dataAccess` efetivo de cada destino. Motivo: o FAQ da SAP sobre a Política de API cita a leitura de tabelas e a execução de SQL entre os usos a que os serviços do ADT não se destinam; [docs/API-POLICY.md](docs/API-POLICY.md) traz o quadro completo.
+- **Valores de tabela voltam como a SAP os enviou.** Números e datas agora são texto: `"-12.34"`, `"000010"`, `"20260929"`. O decodificador antigo perdia o sinal de `12.34-`, os zeros de `000010` e os dígitos de valores longos. `decode=true` devolve números JSON quando o número é exato e datas como `YYYY-MM-DD`.
+
+Também: `apiReleaseState` informa `apiPolicy` (`released`, `classic`, `notReleased`, `prohibited`) e lista interfaces que a SAP não permite; objetos são criados no idioma de logon do destino, não mais em EN; falha de conexão é reportada como `network`, não como erro do servidor SAP; bloqueios são liberados quando o processo morre por erro.
 
 ## O que há de novo na 2.0.0
 
@@ -195,7 +205,7 @@ Toda ferramenta exceto `listSystems` e `healthcheck` aceita um `destination` opc
 
 **Revisar uma ordem de transporte.** `transportDetails` lista objetos, responsável, tarefas e status; `transportUnifiedDiff` compara todo objeto de código-fonte registrado na ordem com a versão anterior a ela, incluindo includes de classe e métodos `LIMU`, includes `REPS` e módulos `FUNC` (mensagens e DDIC são pulados com uma justificativa). A comparação é contra o fonte atual, então em uma ordem já liberada as mudanças posteriores nos mesmos objetos também aparecem. Roda em tenants S/4HANA Cloud (a cobertura de `LIMU` nasceu de uma sessão RAP lá, veja [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md)). `objectDiff` cobre objetos com várias revisões. `userTransports`, `transportRelease`, `transportSetOwner` e `transportAddUser` completam o quadro.
 
-**Dados.** `runQuery(sqlQuery)` executa um `SELECT` ABAP SQL pela pré-visualização de dados do ADT sobre tabelas e CDS views (por nome de entidade, views de API liberadas incluídas), por exemplo `SELECT carrid, connid, fldate FROM sflight WHERE carrid = 'LH' ORDER BY fldate DESCENDING`. `rowNumber` limita quantas linhas o SAP devolve (padrão 100) e `startRow`/`maxRows` paginam o resultado. As instruções são quebradas no limite de 255 caracteres por linha da pré-visualização antes do envio (um único literal maior que isso ainda falha). Tabelas cujo `dataMaintenance` do DDIC é restrito são recusadas pela pré-visualização: `tableContents(ddicEntityName)` as lê (S_TABU_DIS/S_TABU_NAM continuam valendo). As chaves voltam em formato interno, então `getDataElementProperties` e `getDomainProperties` informam sobre zeros à esquerda e rotinas de conversão.
+**Dados.** `runQuery(sqlQuery)` executa um `SELECT` ABAP SQL pela pré-visualização de dados do ADT sobre tabelas e CDS views (por nome de entidade, views de API liberadas incluídas), por exemplo `SELECT carrid, connid, fldate FROM sflight WHERE carrid = 'LH' ORDER BY fldate DESCENDING`. `rowNumber` limita quantas linhas o SAP devolve (padrão 100) e `startRow`/`maxRows` paginam o resultado. As instruções são quebradas no limite de 255 caracteres por linha da pré-visualização antes do envio (um único literal maior que isso ainda falha). Tabelas cujo `dataMaintenance` do DDIC é restrito são recusadas pela pré-visualização: `tableContents(ddicEntityName)` as lê (S_TABU_DIS/S_TABU_NAM continuam valendo). As chaves voltam em formato interno, então `getDataElementProperties` e `getDomainProperties` informam sobre zeros à esquerda e rotinas de conversão. Os valores voltam como a SAP os enviou, como texto: as chaves mantêm os zeros à esquerda, os valores monetários mantêm todos os dígitos, e um número negativo traz o sinal na frente (`-12.34`, onde a SAP escreve `12.34-`). `decode=true` transforma números em números JSON quando o número é exato e datas em `YYYY-MM-DD`; NUMC continua sempre como texto.
 
 **Dumps e depurador.** `dumps(from, to, user, contains)` devolve resumos compactos (erro de tempo de execução, exceção, programa, ponto de término com URL do fonte e linha, topo da pilha) e `dumpDetails(dumpId)` a análise completa; `getObjectSource` em torno de `terminatedAt.line` e `whereUsed` encontram a causa. Os toolsets `debugger` e `traces` existem só onde o backend os expõe (`systemProfile` informa) e só quando o toolset é publicado (`focused` deixa ambos de fora). Sem depurador os caminhos são: um dump (`dumps`), reproduzir o erro com `runSnippet` ou `runClass` em um sistema de desenvolvimento e ler a saída, e `traces` onde o backend os serve. Quando o depurador está disponível, `debuggerListen` precisa de `debuggingMode`, `terminalId`, `ideId` e `user`, como no Eclipse.
 

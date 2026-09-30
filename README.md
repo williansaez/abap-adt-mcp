@@ -16,6 +16,7 @@ abap-adt-mcp is a [Model Context Protocol](https://modelcontextprotocol.io) serv
 
 ## Table of contents
 
+- [What is new in 2.6.0](#what-is-new-in-260)
 - [What is new in 2.0.0](#what-is-new-in-200)
 - [Setup](#setup)
 - [What to ask the model](#what-to-ask-the-model)
@@ -35,6 +36,15 @@ abap-adt-mcp is a [Model Context Protocol](https://modelcontextprotocol.io) serv
 - [Troubleshooting](#troubleshooting)
 - [Testing and contributing](#testing-and-contributing)
 - [License](#license)
+
+## What is new in 2.6.0
+
+Released 2026-09-30. The full list is in [CHANGELOG.md](CHANGELOG.md#260---2026-09-30---table-data-needs-a-decision-values-as-sap-sent-them-sap-api-policy-page); two things change what an existing setup gets:
+
+- **Reading table data needs a decision.** `tableContents` and `runQuery` are refused on every destination until its policy allows them: `"allowDataPreview": true` opens rows by name, `"allowFreeSql": true` opens SQL (and rows by name with it). To keep the behaviour of 2.1, state `"allowFreeSql": true` on the destinations that should read data, or start the server with `MCP_ALLOW_FREE_SQL=1`. `listSystems` shows the effective `dataAccess` of every destination. Why: SAP's FAQ on its API Policy names reading tables and running SQL among the uses the ADT services are not intended for; [docs/API-POLICY.md](docs/API-POLICY.md) has the whole picture.
+- **Table values come back as SAP sent them.** Numbers and dates are strings now: `"-12.34"`, `"000010"`, `"20260929"`. The old decoder lost the sign of `12.34-`, the zeros of `000010` and the digits of long amounts. `decode=true` gives JSON numbers where the number is exact and dates as `YYYY-MM-DD`.
+
+Also: `apiReleaseState` reports `apiPolicy` (`released`, `classic`, `notReleased`, `prohibited`) and lists interfaces SAP does not permit; objects are created in the logon language of the destination instead of EN; a connection failure is reported as `network`, not as an SAP server error; locks are released when the process dies of an error.
 
 ## What is new in 2.0.0
 
@@ -195,7 +205,7 @@ Every tool except `listSystems` and `healthcheck` takes an optional `destination
 
 **Review a transport.** `transportDetails` lists objects, owner, tasks and status; `transportUnifiedDiff` compares every source object recorded on the transport against the version predating it, including `LIMU` class includes and methods, `REPS` includes and `FUNC` modules (messages and DDIC are skipped with a reason). The comparison is against the current source, so on an already released transport later changes to the same objects show up too. It runs on S/4HANA Cloud tenants (the `LIMU` coverage came out of a RAP session there, see [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md)). `objectDiff` covers objects with several revisions. `userTransports`, `transportRelease`, `transportSetOwner` and `transportAddUser` complete the picture.
 
-**Data.** `runQuery(sqlQuery)` runs an ABAP SQL `SELECT` through the ADT data preview over tables and CDS views (by entity name, released API views included), for example `SELECT carrid, connid, fldate FROM sflight WHERE carrid = 'LH' ORDER BY fldate DESCENDING`. `rowNumber` caps how many rows SAP returns (default 100) and `startRow`/`maxRows` page the result. Statements are wrapped to the preview's 255-character line limit before sending (a single literal longer than that still fails). Tables whose DDIC `dataMaintenance` is restricted are refused by the preview: `tableContents(ddicEntityName)` reads them (S_TABU_DIS/S_TABU_NAM still apply). Keys come back in internal format, so `getDataElementProperties` and `getDomainProperties` tell you about leading zeros and conversion exits.
+**Data.** `runQuery(sqlQuery)` runs an ABAP SQL `SELECT` through the ADT data preview over tables and CDS views (by entity name, released API views included), for example `SELECT carrid, connid, fldate FROM sflight WHERE carrid = 'LH' ORDER BY fldate DESCENDING`. `rowNumber` caps how many rows SAP returns (default 100) and `startRow`/`maxRows` page the result. Statements are wrapped to the preview's 255-character line limit before sending (a single literal longer than that still fails). Tables whose DDIC `dataMaintenance` is restricted are refused by the preview: `tableContents(ddicEntityName)` reads them (S_TABU_DIS/S_TABU_NAM still apply). Keys come back in internal format, so `getDataElementProperties` and `getDomainProperties` tell you about leading zeros and conversion exits. Values come back as SAP sent them, as strings: keys keep their leading zeros, amounts keep every digit, and a negative number carries its sign in front (`-12.34`, where SAP writes `12.34-`). `decode=true` turns numbers into JSON numbers where the number is exact and dates into `YYYY-MM-DD`; NUMC always stays a string.
 
 **Dumps and debugger.** `dumps(from, to, user, contains)` returns compact summaries (runtime error, exception, program, termination point with source URL and line, top of the stack) and `dumpDetails(dumpId)` the full analysis; `getObjectSource` around `terminatedAt.line` and `whereUsed` find the cause. The `debugger` and `traces` toolsets exist only where the backend exposes them (`systemProfile` tells) and only when the toolset is published (`focused` leaves both out). Without a debugger the paths are: a dump (`dumps`), reproducing the bug with `runSnippet` or `runClass` on a development system and reading the output, and `traces` where the backend serves them. When the debugger is available, `debuggerListen` needs `debuggingMode`, `terminalId`, `ideId` and `user`, as in Eclipse.
 
