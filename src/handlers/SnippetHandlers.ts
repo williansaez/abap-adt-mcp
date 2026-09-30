@@ -4,6 +4,7 @@ import type { ToolDefinition } from '../types/tools.js';
 import { session_types } from 'abap-adt-api';
 import { withLock } from '../lib/lockLedger.js';
 import { creationLanguage } from '../lib/objectLanguage.js';
+import { createOutsideStatefulContext } from '../lib/createFresh.js';
 import { hardTruncateJson } from '../lib/responseSizing.js';
 import { runClassWhenReady } from '../lib/runFresh.js';
 import crypto from 'crypto';
@@ -95,7 +96,8 @@ export class SnippetHandlers extends BaseHandler {
             const { source, wrapped } = buildSnippetClass(className, String(args.code));
             this.adtclient.stateful = session_types.stateful;
             // The options form: the positional one cannot carry a language and the library then writes EN.
-            await this.adtclient.createObject({
+            // Outside the stateful context where possible: the write that follows does not need it, and a class created inside it is unreadable there (src/lib/createFresh.ts).
+            await createOutsideStatefulContext(this.adtclient, () => this.adtclient.createObject({
                 objtype: 'CLAS/OC',
                 name: className,
                 parentName: packageName,
@@ -104,7 +106,7 @@ export class SnippetHandlers extends BaseHandler {
                 responsible: args.responsible ? String(args.responsible).toUpperCase() : '',
                 transport: args.transport ?? '',
                 ...creationLanguage(this.adtclient, {})
-            });
+            }));
             created = true;
             steps.push('created');
             reportProgress(`class ${className} created`, 1, 4);

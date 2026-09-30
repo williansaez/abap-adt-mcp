@@ -160,6 +160,7 @@ Refusals are described one at a time across this document and the README; this s
 | Authorization | `authorization` | No, never retried | The connected user lacks the SAP authorization (hint points at `SU53`) | 2.4 |
 | Not found | `notFound` | No | `404`; on cloud the hint adds "check systemProfile for the destination" since some ADT endpoints simply do not exist there | Section 5 |
 | Rate limited | `rateLimited` | Not by the dispatcher; on `sso` destinations the cookie client already retried a `GET`/`HEAD`/`OPTIONS` once, honouring `Retry-After` up to 5 seconds. The hint says to wait a few seconds | SAP answered `429` or `503` | Not cloud-specific |
+| Wrong input data | `wrongInputData` | No | An object created inside the stateful session, read before its source is written (400 `ExceptionResourceWrongData`); `createObject` creates outside that session unless locks are held. Seen on Public Cloud and on-prem alike | Not cloud-specific |
 | Ambiguous request | `ambiguous400` | No | SAP rejected the request as invalid (`400`): usually a name where a URL was expected, a missing `/source/main`, or a missing `lockHandle` | Not cloud-specific |
 | Connection failure | `network` | No | The destination did not answer (name not resolved, VPN or proxy down, timeout, connection cut); no HTTP status. After a write, check whether it arrived before repeating it | Not cloud-specific |
 | Server error | `serverError` | No (the hint says check `dumps` before retrying a write) | SAP-side `5xx`, often a short dump | Section 7 |

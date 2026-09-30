@@ -1012,7 +1012,7 @@ See also: [`creatableTypeDetails`](#creatabletypedetails), [`loadTypes`](#loadty
 
 ✏️ Create Object · toolset `objects` · writes
 
-Create a new ABAP object skeleton. Recommended flow: pick objtype (e.g. CLAS/OC, PROG/P, INTF/OI; creatableTypeDetails lists what the system can create) -> validateNewObject to check name/package -> resolveTransport if the package is not local ($TMP) -> createObject. Afterwards write the source with setObjectSource and activate=true (it locks and unlocks by itself), then run unitTestRun.
+Create a new ABAP object skeleton. Recommended flow: pick objtype (e.g. CLAS/OC, PROG/P, INTF/OI; creatableTypeDetails lists what the system can create) -> validateNewObject to check name/package -> resolveTransport if the package is not local ($TMP) -> createObject. Afterwards write the source with setObjectSource and activate=true (it locks and unlocks by itself), then run unitTestRun. The creation is sent outside the stateful session so the new object can be read at once; when locks are held it stays inside, and the answer carries a note: the object then answers 400 to reads until its source is written.
 
 | Parameter | Type | Required | Description | Example |
 |---|---|---|---|---|
@@ -1033,9 +1033,9 @@ Create a new ABAP object skeleton. Recommended flow: pick objtype (e.g. CLAS/OC,
 
 **When to use.** Create an empty object skeleton (class, interface, program, CDS, package) after loadTypes and validateNewObject; then fill it with setObjectSource activate=true and run unitTestRun. DEVC/K packages are created with a hand-built ADT body that supports cloud tenants.
 
-**What comes back.** `{status, result}`; `result` is usually empty because ADT answers the creation with no body (absent for DEVC/K). The new object is inactive with template content until you write and activate it.
+**What comes back.** `{status, result, context}`; `result` is usually empty because ADT answers the creation with no body (absent for DEVC/K). `context` is `stateless` (the normal case: the object is readable at once) or `stateful` (locks were held: `locksHeld` lists them and `note` says that reads of the new object answer 400 until its source is written). The new object is inactive with template content until you write and activate it.
 
-**Pitfalls.** `parentPath` is the ADT path of the parent (/sap/bc/adt/packages/ztest), `parentName` the package; non-local packages need `transport` (resolveTransport with createIfMissing). DEVC/K requires `swcomp` and cloud tenants require change recording (recordChanges defaults to true when a transportLayer is given). Some S/4HANA Cloud tenants refuse $TMP; the `allowedPackages` policy checks `parentName` (or the package in `parentPath`). The object is created in the logon language of the destination (`language` in systems.json), EN when the destination names none; `language` and `masterLanguage` override it for one call.
+**Pitfalls.** `parentPath` is the ADT path of the parent (/sap/bc/adt/packages/ztest), `parentName` the package; non-local packages need `transport` (resolveTransport with createIfMissing). DEVC/K requires `swcomp` and cloud tenants require change recording (recordChanges defaults to true when a transportLayer is given). Some S/4HANA Cloud tenants refuse $TMP; the `allowedPackages` policy checks `parentName` (or the package in `parentPath`). The object is created in the logon language of the destination (`language` in systems.json), EN when the destination names none; `language` and `masterLanguage` override it for one call. An object created inside the stateful session (only when locks are held) cannot be read in that session until its source is written: `getObjectSource`, `objectStructure`, `editObjectSource` and `setMethodSource` answer 400 `wrongInputData` until then.
 
 See also: [`validateNewObject`](#validatenewobject), [`resolveTransport`](#resolvetransport), [`setObjectSource`](#setobjectsource), [`deleteObject`](#deleteobject).
 
