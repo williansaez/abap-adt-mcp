@@ -26,7 +26,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - name: Type-check tests
-        run: npx tsc --noEmit -p tsconfig.test.json
+        run: npx tsc --noEmit -p src/__tests__/tsconfig.json
       - run: npm test -- --coverage=false
       - name: Tool catalog docs are up to date
         run: |
@@ -45,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Build image (no push)
-        run: docker build -t abap-adt-mcp:ci .
+        run: docker build -t abap-adt-mcp:ci -f docker/Dockerfile .
       - name: Image starts and lists tools
         run: |
           printf '%s\n' \

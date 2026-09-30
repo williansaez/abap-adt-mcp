@@ -18,7 +18,7 @@ const add = (file, rule, detail) => problems.push({ file, rule, detail });
 // Files that carry prose for readers. Generated files are checked too: their
 // text comes from tool descriptions, which are prose as well.
 const docFiles = [
-  'README.md', 'README.pt-BR.md', 'README.de.md', 'SECURITY.md', 'CONTRIBUTING.md', 'CHANGELOG.md',
+  'README.md', 'README.pt-BR.md', 'README.de.md', '.github/SECURITY.md', '.github/CONTRIBUTING.md', 'CHANGELOG.md',
   ...fs.readdirSync(path.join(root, 'docs')).filter(f => f.endsWith('.md')).map(f => 'docs/' + f),
   ...fs.readdirSync(path.join(root, 'skills')).flatMap(d => {
     const p = path.join(root, 'skills', d, 'SKILL.md');
@@ -105,7 +105,7 @@ try {
 if (problems.length) {
   console.error(`Documentation hygiene: ${problems.length} problem(s)\n`);
   for (const p of problems) console.error(`  ${p.rule.padEnd(16)} ${p.file}: ${p.detail}`);
-  console.error('\nFix these before committing. See CONTRIBUTING.md.');
+  console.error('\nFix these before committing. See .github/CONTRIBUTING.md.');
   process.exit(1);
 }
 console.log(`Documentation hygiene: ${docFiles.length} files, ${used.size} environment variables, no problems.`);

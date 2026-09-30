@@ -152,6 +152,8 @@
     footer { padding: 40px 0 64px; border-top: 1px solid var(--line); font-size: 15px; color: var(--muted); }
     footer .row { display: flex; flex-wrap: wrap; gap: 10px 28px; list-style: none; padding: 0; margin: 0; }
     footer p { max-width: none; margin-top: 16px; }
+    footer .fine { font-size: 12.5px; line-height: 1.5; color: var(--muted); opacity: 0.85; margin-top: 22px; }
+    .fn { font-size: 0.45em; color: var(--muted); margin-left: 0.2em; font-weight: 700; }
 
     @media (max-width: 1100px) {
       .hero { grid-template-columns: minmax(0, 1fr); }
@@ -224,7 +226,7 @@
       </div>
       <div class="facts"><span><b>173 tools</b>, 16 toolsets</span><span>S/4HANA Cloud and on-prem</span><span>Node.js 22.12+</span><span>MIT</span></div>
     </div>
-    <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/film.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-film.mp4" aria-label="The first film about abap-adt-mcp, 21 seconds"><track kind="captions" srclang="en" label="English" src="media/brag/film.vtt" /></video></div><figcaption>The first film · 21 s · sound on</figcaption></figure>
+    <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/film.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-film.mp4" aria-label="The first film about abap-adt-mcp"><track kind="captions" srclang="en" label="English" src="media/brag/film.vtt" /></video></div></figure>
   </header>
 
   <main>
@@ -330,15 +332,15 @@
 
   <section id="watch">
     <div class="wrap">
-      <h2>Six more films: the launch, and one tool at a time.</h2>
-      <p class="intro">Every name on screen is a fictional stand-in from the README (ZCL_ORDER_SERVICE, DEVK900123, DEV and PRD). Twenty to thirty seconds each, 1080p, with sound.</p>
+      <h2>Watch it work on the jobs you actually have.<sup class="fn" aria-hidden="true">*</sup></h2>
+      <p class="intro">A short dump at three in the morning, twenty-seven ATC findings on a Friday, a transport nobody wants to sign off, a class that still needs its test, code that has to survive S/4HANA Cloud. Pick the one that looks like your week.</p>
       <div class="films">
-        <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/launch.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-launch.mp4" aria-label="Launch video, 31 seconds"><track kind="captions" srclang="en" label="English" src="media/brag/launch.vtt" /></video></div><figcaption><b>Your SAP system takes prompts now.</b>Hosts, server and systems in one diagram, four capabilities, the PRD refusal, the install line. <span>31 s</span></figcaption></figure>
-        <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/dumps.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-dumps.mp4" aria-label="Short dumps, 27 seconds"><track kind="captions" srclang="en" label="English" src="media/brag/dumps.vtt" /></video></div><figcaption><b>A short dump at 03:12.</b><code>dumps</code>, <code>dumpDetails</code>, the line, the fix, activated and tested. <span>27 s</span></figcaption></figure>
-        <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/atc.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-atc.mp4" aria-label="ATC quickfixes, 27 seconds"><track kind="captions" srclang="en" label="English" src="media/brag/atc.vtt" /></video></div><figcaption><b>27 ATC findings in ZFIN.</b>19 deterministic quickfixes applied, exemptions requested with a human approver. <span>27 s</span></figcaption></figure>
-        <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/transport.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-transport.mp4" aria-label="Transport review, 26 seconds"><track kind="captions" srclang="en" label="English" src="media/brag/transport.vtt" /></video></div><figcaption><b>Is DEVK900123 safe to release?</b>Unified diff, a hard-coded client found, fixed, tested, released on your word. <span>26 s</span></figcaption></figure>
-        <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/create.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-create.mp4" aria-label="Create with tests, 25 seconds"><track kind="captions" srclang="en" label="English" src="media/brag/create.vtt" /></video></div><figcaption><b>New class. New test. One sentence.</b>Validate, transport, create, activate, test; the same sentence on PRD is refused. <span>25 s</span></figcaption></figure>
-        <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/cloud.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-cloud.mp4" aria-label="ABAP Cloud readiness, 28 seconds"><track kind="captions" srclang="en" label="English" src="media/brag/cloud.vtt" /></video></div><figcaption><b>Will it run on S/4HANA Cloud?</b><code>apiReleaseState</code> grades every SAP object, names the successor, then the rewrite. <span>28 s</span></figcaption></figure>
+        <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/launch.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-launch.mp4" aria-label="Launch video"><track kind="captions" srclang="en" label="English" src="media/brag/launch.vtt" /></video></div><figcaption><b>Your SAP system takes prompts now.</b>Hosts, server and systems in one diagram, four capabilities, the PRD refusal, the install line.</figcaption></figure>
+        <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/dumps.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-dumps.mp4" aria-label="Short dumps"><track kind="captions" srclang="en" label="English" src="media/brag/dumps.vtt" /></video></div><figcaption><b>A short dump at 03:12.</b><code>dumps</code>, <code>dumpDetails</code>, the line, the fix, activated and tested.</figcaption></figure>
+        <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/atc.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-atc.mp4" aria-label="ATC quickfixes"><track kind="captions" srclang="en" label="English" src="media/brag/atc.vtt" /></video></div><figcaption><b>27 ATC findings in ZFIN.</b>19 deterministic quickfixes applied, exemptions requested with a human approver.</figcaption></figure>
+        <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/transport.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-transport.mp4" aria-label="Transport review"><track kind="captions" srclang="en" label="English" src="media/brag/transport.vtt" /></video></div><figcaption><b>Is DEVK900123 safe to release?</b>Unified diff, a hard-coded client found, fixed, tested, released on your word.</figcaption></figure>
+        <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/create.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-create.mp4" aria-label="Create with tests"><track kind="captions" srclang="en" label="English" src="media/brag/create.vtt" /></video></div><figcaption><b>New class. New test. One sentence.</b>Validate, transport, create, activate, test; the same sentence on PRD is refused.</figcaption></figure>
+        <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/cloud.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-cloud.mp4" aria-label="ABAP Cloud readiness"><track kind="captions" srclang="en" label="English" src="media/brag/cloud.vtt" /></video></div><figcaption><b>Will it run on S/4HANA Cloud?</b><code>apiReleaseState</code> grades every SAP object, names the successor, then the rewrite.</figcaption></figure>
       </div>
     </div>
   </section>
@@ -421,8 +423,8 @@ cd abap-adt-mcp &amp;&amp; npm ci &amp;&amp; npm run build</code></pre></div></d
         <li><a href="https://github.com/williansaez/abap-adt-mcp/blob/main/CHANGELOG.md">Changelog</a></li>
         <li><a href="https://github.com/williansaez/abap-adt-mcp#readme">README (English)</a></li>
       </ul>
-      <p>Films made with Hyperframes. Music: Happy Beats / Business Moves by ende.app. Sound effects: Kenney (CC0).</p>
       <p>MIT. Built on <a href="https://github.com/marcellourbani/abap-adt-api">abap-adt-api</a> by Marcello Urbani; started from the <code>mcp-abap-abap-adt-api</code> server by mario-andreschak. Contributions from João Gementi (<code>sso2</code>) and Alexandre Leite (on-prem authentication). If the project saves you time, you can <a href="https://github.com/sponsors/williansaez">sponsor the author</a>.</p>
+      <p class="fine">* Every name on screen is a fictional stand-in (ZCL_ORDER_SERVICE, DEVK900123, DEV, PRD); no customer system appears in the films. Films made with Hyperframes. Music: Happy Beats / Business Moves by ende.app. Sound effects: Kenney (CC0).</p>
     </div>
   </footer>
   <span class="sr" aria-live="polite" id="live"></span>

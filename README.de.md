@@ -9,8 +9,11 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/node/v/abap-adt-mcp)](https://nodejs.org)
 [![MCP Registry](https://img.shields.io/badge/MCP%20registry-listed-informational)](https://registry.modelcontextprotocol.io/?search=abap-adt-mcp)
+[![Projektseite](https://img.shields.io/badge/Projektseite-williansaez.github.io-4db1ff)](https://williansaez.github.io/abap-adt-mcp/de/)
 
-abap-adt-mcp ist ein [Model Context Protocol](https://modelcontextprotocol.io)-Server für SAP ABAP: er gibt Claude Desktop, Claude Code, VS Code oder einem anderen MCP-Host die ADT-REST-Services, die Eclipse verwendet (Quelltext, Transporte, Aktivierung, ABAP Unit, ATC, Kurzdumps und, wo Sie es erlauben, Tabellendaten). Ein Prozess stellt **173 Tools** bereit (114 im Preset `focused`), über beliebig viele Systeme, S/4HANA Cloud wie On-Premise.
+Sie schreiben einen Satz in Claude. Zurück kommen eine aktivierte Klasse, grüne Unit-Tests und eine Transportnummer. abap-adt-mcp ist der Server dazwischen: ein [Model Context Protocol](https://modelcontextprotocol.io)-Server, der Claude Desktop, Claude Code, VS Code oder jedem anderen MCP-Host dieselben ADT-Dienste gibt, die Eclipse verwendet, auf jedem SAP-System, das Sie konfigurieren, S/4HANA Cloud wie On-Premise. **173 Tools**, ein Prozess, und Leitplanken, die der Server selbst durchsetzt: eine als schreibgeschützt markierte Destination lehnt jeden Schreibzugriff ab, bevor er SAP erreicht, unabhängig davon, was der Host genehmigt.
+
+**Sehen Sie es in Bewegung.** Die [Projektseite](https://williansaez.github.io/abap-adt-mcp/de/) zeigt sieben kurze Filme, die Einrichtung in drei Schritten und was Sie das Modell fragen können.
 
 > **Bevor Sie ein Produktivsystem anbinden**
 >
@@ -24,7 +27,7 @@ abap-adt-mcp ist ein [Model Context Protocol](https://modelcontextprotocol.io)-S
 
 Das ist die ganze Idee. Sie schreiben einen Satz. Das Modell wählt die Tools, der Server sperrt das Objekt, schreibt, aktiviert und gibt es frei, und die Unit-Tests kommen grün zurück, mit der Transportnummer daran. Verlangen Sie dieselbe Änderung auf einem Produktivsystem, lautet die Antwort `policyDenied`, bevor ein einziger SAP-Aufruf hinausgeht: Die Leitplanken sitzen im Server, nicht im Chatfenster.
 
-Sieben kurze Filme zeigen das und die einzelnen Aufgaben dahinter, einen Kurzdump bis zur Zeile verfolgt, einen ATC-Lauf mit seinen Quickfixes, eine Transportprüfung, eine Klasse samt Test angelegt, eine Prüfung der ABAP-Cloud-Reife. Sie stehen auf der [Projektseite](https://williansaez.github.io/abap-adt-mcp/de/#watch), mit Untertiteln.
+Sieben kurze Filme zeigen das und die einzelnen Aufgaben dahinter, einen Kurzdump bis zur Zeile verfolgt, einen ATC-Lauf mit seinen Quickfixes, eine Transportprüfung, eine Klasse samt Test angelegt, eine Prüfung der ABAP-Cloud-Reife. Sie stehen auf der [Projektseite](https://williansaez.github.io/abap-adt-mcp/de/#watch).
 
 ## Inhalt
 
@@ -134,7 +137,7 @@ Zwei Dinge, die Sie vor der ersten Änderung wissen sollten:
 
 ### 4. Produktiv- und On-Premise-Systeme hinzufügen
 
-Dieselbe Datei mit einem Produktiv- und einem On-Premise-Eintrag ([systems.example.json](systems.example.json) enthält jede Option):
+Dieselbe Datei mit einem Produktiv- und einem On-Premise-Eintrag ([systems.example.json](docs/systems.example.json) enthält jede Option):
 
 ```json
 {
@@ -213,8 +216,8 @@ Was der Server ist, in den Begriffen, nach denen ein Landschaftsverantwortlicher
 - **Nicht vertrauenswürdige Eingaben.** Kommentare, Tabellenzeilen und Feeds aus SAP können Text enthalten, der das Modell zu steuern versucht. Verwenden Sie einen Host, der vor Tool-Aufrufen fragt, und prüfen Sie die fett gesetzten Tools im [Tool-Katalog](#tool-katalog) (die destruktiven), bevor Sie genehmigen.
 - **Audit.** `MCP_AUDIT_FILE=/var/log/abap-adt-mcp/audit.jsonl` hängt je Aufruf eine JSON-Zeile an: Tool, Destination, Ergebnis, Dauer, die ablehnende Richtlinienschranke und die Argumente mit geschwärzten Geheimnissen. Die Datei wird je Workstation vom Prozess des Benutzers selbst geschrieben; zentrale Sammlung und Manipulationsschutz sind Ihre Sache. [docs/CONFIGURATION.md](docs/CONFIGURATION.md#7-audit-log-record-format) beschreibt das Satzformat.
 - **SAP API Policy.** SAP nennt die ADT-Services, die dieser Server nutzt, intern, für Entwicklung über die von SAP empfohlenen Kanäle, und dieses Projekt gehört nicht dazu; nicht veröffentlichte Schnittstellen werden auf eigenes Risiko genutzt. Fragen Sie Ihren SAP-Ansprechpartner und beschränken Sie den Server auf Entwicklungs- und Testsysteme. Details unter [SAP API Policy](#sap-api-policy).
-- **Widerruf.** Ein verlorener Laptop oder ein geleaktes Geheimnis wird Stück für Stück geschlossen (SSO-Profil, Sitzung beim Identity Provider, OAuth-Geheimnis, SAP-Passwort, lokale Dateien): [SECURITY.md, Decommissioning](SECURITY.md#decommissioning).
-- **Releases.** Nur das neueste Release erhält Korrekturen; für einen kontrollierten Rollout legen Sie die Version fest statt des ungepinnten `npx -y abap-adt-mcp` der Einrichtung ([Weitere Installationswege](#weitere-installationswege)). Getestete Modi: `sso`, `sso2` und `basic` On-Premise; `oauth` und `basic` mit Communication User nicht ([Authentifizierung](#authentifizierung)). Schwachstellen: [SECURITY.md, Reporting a vulnerability](SECURITY.md#reporting-a-vulnerability).
+- **Widerruf.** Ein verlorener Laptop oder ein geleaktes Geheimnis wird Stück für Stück geschlossen (SSO-Profil, Sitzung beim Identity Provider, OAuth-Geheimnis, SAP-Passwort, lokale Dateien): [SECURITY.md, Decommissioning](.github/SECURITY.md#decommissioning).
+- **Releases.** Nur das neueste Release erhält Korrekturen; für einen kontrollierten Rollout legen Sie die Version fest statt des ungepinnten `npx -y abap-adt-mcp` der Einrichtung ([Weitere Installationswege](#weitere-installationswege)). Getestete Modi: `sso`, `sso2` und `basic` On-Premise; `oauth` und `basic` mit Communication User nicht ([Authentifizierung](#authentifizierung)). Schwachstellen: [SECURITY.md, Reporting a vulnerability](.github/SECURITY.md#reporting-a-vulnerability).
 
 ### Richtlinienschlüssel
 
@@ -230,7 +233,7 @@ Im Server durchgesetzt, vor jedem SAP-Aufruf, je Destination in `systems.json`:
 | `allowedPackages` | Schreibzugriffe nur in diesen Paketen (`["Z*", "$*"]`); ein nicht auflösbares Paket wird abgelehnt. |
 | `allowedTransports` | Schreibzugriffe nur auf diesen Transporten; neue anzulegen wird abgelehnt. |
 
-Ablehnungen kommen als `kind: "policyDenied"` zurück und nennen die Schranke; `listSystems` zeigt jede Richtlinie und das wirksame `dataAccess`. Das Bedrohungsmodell und die Restrisiken stehen in [SECURITY.md](SECURITY.md); die Schranken Tool für Tool, mit Rezepten, in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#3-policy-in-depth); die Einordnung unter SAPs API Policy in [docs/API-POLICY.md](docs/API-POLICY.md). Alle drei Dokumente sind auf Englisch.
+Ablehnungen kommen als `kind: "policyDenied"` zurück und nennen die Schranke; `listSystems` zeigt jede Richtlinie und das wirksame `dataAccess`. Das Bedrohungsmodell und die Restrisiken stehen in [SECURITY.md](.github/SECURITY.md); die Schranken Tool für Tool, mit Rezepten, in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#3-policy-in-depth); die Einordnung unter SAPs API Policy in [docs/API-POLICY.md](docs/API-POLICY.md). Alle drei Dokumente sind auf Englisch.
 
 ## Authentifizierung
 
@@ -391,7 +394,7 @@ npm test
 - Nach einer Änderung an einem Tool führen Sie `npm run tools:docs` aus und committen die neu erzeugten `docs/TOOLS.md`, den Snapshot und den README-Katalog (die übersetzten READMEs eingeschlossen).
 - `npm run docs:check` ist die Dokumentationsschranke: keine Kundenkennungen, keine Geviertstriche, keine toten Links, jede Umgebungsvariable in `server.json` deklariert.
 - Releases sind tag-gesteuert: npm per Trusted Publishing mit Provenance, das GHCR-Image und der Eintrag in der MCP-Registry.
-- Forken, Branch anlegen, Pull Request öffnen; [CONTRIBUTING.md](CONTRIBUTING.md) enthält die Details. Sitzungsberichte für [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) sind willkommen, ohne Kundennamen, Tenants oder Transportnummern.
+- Forken, Branch anlegen, Pull Request öffnen; [CONTRIBUTING.md](.github/CONTRIBUTING.md) enthält die Details. Sitzungsberichte für [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) sind willkommen, ohne Kundennamen, Tenants oder Transportnummern.
 
 Das englische README ist die Referenz für die [portugiesische](README.pt-BR.md) und die [deutsche](README.de.md) Fassung. Die Roadmap steht in [docs/ROADMAP.md](docs/ROADMAP.md) und jedes Release in [CHANGELOG.md](CHANGELOG.md).
 
@@ -403,7 +406,7 @@ Dieser Server wächst mit den Menschen, die ihn gegen echte Landschaften betreib
 - [Alexandre Leite](https://github.com/Dregus) hat das Secure-Login-Client-Szenario gemeldet, das den Meilenstein 2.1.0 eröffnet hat, und die On-Premise-Authentifizierungswege getestet.
 - Der ursprüngliche Server `mcp-abap-abap-adt-api` von [mario-andreschak](https://github.com/mario-andreschak) ist der Ausgangspunkt dieses Projekts.
 
-Etwas gefunden, etwas behoben oder einen Modus auf einer Landschaft ausprobiert, die hier niemand hat? Öffnen Sie ein Issue oder einen Pull Request.
+Etwas gefunden, etwas behoben oder einen Modus auf einer Landschaft ausprobiert, die hier niemand hat? Öffnen Sie ein Issue oder einen Pull Request, siehe [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ## Lizenz
 

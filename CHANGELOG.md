@@ -94,7 +94,7 @@ documented, and that the project is ready to be depended on.
   [docs/CLOUD.md](docs/CLOUD.md), [docs/HOSTS.md](docs/HOSTS.md),
   [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) and
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) go deeper per audience;
-  [SECURITY.md](SECURITY.md) and [CONTRIBUTING.md](CONTRIBUTING.md) sit at the
+  [SECURITY.md](.github/SECURITY.md) and [CONTRIBUTING.md](.github/CONTRIBUTING.md) sit at the
   repository root.
 - [docs/TOOLS.md](docs/TOOLS.md) is generated with a full section per tool:
   complete description, a parameter table with types and examples, annotations,
