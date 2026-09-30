@@ -16,6 +16,7 @@ abap-adt-mcp ist ein [Model Context Protocol](https://modelcontextprotocol.io)-S
 
 ## Inhalt
 
+- [Was ist neu in 2.7.0](#was-ist-neu-in-270)
 - [Was ist neu in 2.6.0](#was-ist-neu-in-260)
 - [Was ist neu in 2.0.0](#was-ist-neu-in-200)
 - [Einrichtung](#einrichtung)
@@ -36,6 +37,15 @@ abap-adt-mcp ist ein [Model Context Protocol](https://modelcontextprotocol.io)-S
 - [Fehlerbehebung](#fehlerbehebung)
 - [Tests und Mitarbeit](#tests-und-mitarbeit)
 - [Lizenz](#lizenz)
+
+## Was ist neu in 2.7.0
+
+Veröffentlicht am 2026-09-30. Die vollständige Liste steht in [CHANGELOG.md](CHANGELOG.md#270---2026-09-30---copilot-verified-a-new-object-readable-at-once-registry-published-by-the-release). Für eine bestehende Installation ändert sich nichts.
+
+- **GitHub Copilot geprüft**: der Agentenmodus von VS Code und die Copilot CLI haben den Server gegen ein echtes System ausgeführt ([docs/TESTPLAN.md](docs/TESTPLAN.md), Layer 5, [docs/HOSTS.md](docs/HOSTS.md)). Die vier dabei gefundenen Fehler sind behoben: Listenparameter ohne `items` (VS Code lehnte jede Anfrage ab), Browser-SSO unter Windows und Linux, `runSnippet` lief vor der sichtbaren Aktivierung, und der VS-Code-Abschnitt des Host-Leitfadens.
+- **Ein neues Objekt ist direkt nach `createObject` lesbar.** In der zustandsbehafteten Sitzung angelegt, antwortete das Objekt auf jedes Lesen mit 400, bis sein Quelltext geschrieben war; die Anlage läuft jetzt außerhalb dieser Sitzung, und der verbleibende Fall (gehaltene Sperren) wird in der Antwort und im Fehlerhinweis benannt.
+- **Browser-SSO lehnt sofort ab, wo kein Fenster aufgehen kann** (CI-Runner, Container, Server) und nennt `oauth` oder `sso2`.
+- Der Eintrag im MCP-Registry wird vom Release-Workflow aktualisiert.
 
 ## Was ist neu in 2.6.0
 
@@ -480,7 +490,7 @@ Dieses README gibt es auch auf [Englisch](README.md) und [Portugiesisch (Brasili
 ## Fehlerbehebung
 
 - **Der Server erscheint nie im Host.** Lesen Sie das MCP-Protokoll des Hosts (Orte in [Schritt 2](#2-registrieren-sie-den-server-in-ihrem-host)). `spawn npx ENOENT`: Node.js ist nicht installiert oder nicht im PATH, den die App sieht; installieren Sie es oder tragen Sie den absoluten Pfad zu `npx` in `command` ein (`/usr/local/bin/npx` beim macOS-Installer, `/opt/homebrew/bin/npx` bei Homebrew). `EBADENGINE` im Protokoll: das vom Host gefundene Node ist älter als 22.12; installieren Sie das aktuelle LTS. `No ABAP systems configured`: `SAP_SYSTEMS_FILE` zeigt auf eine fehlende Datei. `is not valid JSON`: ein verirrtes Komma oder ein Windows-Pfad mit einfachen Backslashes. Claude Desktop liest die Konfiguration nur beim Start, beenden und öffnen Sie es also nach jeder Änderung neu.
-- **Kein Browserfenster, oder SSO scheitert.** Ein Chromium-Browser muss installiert sein; `SAP_BROWSER_PATH` zeigt darauf, wenn die automatische Erkennung scheitert. Das Standardprofil des Browsers wird absichtlich abgelehnt; `SAP_BROWSER_PROFILE_DIR` benennt ein eigenes. Löschen Sie `~/.abap-adt-mcp/sso/<host>`, um sich von einem Tenant vollständig abzumelden.
+- **Kein Browserfenster, oder SSO scheitert.** Ein Chromium-Browser muss installiert sein; `SAP_BROWSER_PATH` zeigt darauf, wenn die automatische Erkennung scheitert. Das Standardprofil des Browsers wird absichtlich abgelehnt; `SAP_BROWSER_PROFILE_DIR` benennt ein eigenes. Löschen Sie `~/.abap-adt-mcp/sso/<host>`, um sich von einem Tenant vollständig abzumelden (unter Windows wird der Doppelpunkt vor dem Port zum Unterstrich: `sso\\<host>_<port>`).
 - **Die Anmeldung funktioniert, danach ist alles "not authorized" oder "not found".** Die SSO-Sitzung ist auf einem anderen Mandanten gelandet, als `client` sagt: setzen Sie `client` auf den Anmeldemandanten des Tenants (der Eintrag "Über" im Benutzermenü des Launchpads zeigt ihn).
 - **`kind: "sessionExpired"` kommt immer wieder.** Der Server hat bereits einmal neu authentifiziert und wiederholt; bitten Sie das Modell, `login` für diese Destination aufzurufen. Sperr-Handles der alten Sitzung sind ungültig (`kind: "staleLockHandle"`): erneut sperren.
 - **`kind: "locked"` durch eine andere Sitzung.** `listLocks` zeigt die eigenen Sperren des Servers; steht das Objekt nicht dort, gehört die Sperre einer anderen Sitzung (Eclipse oder ein anderer Benutzer), und nur diese Sitzung oder `SM12` löst sie.

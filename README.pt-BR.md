@@ -16,6 +16,7 @@ abap-adt-mcp é um servidor [Model Context Protocol](https://modelcontextprotoco
 
 ## Sumário
 
+- [O que há de novo na 2.7.0](#o-que-há-de-novo-na-270)
 - [O que há de novo na 2.6.0](#o-que-há-de-novo-na-260)
 - [O que há de novo na 2.0.0](#o-que-há-de-novo-na-200)
 - [Instalação](#instalação)
@@ -36,6 +37,15 @@ abap-adt-mcp é um servidor [Model Context Protocol](https://modelcontextprotoco
 - [Solução de problemas](#solução-de-problemas)
 - [Testes e contribuição](#testes-e-contribuição)
 - [Licença](#licença)
+
+## O que há de novo na 2.7.0
+
+Lançada em 2026-09-30. A lista completa está no [CHANGELOG.md](CHANGELOG.md#270---2026-09-30---copilot-verified-a-new-object-readable-at-once-registry-published-by-the-release). Nada muda para uma instalação existente.
+
+- **GitHub Copilot verificado**: o modo agente do VS Code e o Copilot CLI rodaram o servidor contra um sistema real ([docs/TESTPLAN.md](docs/TESTPLAN.md), camada 5, [docs/HOSTS.md](docs/HOSTS.md)). Os quatro defeitos que essa rodada achou estão corrigidos: parâmetros de lista sem `items` (o VS Code recusava toda requisição), SSO pelo navegador no Windows e no Linux, `runSnippet` executando antes de a ativação ficar visível, e a seção do VS Code no guia de hosts.
+- **Objeto novo legível logo após `createObject`.** Criado dentro da sessão com estado, o objeto respondia 400 a toda leitura até o fonte ser gravado; a criação agora roda fora dessa sessão, e o caso que resta (bloqueios ativos) é nomeado na resposta e na dica de erro.
+- **SSO pelo navegador recusa na hora onde nenhuma janela pode abrir** (executor de CI, contêiner, servidor) e indica `oauth` ou `sso2`.
+- A entrada no registro MCP é atualizada pelo fluxo de release.
 
 ## O que há de novo na 2.6.0
 
@@ -480,7 +490,7 @@ Este README também existe em [inglês](README.md) e [alemão](README.de.md); a 
 ## Solução de problemas
 
 - **O servidor nunca aparece no host.** Leia o log MCP do host (locais no [passo 2](#2-registre-o-servidor-no-seu-host)). `spawn npx ENOENT`: o Node.js não está instalado ou não está no PATH que o aplicativo enxerga; instale-o ou coloque o caminho absoluto do `npx` em `command` (`/usr/local/bin/npx` para o instalador do macOS, `/opt/homebrew/bin/npx` para o Homebrew). `EBADENGINE` no log: o Node que o host encontrou é mais antigo que 22.12; instale o LTS atual. `No ABAP systems configured`: `SAP_SYSTEMS_FILE` aponta para um arquivo inexistente. `is not valid JSON`: uma vírgula perdida ou um caminho Windows com barras invertidas simples. O Claude Desktop lê a configuração só no início, então feche e reabra após cada mudança.
-- **Nenhuma janela de navegador, ou o SSO falha.** Um navegador Chromium precisa estar instalado; `SAP_BROWSER_PATH` aponta para ele quando a detecção automática falha. O perfil padrão do navegador é rejeitado de propósito; `SAP_BROWSER_PROFILE_DIR` nomeia um dedicado. Apague `~/.abap-adt-mcp/sso/<host>` para sair completamente de um tenant.
+- **Nenhuma janela de navegador, ou o SSO falha.** Um navegador Chromium precisa estar instalado; `SAP_BROWSER_PATH` aponta para ele quando a detecção automática falha. O perfil padrão do navegador é rejeitado de propósito; `SAP_BROWSER_PROFILE_DIR` nomeia um dedicado. Apague `~/.abap-adt-mcp/sso/<host>` para sair completamente de um tenant (no Windows os dois-pontos da porta viram sublinhado: `sso\\<host>_<porta>`).
 - **O login funciona, depois tudo é "not authorized" ou "not found".** A sessão SSO aterrissou em outro mandante que não o de `client`: defina `client` como o mandante de logon do tenant (a entrada Sobre do menu de usuário do launchpad o mostra).
 - **`kind: "sessionExpired"` continua voltando.** O servidor já reautenticou e repetiu uma vez; peça ao modelo para chamar `login` naquele destino. Handles de bloqueio da sessão antiga são inválidos (`kind: "staleLockHandle"`): bloqueie de novo.
 - **`kind: "locked"` por outra sessão.** `listLocks` mostra os bloqueios do próprio servidor; se o objeto não está lá, o bloqueio pertence a outra sessão (Eclipse ou outro usuário) e só aquela sessão ou a `SM12` o libera.

@@ -4,8 +4,9 @@ import type { ToolDefinition } from '../types/tools.js';
 import { session_types } from 'abap-adt-api';
 import { withLock } from '../lib/lockLedger.js';
 import { creationLanguage } from '../lib/objectLanguage.js';
+import { createOutsideStatefulContext } from '../lib/createFresh.js';
 import { hardTruncateJson } from '../lib/responseSizing.js';
-import { runClassFresh } from '../lib/runFresh.js';
+import { runClassWhenReady } from '../lib/runFresh.js';
 import crypto from 'crypto';
 import { reportProgress } from '../lib/progress.js';
 
@@ -95,7 +96,8 @@ export class SnippetHandlers extends BaseHandler {
             const { source, wrapped } = buildSnippetClass(className, String(args.code));
             this.adtclient.stateful = session_types.stateful;
             // The options form: the positional one cannot carry a language and the library then writes EN.
-            await this.adtclient.createObject({
+            // Outside the stateful context where possible: the write that follows does not need it, and a class created inside it is unreadable there (src/lib/createFresh.ts).
+            await createOutsideStatefulContext(this.adtclient, () => this.adtclient.createObject({
                 objtype: 'CLAS/OC',
                 name: className,
                 parentName: packageName,
@@ -104,7 +106,7 @@ export class SnippetHandlers extends BaseHandler {
                 responsible: args.responsible ? String(args.responsible).toUpperCase() : '',
                 transport: args.transport ?? '',
                 ...creationLanguage(this.adtclient, {})
-            });
+            }));
             created = true;
             steps.push('created');
             reportProgress(`class ${className} created`, 1, 4);
@@ -126,12 +128,20 @@ export class SnippetHandlers extends BaseHandler {
             steps.push('activated');
             reportProgress('activated, running', 3, 4);
 
-            const run = await runClassFresh(this.adtclient, className);
+            const run = await runClassWhenReady(this.adtclient, className);
             const output = run.output;
             steps.push('ran');
             const cleanupError = await cleanup();
+            if (run.notReady) {
+                this.trackRequest(startTime, false);
+                return { content: [{ type: 'text', text: JSON.stringify({
+                    status: 'error', phase: 'run', className, wrapped, output, attempts: run.attempts, steps, cleanupError,
+                    hint: 'The class runner did not see the activated class in time. Call runSnippet again with keep=true, then runClass on the kept class a few seconds later.'
+                }) }], isError: true };
+            }
             this.trackRequest(startTime, true);
             const payload: any = { status: 'success', className, packageName, wrapped, kept: args.keep === true, output, runMode: run.mode, steps, cleanupError };
+            if (run.attempts > 1) payload.attempts = run.attempts;
             if (run.locksInvalidated.length) payload.locksInvalidated = run.locksInvalidated;
             const text = JSON.stringify(payload);
             return { content: [{ type: 'text', text: text.length > 40000 ? hardTruncateJson(payload) : text }] };

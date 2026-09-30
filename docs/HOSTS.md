@@ -25,6 +25,7 @@ Whatever the host, the server is the same process:
 | Roo Code | stdio or HTTP | Not surfaced at the time of writing | Per tool, `alwaysAllow` list per server | `env` map in `mcp_settings.json` or `.roo/mcp.json` |
 | Cursor | stdio or HTTP | Not surfaced at the time of writing | Per tool, or auto-run mode | `env` map in `mcp.json` |
 | VS Code (Copilot agent mode) | stdio or HTTP | Yes, `/mcp.abap-adt-mcp.<prompt>` | Per tool with session, workspace or always | `env` map in `.vscode/mcp.json`, `${input:...}` and `${env:...}` |
+| GitHub Copilot CLI | stdio (`"type": "local"`) | Not checked | Read tools ran without a prompt; writes not exercised | `env` map in `~/.copilot/mcp-config.json` with `${VAR}` expansion; only `PATH` is inherited |
 | Windsurf | stdio or HTTP | Check the Windsurf docs | Per tool with auto-run toggles | `env` map in `mcp_config.json` |
 | Generic Streamable HTTP client | HTTP | Depends on the client | Depends on the client | Set on the server process, not the client |
 
@@ -78,7 +79,7 @@ The same file on Windows, forward slashes as the pitfalls below require:
 - No `~` or `$HOME` expansion in `command`, `args` or `env`: write absolute paths. On Windows use forward slashes (`C:/Users/me/.abap-adt-mcp/systems.json`) or doubled backslashes; a single backslash makes the file `is not valid JSON`.
 - `${env:VAR}` references in `systems.json` are resolved from the `env` map of this file, not from your terminal. This bites hardest by example: the README's own `systems.json` snippet for an on-prem entry uses `"password": "${env:ONPREM_PASSWORD}"`, but the Desktop `env` map above never sets `ONPREM_PASSWORD`: combine the two exactly as written and the server fails at startup naming that variable. Either add `"ONPREM_PASSWORD": "..."` to the `env` map (duplicating the secret into a file whose mode nobody checks), put the password inline in `systems.json` at mode `0600` instead, or use a launcher script that reads it from the OS keychain; [docs/CONFIGURATION.md](CONFIGURATION.md#8-host-configuration-snippets) lays out all three with a worked keychain script.
 - `npx -y abap-adt-mcp` fetches the newest release at every start; pin `abap-adt-mcp@2.0.0` in `args` for a controlled rollout.
-- Browser SSO works: the server opens a Chrome, Edge or Brave window from the Desktop process. Auto-detection only knows the macOS install locations of Chrome, Edge and Brave ([Environment variables](CONFIGURATION.md#5-environment-variables)); on Windows and Linux `SAP_BROWSER_PATH` is required, not optional, or login fails with `No Chrome/Edge/Brave found for SSO login`. Point it at wherever that browser is actually installed: the default location its own installer used (typically `C:/Program Files/Google/Chrome/Application/chrome.exe` for Chrome or the equivalent Edge path), which the server does not detect for you on that platform.
+- Browser SSO works: the server opens a Chrome, Edge or Brave window from the Desktop process. Auto-detection covers the default install locations of Chrome, Edge and Brave on macOS (`/Applications`), Windows (`Program Files`, `Program Files (x86)`, where Windows 11 puts Edge, and per-user `LOCALAPPDATA`) and Linux (`/usr/bin`) ([Environment variables](CONFIGURATION.md#5-environment-variables)). Before 2.7.0 it only knew macOS, and on Windows and Linux login failed with `No Chrome/Edge/Brave found for SSO login` unless `SAP_BROWSER_PATH` was set. Set it for a browser installed anywhere else.
 - `MCP_AUDIT_FILE` and, for the HTTP transport, the generated `http-token` file are documented at mode `0700`/`0600`; those are Unix permission bits, and Windows has none to set, the same way the `systems.json` mode check itself is skipped there ([File mode checks](CONFIGURATION.md#file-mode-checks)). The files are still created on Windows, just without that enforcement: keep them in a folder only your account can reach and rely on the OS's own file permissions or full-disk encryption instead of a `chmod` that does not exist.
 
 ## Claude Code
@@ -222,7 +223,9 @@ An HTTP entry uses `"url": "http://127.0.0.1:2236/mcp"` with a `"headers"` map f
 
 ## VS Code with GitHub Copilot agent mode
 
-**Config file.** VS Code uses `servers` instead of `mcpServers`, plus an `inputs` array for values it should prompt for and store in its secret storage. This is the one host on this page where the README's step-2 line ("the same JSON works in Cursor, VS Code, Cline and other hosts that read an `mcpServers` map") does not hold as written: rename the top-level key from `mcpServers` to `servers` before reusing that JSON here, as the snippet below does. Workspace: `.vscode/mcp.json`. User: the file opened by the command "MCP: Open User Configuration". The commands "MCP: Add Server", "MCP: List Servers" and "MCP: Show Output" cover the rest.
+Verified on VS Code with Copilot agent mode on Windows 11 ARM64, 2026-09-28, against an on-prem S/4HANA `sso` destination (#18); the execution record is in [TESTPLAN.md](TESTPLAN.md#layer-5-github-copilot-in-vs-code-2026-09-28).
+
+**Config file.** VS Code uses `servers` instead of `mcpServers`, plus an `inputs` array for values it should prompt for and store in its secret storage. This is the one host on this page where the README's step-2 line ("the same JSON works in Cursor, VS Code, Cline and other hosts that read an `mcpServers` map") does not hold as written: rename the top-level key from `mcpServers` to `servers` before reusing that JSON here, as the snippet below does. Workspace: `.vscode/mcp.json`. User: the file opened by the command "MCP: Open User Configuration". A CodeLens above the entry reads `Running | Stop | Restart | 114 tools | 6 prompts | More...`; "MCP: List Servers" does the same per server.
 
 ```json
 {
@@ -249,19 +252,67 @@ An HTTP entry uses `"url": "http://127.0.0.1:2236/mcp"` with a `"headers"` map f
 }
 ```
 
-`${input:onprem-password}` is asked for once, kept in VS Code's secret storage and handed to the server's environment, where `"password": "${env:ONPREM_PASSWORD}"` in `systems.json` picks it up ([AUTH.md](AUTH.md)). `${env:HOME}` and `${workspaceFolder}` are the other useful substitutions. A `.vscode/mcp.json` with only `${input:...}` references can be committed.
+`${env:HOME}` is empty on Windows, where it resolves to `/.abap-adt-mcp/systems.json`. Use an absolute path there, with forward slashes: `"C:/Users/<name>/.abap-adt-mcp/systems.json"`.
+
+`${input:onprem-password}` is asked for once, with the value masked, the first time the server starts. VS Code keeps it in its secret storage (the editor shows `= **********` next to the input), does not ask again on Restart, and hands it to the server's environment, where `"password": "${env:ONPREM_PASSWORD}"` in `systems.json` picks it up ([AUTH.md](AUTH.md)). `${workspaceFolder}` is the other useful substitution. A `.vscode/mcp.json` with only `${input:...}` references can be committed.
 
 An HTTP entry is `"type": "http"` with `"url"` and `"headers": { "Authorization": "Bearer ${input:mcp-token}" }`.
 
-**Tools, prompts, approvals.** In agent mode the Tools button of the chat input opens a picker where each server and tool can be ticked; the first use of a tool asks for confirmation for this session, this workspace or always, and `chat.tools.autoApprove` switches confirmations off. MCP prompts are slash commands named `/mcp.abap-adt-mcp.<prompt>` (`/mcp.abap-adt-mcp.review-transport`) and VS Code asks for the declared arguments.
+**Tools, prompts, approvals.** VS Code honours the tools' read-only annotations: read tools (`listSystems`, `searchObject`, `getObjectSource`, `validateNewObject`, `syntaxCheckCode`) run without asking. Every other tool asks once per tool, with "Allow in this Session" or "Skip" and a one-line effect: ⚠ "changes workspace source" for writes such as `createObject` and `setMethodSource`, ❌ "permanently removes source" for `deleteObject`. `chat.tools.autoApprove` switches confirmations off. The Tools button of the chat input opens a picker where each server and tool can be ticked. MCP prompts are slash commands named `/mcp.abap-adt-mcp.<prompt>` (`/mcp.abap-adt-mcp.review-transport`). VS Code asks for each declared argument in turn ("Value for: destination (1/2)") and puts the prompt text, with the values filled in, into the chat input.
 
-**Logs.** "MCP: Show Output" or the Output panel entry named after the server, with the handshake and stderr; "MCP: List Servers" gives start, stop and restart per server.
+**Logs.** "MCP: List Servers" > the server > "Show Output" (the same menu has Stop, Restart and Show Configuration); the Output panel also lists the channel as `MCP: abap-adt-mcp`. There is no top-level "MCP: Show Output" command. VS Code tags every stderr line `[warning]`, including the server's informational startup lines, so read the text, not the level.
 
 **Pitfalls.**
 
-- At the time of writing VS Code warns when more than 128 tools are enabled for a request and groups the excess into virtual tools the model has to expand first. `focused` (114 tools) fits under that limit; `all` (173) does not, which is a second reason to pick toolsets here.
+- Every array parameter in a tool schema needs `items`: VS Code validates all tool schemas before a request and refuses the whole request otherwise (`tool parameters array type must have items`). Fixed in 2.7.0 (#54); 2.1.1 and older fail on the first chat message.
+- Tool count: the picker counts VS Code's own tools too (52 at the time of writing), so `focused` shows 166 selected and `all` 225. No warning about a 128-tool limit appeared with 225 tools, and requests worked. `focused` is still the better default for context size.
+- Browser SSO on Windows before 2.7.0 needs both `SAP_BROWSER_PATH` (Edge is at `C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe`) and `SAP_BROWSER_PROFILE_DIR` (a directory name without a colon) in `env` (#58). A Restart of the server drops the SAP session, so an on-prem Basic-challenge login asks again.
+- Output size: VS Code passed a 1,000,000-character tool result (the whole 14,429-line `CL_GUI_ALV_GRID`) without truncating it. The server's own 40,000-character default is the binding limit; raise `MCP_MAX_RESPONSE_CHARS` only if the model's context can take it.
 - Organisation policies can restrict which MCP servers Copilot may use (an allowlist in the GitHub organisation or enterprise settings); when the server never appears although the file is correct, check that policy before the JSON.
-- With `chat.mcp.discovery.enabled` VS Code also imports Claude Desktop's config, which yields two registrations of the same server. Keep one.
+- `chat.mcp.discovery.enabled` is off by default for every source. With Claude Desktop ticked, VS Code lists its entry as a second `abap-adt-mcp`, `Disabled`, with no tools loaded; it only duplicates the tools if someone starts it. Keep one.
+
+## GitHub Copilot CLI
+
+Verified with Copilot CLI 1.0.89 on Windows 11 ARM64, 2026-09-28 (#20), against the same on-prem `sso` destination as the VS Code run; the execution record is in [TESTPLAN.md](TESTPLAN.md#layer-5-github-copilot-in-vs-code-2026-09-28).
+
+**Install and sign in.** `npm install -g @github/copilot` (on Windows PowerShell with the default execution policy, call `npm.cmd`; `npm.ps1` is blocked), then `copilot` and `/login`, which opens the browser for the GitHub OAuth grant. The CLI asks once per session whether to trust the current folder.
+
+**Config file.** `~/.copilot/mcp-config.json`, an `mcpServers` map; a local server is `"type": "local"`:
+
+```json
+{
+  "mcpServers": {
+    "abap-adt-mcp": {
+      "type": "local",
+      "command": "npx",
+      "args": ["-y", "abap-adt-mcp"],
+      "env": {
+        "SAP_SYSTEMS_FILE": "C:/Users/<name>/.abap-adt-mcp/systems.json",
+        "MCP_TOOLSETS": "focused"
+      },
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+`/mcp show abap-adt-mcp` lists the server's status and tools (114 with `focused`, 173 with `all`); `/mcp list`, `/mcp edit`, `/mcp disable` and `/mcp enable` manage it. The GitHub MCP server is built in, so `/mcp` reports two servers.
+
+**Environment and secrets.** Only `PATH` reaches the server from the CLI's environment; everything else goes in `env`. A value of the form `${VAR}` is replaced with that variable from the CLI's own environment, which GitHub's documentation does not mention. There is no secret store like VS Code's `${input:...}`: the value lives in the OS environment. When the variable is not set, the literal text `${VAR}` is passed on, and a `systems.json` entry that reads it through `${env:VAR}` stops the server at startup with `Fatal: System "DEV": url "${GV_URL}" is not…`. A Windows user variable set with `setx` or `[Environment]::SetEnvironmentVariable(..., 'User')` is only seen by processes started after it was set, so a terminal inside an editor that was already open does not have it: start a new terminal from a fresh editor or sign-in.
+
+**Browser SSO.** Works from the terminal: the server started by the CLI opens the browser window and the first read succeeds after the login, the same as in VS Code (on Windows before 2.7.0 with the #58 workaround). Each CLI start is a new server process and so a new SAP session.
+
+**Tool count.** No limit observed: with `all` (173 tools) requests worked and no warning appeared.
+
+## Copilot in JetBrains, Eclipse and Xcode
+
+From GitHub's documentation as of 2026-09-28 (#21); not run against this server, since none of these IDEs was at hand. All three read a `mcp.json` with a top-level `servers` key, the VS Code shape, so the VS Code snippet above works with the `inputs` array dropped. None of the three documents `${input:...}` or `${env:...}` expansion: put literal values in `env`, or keep secrets in the OS environment and reference them from `systems.json` with `${env:VAR}`. On Copilot Business or Enterprise the organisation must enable the "MCP servers in Copilot" policy.
+
+- **JetBrains IDEs** (IntelliJ IDEA and the rest of the family): Copilot Chat in Agent mode > tools icon > **Add MCP Tools** opens `mcp.json`. The on-disk location is not documented.
+- **Eclipse** (2024-09 or later): the Copilot status-bar icon > Open Chat > **Configure Tools...**, or Preferences > GitHub Copilot > MCP > **Server Configurations**.
+- **Xcode** (GitHub Copilot for Xcode extension): the extension's Settings (also Editor > GitHub Copilot > Open GitHub Copilot for Xcode Settings) > **MCP** tab > **Edit Config**. Xcode is a GUI app and GitHub does not say how it finds `npx`; expect the same rule as Claude Desktop on macOS and give the absolute path (`/opt/homebrew/bin/npx` with Homebrew, `/usr/local/bin/npx` with the Node installer) when the server does not start.
+
+**Eclipse next to ADT.** An ABAP developer on Eclipse usually has ADT open against the same system. The server keeps its own ADT session, separate from Eclipse's, so an object open for editing in ADT is locked for the server too: a write from Copilot fails with the lock owner in the message until the editor releases it, and a write from the server can likewise block ADT. `listLocks` shows what the server holds and `forceUnlock` releases it. Expected from how ADT locking works, not yet observed with Copilot in Eclipse.
 
 ## Windsurf
 
@@ -376,7 +427,7 @@ The image `ghcr.io/williansaez/abap-adt-mcp` (tags `latest` and `vX.Y.Z`) runs a
 
 **Pitfalls.**
 
-- Browser SSO cannot run inside the container (no browser, no display). Run `sso` destinations from npm on the workstation; `basic` and `oauth` work in the image ([AUTH.md](AUTH.md)).
+- Browser SSO cannot run inside the container (no browser, no display): the login refuses at once with `needs a display` instead of trying. Run `sso` destinations from npm on the workstation; `basic` and `oauth` work in the image ([AUTH.md](AUTH.md)).
 - The mounted file is read by uid 1000. A `systems.json` at mode `0600` owned by your own uid fails with `is not valid JSON: EACCES`; own it by uid 1000, or make it readable and keep every secret as `${env:VAR}` (the server warns and starts, see [Other ways to install](../README.md#other-ways-to-install)).
 - The `MCP_AUDIT_FILE` directory needs the same uid-1000 ownership, or the first call that would write to it fails once with `EACCES` on stderr (`docker logs`) and every later call is silently unrecorded while everything else keeps working; [docs/CONFIGURATION.md](CONFIGURATION.md#container-deployment) has the volume and `chown` recipe, including the Docker Desktop exception on macOS and Windows where bind mounts are writable to any uid.
 - `docker` must be on the host's `PATH`; the Claude Desktop rule applies (absolute path in `command` when needed).
@@ -399,7 +450,7 @@ The tool list is the largest fixed cost of a session. `MCP_TOOLSETS` takes a pre
 Per host:
 
 - **Claude Desktop and Claude Code**: `focused` by default, `all` for a debugging or RAP session. The two hosts have independent `env` maps, so each can carry its own setting. A Claude Code plugin install is the exception: its manifest carries no `MCP_TOOLSETS`, so it publishes `all` unless the manifest is edited (see [Plugin manifest and skills](#claude-code) above).
-- **VS Code**: stay under 128 tools, so `focused` or a list.
+- **VS Code**: `focused` by default. `all` worked with no tool-limit warning in the 2026-09-28 run (225 tools counting VS Code's own), but costs context.
 - **Cursor and Windsurf**: a list, sized for the host's cap and the other servers running alongside; check the host's own tool-count warning before trusting a fixed number, `focused` is not confirmed to fit every Cursor release (see [Cursor pitfalls](#cursor)).
 - **Cline and Roo Code**: `focused`, trimmed further if the extension's own prompt already fills the window.
 - **Shared HTTP instance**: the setting is process-wide; choose for the widest caller and let policies (`deniedTools`, `readOnly`) narrow per destination, or run one instance per team profile.

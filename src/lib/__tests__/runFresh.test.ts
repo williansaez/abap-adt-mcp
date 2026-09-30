@@ -1,4 +1,4 @@
-import { runClassFresh } from '../runFresh';
+import { runClassFresh, runClassWhenReady } from '../runFresh';
 import { recordLock, listLocks } from '../lockLedger';
 
 describe('runClassFresh', () => {
@@ -26,5 +26,29 @@ describe('runClassFresh', () => {
     expect(client.unLock).toHaveBeenCalledWith('/sap/bc/adt/oo/classes/zcl_b', 'H2');
     expect(listLocks(client)).toHaveLength(0);
     expect(client.stateful).toBe('stateful');
+  });
+});
+
+describe('runClassWhenReady', () => {
+  const NOT_READY = 'Error: Class does not implement if_oo_adt_classrun~main method!';
+  const noSleep = jest.fn(async () => undefined);
+
+  it('retries while the runner does not see the activated class yet', async () => {
+    const outputs = [NOT_READY, NOT_READY, 'hello'];
+    const client: any = { stateful: 'stateless', runClass: jest.fn(async () => outputs.shift()) };
+    const r = await runClassWhenReady(client, 'ZCL_A', [10, 20, 40], noSleep);
+    expect(r).toMatchObject({ output: 'hello', attempts: 3, notReady: false });
+    expect(noSleep).toHaveBeenCalledTimes(2);
+  });
+
+  it('runs once when the first answer is real output', async () => {
+    const client: any = { stateful: 'stateless', runClass: jest.fn(async () => 'hello') };
+    expect(await runClassWhenReady(client, 'ZCL_A', [10], noSleep)).toMatchObject({ attempts: 1, notReady: false });
+  });
+
+  it('reports notReady when every attempt got the not-ready answer', async () => {
+    const client: any = { stateful: 'stateless', runClass: jest.fn(async () => NOT_READY) };
+    const r = await runClassWhenReady(client, 'ZCL_A', [10, 20], noSleep);
+    expect(r).toMatchObject({ attempts: 3, notReady: true });
   });
 });

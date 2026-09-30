@@ -27,18 +27,54 @@ import os from 'os';
 import path from 'path';
 import { HarvestedCookie } from './cookieHttpClient.js';
 
-const CANDIDATE_BROWSERS = [
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-  '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
-];
+/**
+ * Chromium-based browsers to try, in order, where their installers put them.
+ * On Windows each browser can sit under Program Files, Program Files (x86)
+ * (Edge's default, even on ARM64) or a per-user LOCALAPPDATA install.
+ */
+export function candidateBrowsers(platform: NodeJS.Platform = process.platform, env: NodeJS.ProcessEnv = process.env): string[] {
+  if (platform === 'darwin') {
+    return [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+      '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+    ];
+  }
+  if (platform === 'win32') {
+    const roots = [env.ProgramFiles, env['ProgramFiles(x86)'], env.LOCALAPPDATA].filter((r): r is string => !!r);
+    const exes = [
+      ['Google', 'Chrome', 'Application', 'chrome.exe'],
+      ['Microsoft', 'Edge', 'Application', 'msedge.exe'],
+      ['BraveSoftware', 'Brave-Browser', 'Application', 'brave.exe'],
+    ];
+    return exes.flatMap(exe => roots.map(root => path.win32.join(root, ...exe)));
+  }
+  return [
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/microsoft-edge',
+    '/usr/bin/brave-browser',
+  ];
+}
 
 function detectBrowser(): string {
   if (process.env.SAP_BROWSER_PATH) return process.env.SAP_BROWSER_PATH;
-  for (const p of CANDIDATE_BROWSERS) if (fs.existsSync(p)) return p;
+  for (const p of candidateBrowsers()) if (fs.existsSync(p)) return p;
   throw new Error(
     'No Chrome/Edge/Brave found for SSO login. Set SAP_BROWSER_PATH to a Chromium-based browser executable.'
   );
+}
+
+/**
+ * Directory name of the per-host login profile. The host carries the port
+ * (`sap.example.com:44300`), and a colon is not allowed in a Windows file
+ * name, so there it becomes an underscore. Other platforms keep the host as
+ * is, so existing profiles (and their "keep me signed in") stay where they are.
+ */
+export function profileDirName(host: string, platform: NodeJS.Platform = process.platform): string {
+  return platform === 'win32' ? host.replace(/[<>:"/\\|?*]/g, '_') : host;
 }
 
 const SESSION_COOKIE_RE = /MYSAPSSO2|SAP_SESSIONID/i;
@@ -98,6 +134,19 @@ export function redirectedOrigin(
 
 export interface BrowserLoginOptions {
   timeoutMs?: number;
+  /** For tests: where the login runs. */
+  platform?: NodeJS.Platform;
+  env?: NodeJS.ProcessEnv;
+}
+
+/**
+ * Whether a browser window can open here. macOS and Windows always have a
+ * desktop session for the user running the server; on Linux a display is a
+ * variable, and a CI runner, a container or a server has none.
+ */
+export function displayAvailable(platform: NodeJS.Platform = process.platform, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (platform !== 'linux') return true;
+  return !!(env.DISPLAY || env.WAYLAND_DISPLAY);
 }
 
 /**
@@ -112,6 +161,15 @@ export async function browserLogin(
 ): Promise<HarvestedCookie[]> {
   const host = new URL(sapUrl).host; // profile directory name and messages
   const cookieHost = cookieHostOf(sapUrl);
+  // A headless machine cannot complete a browser login: say so before touching
+  // a browser, instead of a launch error from Chrome or a 300-second wait.
+  if (!displayAvailable(opts.platform, opts.env)) {
+    throw new Error(
+      `Browser SSO for ${host} needs a display, and this machine has none (Linux without DISPLAY or WAYLAND_DISPLAY: a CI runner, a container, a server). ` +
+      'Nothing was launched. Use a destination that logs on without a browser: authType "oauth" (S/4HANA Cloud, client from a Communication Arrangement) or "sso2" (on-premise, local ticket provider), ' +
+      'or run the server on a workstation where the window can open. See docs/AUTH.md.'
+    );
+  }
   const executablePath = detectBrowser();
   // Profile for the login window. Default: a dedicated persistent profile per
   // host, so "keep me signed in" survives restarts without touching the user's
@@ -133,7 +191,7 @@ export async function browserLogin(
     }
     fs.mkdirSync(userDataDir, { recursive: true });
   } else {
-    userDataDir = path.join(os.homedir(), '.abap-adt-mcp', 'sso', host);
+    userDataDir = path.join(os.homedir(), '.abap-adt-mcp', 'sso', profileDirName(host));
     fs.mkdirSync(userDataDir, { recursive: true, mode: 0o700 });
     fs.chmodSync(path.dirname(userDataDir), 0o700);
     fs.chmodSync(userDataDir, 0o700);

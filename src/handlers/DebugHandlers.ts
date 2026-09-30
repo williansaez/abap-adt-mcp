@@ -124,6 +124,7 @@ export class DebugHandlers extends BaseHandler {
                         },
                         breakpoints: {
                             type: 'array',
+                            items: { anyOf: [{ type: 'string' }, { type: 'object' }] },
                             description: 'An array of breakpoints.'
                         },
                         user: {
@@ -252,6 +253,7 @@ export class DebugHandlers extends BaseHandler {
                     properties: {
                         parents: {
                             type: 'array',
+                            items: { type: 'string' },
                             description: 'An array of parent variable names.'
                         },
                         startIndex: {
@@ -276,6 +278,7 @@ export class DebugHandlers extends BaseHandler {
                     properties: {
                         parent: {
                             type: 'array',
+                            items: { type: 'string' },
                             description: 'The parent variable name.',
                             optional: true
                         },

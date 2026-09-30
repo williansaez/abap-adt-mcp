@@ -108,8 +108,9 @@ SAP_AUTH_TYPE=sso
 
 Requirements & behaviour:
 
-- A local **Chromium browser** (Chrome, Edge, or Brave) must be installed. Paths are
-  auto-detected on macOS; override with `SAP_BROWSER_PATH`. Driven via `puppeteer-core`
+- A local **Chromium browser** (Chrome, Edge, or Brave) must be installed. Since 2.7.0 the
+  default install locations are auto-detected on macOS, Windows and Linux; override with
+  `SAP_BROWSER_PATH`. Driven via `puppeteer-core`
   (no browser is downloaded).
 - The login window is **not incognito**: it uses a dedicated persistent profile per
   host (`~/.abap-adt-mcp/sso/<host>`), so ticking "stay signed in" at the IdP makes

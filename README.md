@@ -16,6 +16,7 @@ abap-adt-mcp is a [Model Context Protocol](https://modelcontextprotocol.io) serv
 
 ## Table of contents
 
+- [What is new in 2.7.0](#what-is-new-in-270)
 - [What is new in 2.6.0](#what-is-new-in-260)
 - [What is new in 2.0.0](#what-is-new-in-200)
 - [Setup](#setup)
@@ -36,6 +37,15 @@ abap-adt-mcp is a [Model Context Protocol](https://modelcontextprotocol.io) serv
 - [Troubleshooting](#troubleshooting)
 - [Testing and contributing](#testing-and-contributing)
 - [License](#license)
+
+## What is new in 2.7.0
+
+Released 2026-09-30. The full list is in [CHANGELOG.md](CHANGELOG.md#270---2026-09-30---copilot-verified-a-new-object-readable-at-once-registry-published-by-the-release). Nothing changes for an existing setup.
+
+- **GitHub Copilot verified**: VS Code agent mode and the Copilot CLI ran the server against a real system ([docs/TESTPLAN.md](docs/TESTPLAN.md) Layer 5, [docs/HOSTS.md](docs/HOSTS.md)). The four defects that run found are fixed: array parameters without `items` (VS Code refused every request), browser SSO on Windows and Linux, `runSnippet` running before the activation was visible, and the VS Code section of the hosts guide.
+- **A new object is readable right after `createObject`.** Created inside the stateful session, an object answered 400 to every read until its source was written; the creation now runs outside that session, and the case that remains (locks held) is named in the answer and in the error hint.
+- **Browser SSO refuses at once where no window can open** (a CI runner, a container, a server) and names `oauth` or `sso2` instead.
+- The MCP registry entry is updated by the release workflow.
 
 ## What is new in 2.6.0
 
@@ -480,7 +490,7 @@ This README also exists in [Portuguese (Brazil)](README.pt-BR.md) and [German](R
 ## Troubleshooting
 
 - **The server never appears in the host.** Read the host's MCP log (locations in [step 2](#2-register-the-server-in-your-host)). `spawn npx ENOENT`: Node.js is not installed or not on the PATH the app sees; install it or put the absolute path to `npx` in `command` (`/usr/local/bin/npx` for the macOS installer, `/opt/homebrew/bin/npx` for Homebrew). `EBADENGINE` in the log: the Node the host found is older than 22.12; install the current LTS. `No ABAP systems configured`: `SAP_SYSTEMS_FILE` points at a missing file. `is not valid JSON`: a stray comma or a Windows path with single backslashes. Claude Desktop reads the config only at start, so quit and reopen it after every change.
-- **No browser window, or SSO fails.** A Chromium browser must be installed; `SAP_BROWSER_PATH` points at it when auto-detection fails. The browser's default profile is rejected on purpose; `SAP_BROWSER_PROFILE_DIR` names a dedicated one. Delete `~/.abap-adt-mcp/sso/<host>` to log out of a tenant completely.
+- **No browser window, or SSO fails.** A Chromium browser must be installed; `SAP_BROWSER_PATH` points at it when auto-detection fails. The browser's default profile is rejected on purpose; `SAP_BROWSER_PROFILE_DIR` names a dedicated one. Delete `~/.abap-adt-mcp/sso/<host>` to log out of a tenant completely (on Windows the port's colon becomes an underscore: `sso\\<host>_<port>`).
 - **Login works, then everything is "not authorized" or "not found".** The SSO session landed on another client than `client` says: set `client` to the tenant's logon client (the About entry of the launchpad user menu shows it).
 - **`kind: "sessionExpired"` keeps coming back.** The server already re-authenticated and retried once; ask the model to call `login` for that destination. Lock handles from the old session are invalid (`kind: "staleLockHandle"`): lock again.
 - **`kind: "locked"` by another session.** `listLocks` shows the server's own locks; if the object is not there the lock belongs to another session (Eclipse or another user) and only that session or `SM12` releases it.

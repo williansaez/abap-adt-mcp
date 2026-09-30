@@ -59,7 +59,7 @@ describe('runSnippet', () => {
   function make(opts: { activationFails?: boolean; runFails?: boolean } = {}) {
     const client: any = {
       stateful: 'stateless',
-      createObject: jest.fn(async () => undefined),
+      createObject: jest.fn(async () => { client.sessionTypeAtCreate = client.stateful; }),
       lock: jest.fn(async () => ({ LOCK_HANDLE: 'H' })),
       unLock: jest.fn(async () => undefined),
       setObjectSource: jest.fn(async () => undefined),
@@ -93,6 +93,9 @@ describe('runSnippet', () => {
     const { client, handler } = make();
     const res = parse(await handler.handle('runSnippet', { code: "out->write( 'hi' ).", className: 'zcl_t', responsible: 'dev' }));
     expect(client.createObject).toHaveBeenCalledWith({ objtype: 'CLAS/OC', name: 'ZCL_T', parentName: '$TMP', description: expect.any(String), parentPath: '/sap/bc/adt/packages/%24tmp', responsible: 'DEV', transport: '' });
+    // The class is created outside the stateful context, so the session can read it at once; the write path that follows is stateful again.
+    expect(client.sessionTypeAtCreate).toBe('stateless');
+    expect(client.lock).toHaveBeenCalled();
     expect(client.setObjectSource).toHaveBeenCalledWith('/sap/bc/adt/oo/classes/zcl_t/source/main', expect.stringContaining('if_oo_adt_classrun'), 'H', undefined);
     expect(client.activate).toHaveBeenCalledWith('ZCL_T', '/sap/bc/adt/oo/classes/zcl_t');
     expect(client.runClass).toHaveBeenCalledWith('ZCL_T');
@@ -119,5 +122,14 @@ describe('runSnippet', () => {
     const failing = make({ runFails: true });
     await expect(failing.handler.handle('runSnippet', { code: 'x.', className: 'ZCL_T' })).rejects.toThrow(/runSnippet failed after created, source written, activated/);
     expect(failing.client.deleteObject).toHaveBeenCalled();
+  });
+  it('retries a run the class runner answered before it saw the activation', async () => {
+    const { client, handler } = make();
+    client.runClass
+      .mockResolvedValueOnce('Error: Class does not implement if_oo_adt_classrun~main method!')
+      .mockResolvedValueOnce('Hello from snippet');
+    const res = parse(await handler.handle('runSnippet', { code: 'x.', className: 'ZCL_T' }));
+    expect(res).toMatchObject({ status: 'success', output: 'Hello from snippet', attempts: 2 });
+    expect(client.deleteObject).toHaveBeenCalled();
   });
 });

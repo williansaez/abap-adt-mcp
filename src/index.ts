@@ -203,7 +203,7 @@ export class AbapAdtServer extends Server {
         instructions: [
           'ABAP ADT MCP server. Every tool accepts an optional `destination` parameter selecting the target SAP system; call listSystems first to see the configured destinations.',
           '',
-          'Creating a new object: loadTypes (pick objtype, e.g. CLAS/OC) -> validateNewObject (check name/package) -> resolveTransport (if package is not $TMP) -> createObject -> setObjectSource with activate=true -> unitTestRun.',
+          'Creating a new object: pick objtype (e.g. CLAS/OC; creatableTypeDetails lists the options) -> validateNewObject (check name/package) -> resolveTransport (if package is not $TMP) -> createObject -> setObjectSource with activate=true -> unitTestRun.',
           '',
           'Editing an existing object: searchObject / findObjectPath -> getObjectSource -> resolveTransport (for non-local packages) -> editObjectSource (replacements or line range), setMethodSource (one method) or setObjectSource (whole source), with activate=true -> unitTestRun -> objectDiff to review what changed. Never resend a whole source to change a few lines. Write tools lock and unlock by themselves; call lock/unLock only to hold a lock across several writes, and listLocks/forceUnlock if a write left an object locked. syntaxCheckCode before writing catches errors early. Class includes (implementations, testclasses, definitions) are read with getObjectSource on the URL from classIncludes, without /source/main.',
           '',
