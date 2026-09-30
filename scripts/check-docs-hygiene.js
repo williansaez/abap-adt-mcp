@@ -18,7 +18,7 @@ const add = (file, rule, detail) => problems.push({ file, rule, detail });
 // Files that carry prose for readers. Generated files are checked too: their
 // text comes from tool descriptions, which are prose as well.
 const docFiles = [
-  'README.md', 'README.pt-BR.md', 'README.de.md', '.github/SECURITY.md', '.github/CONTRIBUTING.md', 'CHANGELOG.md',
+  'README.md', 'docs/i18n/README.pt-BR.md', 'docs/i18n/README.de.md', '.github/SECURITY.md', '.github/CONTRIBUTING.md', 'CHANGELOG.md',
   ...fs.readdirSync(path.join(root, 'docs')).filter(f => f.endsWith('.md')).map(f => 'docs/' + f),
   ...fs.readdirSync(path.join(root, 'skills')).flatMap(d => {
     const p = path.join(root, 'skills', d, 'SKILL.md');

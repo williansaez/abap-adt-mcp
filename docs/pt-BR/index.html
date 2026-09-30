@@ -233,7 +233,7 @@
   <section id="setup">
     <div class="wrap">
       <h2>Instalação em três passos.</h2>
-      <p class="intro">Você precisa de Node.js 22.12 ou mais recente, de acesso ao sistema SAP (no S/4HANA Cloud, a função de negócio de desenvolvedor que seu usuário já tem para o Eclipse ADT; on-premise, o serviço <code>/sap/bc/adt</code> ativo na <code>SICF</code>) e de um navegador Chromium para o SSO por navegador. A versão completa, com caminhos do Windows e os logs do host, está no <a href="https://github.com/williansaez/abap-adt-mcp/blob/main/README.pt-BR.md#instalação">README</a>.</p>
+      <p class="intro">Você precisa de Node.js 22.12 ou mais recente, de acesso ao sistema SAP (no S/4HANA Cloud, a função de negócio de desenvolvedor que seu usuário já tem para o Eclipse ADT; on-premise, o serviço <code>/sap/bc/adt</code> ativo na <code>SICF</code>) e de um navegador Chromium para o SSO por navegador. A versão completa, com caminhos do Windows e os logs do host, está no <a href="https://github.com/williansaez/abap-adt-mcp/blob/main/docs/i18n/README.pt-BR.md#instalação">README</a>.</p>
       <div class="steps">
         <div class="step">
           <div><h3>Descreva seus sistemas SAP</h3><p>Um arquivo, <code>~/.abap-adt-mcp/systems.json</code>, uma entrada por sistema. A chave é o nome que você usará nos chats. Esta entrada completa de S/4HANA Cloud com SSO por navegador começa somente leitura; remova a linha <code>policy</code> quando estiver pronto para escrever, e o modelo passa a criar, editar e ativar dentro das suas autorizações SAP.</p></div>
@@ -272,7 +272,7 @@
           <p class="say">Liste meus sistemas SAP, faça login no DEV e mostre o código-fonte da classe CL_ABAP_CHAR_UTILITIES.</p>
         </div>
       </div>
-      <p class="note">Se nada aparecer no host, leia o log MCP dele: <code>spawn npx ENOENT</code> significa Node.js ausente; nenhuma janela do navegador significa que nenhum Chromium foi encontrado (<code>SAP_BROWSER_PATH</code> indica um); on-premise, <code>/sap/bc/adt</code> precisa estar ativo na <code>SICF</code>. A <a href="https://github.com/williansaez/abap-adt-mcp/blob/main/README.pt-BR.md#solução-de-problemas">lista de solução de problemas</a> tem o resto.</p>
+      <p class="note">Se nada aparecer no host, leia o log MCP dele: <code>spawn npx ENOENT</code> significa Node.js ausente; nenhuma janela do navegador significa que nenhum Chromium foi encontrado (<code>SAP_BROWSER_PATH</code> indica um); on-premise, <code>/sap/bc/adt</code> precisa estar ativo na <code>SICF</code>. A <a href="https://github.com/williansaez/abap-adt-mcp/blob/main/docs/i18n/README.pt-BR.md#solução-de-problemas">lista de solução de problemas</a> tem o resto.</p>
     </div>
   </section>
 
@@ -421,7 +421,7 @@ cd abap-adt-mcp &amp;&amp; npm ci &amp;&amp; npm run build</code></pre></div></d
         <li><a href="https://github.com/williansaez/abap-adt-mcp/pkgs/container/abap-adt-mcp">GHCR</a></li>
         <li><a href="https://registry.modelcontextprotocol.io/?search=abap-adt-mcp">MCP registry</a></li>
         <li><a href="https://github.com/williansaez/abap-adt-mcp/blob/main/CHANGELOG.md">Changelog</a></li>
-        <li><a href="https://github.com/williansaez/abap-adt-mcp/blob/main/README.pt-BR.md">README (Português)</a></li>
+        <li><a href="https://github.com/williansaez/abap-adt-mcp/blob/main/docs/i18n/README.pt-BR.md">README (Português)</a></li>
       </ul>
       <p>MIT. Construído sobre <a href="https://github.com/marcellourbani/abap-adt-api">abap-adt-api</a> de Marcello Urbani; começou a partir do servidor <code>mcp-abap-abap-adt-api</code> de mario-andreschak. Contribuições de João Gementi (<code>sso2</code>) e Alexandre Leite (autenticação on-premise). Se o projeto economiza seu tempo, você pode <a href="https://github.com/sponsors/williansaez">patrocinar o autor</a>.</p>
       <p class="fine">* Todos os nomes em tela são fictícios (ZCL_ORDER_SERVICE, DEVK900123, DEV, PRD); nenhum sistema de cliente aparece nos filmes. Filmes feitos com Hyperframes. Música: Happy Beats / Business Moves, de ende.app. Efeitos sonoros: Kenney (CC0).</p>

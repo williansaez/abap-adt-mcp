@@ -233,7 +233,7 @@
   <section id="setup">
     <div class="wrap">
       <h2>Einrichtung in drei Schritten.</h2>
-      <p class="intro">Sie brauchen Node.js 22.12 oder neuer, Zugang zum SAP-System (auf S/4HANA Cloud die Entwickler-Businessrolle, die Ihr Benutzer für Eclipse ADT ohnehin hat; On-Premise den in <code>SICF</code> aktiven Dienst <code>/sap/bc/adt</code>) und einen Chromium-Browser für Browser-SSO. Die vollständige Fassung mit Windows-Pfaden und den Host-Logs steht im <a href="https://github.com/williansaez/abap-adt-mcp/blob/main/README.de.md#einrichtung">README</a>.</p>
+      <p class="intro">Sie brauchen Node.js 22.12 oder neuer, Zugang zum SAP-System (auf S/4HANA Cloud die Entwickler-Businessrolle, die Ihr Benutzer für Eclipse ADT ohnehin hat; On-Premise den in <code>SICF</code> aktiven Dienst <code>/sap/bc/adt</code>) und einen Chromium-Browser für Browser-SSO. Die vollständige Fassung mit Windows-Pfaden und den Host-Logs steht im <a href="https://github.com/williansaez/abap-adt-mcp/blob/main/docs/i18n/README.de.md#einrichtung">README</a>.</p>
       <div class="steps">
         <div class="step">
           <div><h3>Beschreiben Sie Ihre SAP-Systeme</h3><p>Eine Datei, <code>~/.abap-adt-mcp/systems.json</code>, ein Eintrag je System. Der Schlüssel ist der Name, den Sie in Chats verwenden. Dieser vollständige S/4HANA-Cloud-Eintrag mit Browser-SSO beginnt schreibgeschützt; entfernen Sie die Zeile <code>policy</code>, sobald Sie schreiben wollen, dann legt das Modell im Rahmen Ihrer SAP-Berechtigungen an, ändert und aktiviert.</p></div>
@@ -272,7 +272,7 @@
           <p class="say">Liste meine SAP-Systeme auf, melde dich an DEV an und zeige mir den Quelltext der Klasse CL_ABAP_CHAR_UTILITIES.</p>
         </div>
       </div>
-      <p class="note">Erscheint im Host nichts, lesen Sie dessen MCP-Log: <code>spawn npx ENOENT</code> heißt, Node.js fehlt; kein Browserfenster heißt, kein Chromium gefunden (<code>SAP_BROWSER_PATH</code> benennt eines); On-Premise muss <code>/sap/bc/adt</code> in <code>SICF</code> aktiv sein. Die <a href="https://github.com/williansaez/abap-adt-mcp/blob/main/README.de.md#fehlerbehebung">Fehlerbehebung</a> hat den Rest.</p>
+      <p class="note">Erscheint im Host nichts, lesen Sie dessen MCP-Log: <code>spawn npx ENOENT</code> heißt, Node.js fehlt; kein Browserfenster heißt, kein Chromium gefunden (<code>SAP_BROWSER_PATH</code> benennt eines); On-Premise muss <code>/sap/bc/adt</code> in <code>SICF</code> aktiv sein. Die <a href="https://github.com/williansaez/abap-adt-mcp/blob/main/docs/i18n/README.de.md#fehlerbehebung">Fehlerbehebung</a> hat den Rest.</p>
     </div>
   </section>
 
@@ -421,7 +421,7 @@ cd abap-adt-mcp &amp;&amp; npm ci &amp;&amp; npm run build</code></pre></div></d
         <li><a href="https://github.com/williansaez/abap-adt-mcp/pkgs/container/abap-adt-mcp">GHCR</a></li>
         <li><a href="https://registry.modelcontextprotocol.io/?search=abap-adt-mcp">MCP registry</a></li>
         <li><a href="https://github.com/williansaez/abap-adt-mcp/blob/main/CHANGELOG.md">Changelog</a></li>
-        <li><a href="https://github.com/williansaez/abap-adt-mcp/blob/main/README.de.md">README (Deutsch)</a></li>
+        <li><a href="https://github.com/williansaez/abap-adt-mcp/blob/main/docs/i18n/README.de.md">README (Deutsch)</a></li>
       </ul>
       <p>MIT. Aufgebaut auf <a href="https://github.com/marcellourbani/abap-adt-api">abap-adt-api</a> von Marcello Urbani; begonnen mit dem Server <code>mcp-abap-abap-adt-api</code> von mario-andreschak. Beiträge von João Gementi (<code>sso2</code>) und Alexandre Leite (On-Premise-Authentifizierung). Wenn das Projekt Ihnen Zeit spart, können Sie <a href="https://github.com/sponsors/williansaez">den Autor unterstützen</a>.</p>
       <p class="fine">* Alle Namen im Bild sind fiktive Platzhalter (ZCL_ORDER_SERVICE, DEVK900123, DEV, PRD); kein Kundensystem kommt in den Filmen vor. Filme erstellt mit Hyperframes. Musik: Happy Beats / Business Moves von ende.app. Soundeffekte: Kenney (CC0).</p>
