@@ -1,6 +1,6 @@
 {
   "name": "abap-adt-mcp",
-  "version": "2.1.1",
+  "version": "2.6.0",
   "mcpName": "io.github.williansaez/abap-adt-mcp",
   "main": "dist/index.js",
   "bin": {

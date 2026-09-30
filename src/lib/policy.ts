@@ -6,12 +6,19 @@
  *   "policy": {
  *     "readOnly": true,                       // only read-only tools (plus login/logout/dropSession)
  *     "deniedTools": ["transportRelease", "toolset:git"],   // names, globs, or toolset:<name>
- *     "allowFreeSql": false,                  // blocks runQuery and tableContents with sqlQuery
+ *     "allowDataPreview": true,               // tableContents may read table and CDS rows (off unless stated)
+ *     "allowFreeSql": true,                   // runQuery and tableContents with sqlQuery (off unless stated; implies allowDataPreview)
  *     "deniedTables": ["PA*", "HR*", "USR02"],
  *     "allowedPackages": ["Z*", "$*"],        // writes only inside these packages (closed mode)
  *     "allowedTransports": ["DEVK9*"]         // writes/releases only with these transports; no new ones
  *   }
  * MCP_READ_ONLY=1 in the environment makes every destination readOnly.
+ *
+ * Reading business data is the one capability that is closed without a policy:
+ * a destination that states neither allowDataPreview nor allowFreeSql refuses
+ * tableContents and runQuery. MCP_ALLOW_DATA_PREVIEW=1 and MCP_ALLOW_FREE_SQL=1
+ * set the default for destinations that do not state the key (src/lib/systems.ts);
+ * a destination that states false stays closed.
  */
 
 import { READ_ONLY_TOOLS, TOOLSETS, TOOL_ROUTES } from '../toolManifest.js';
@@ -48,13 +55,14 @@ function deniedToolMatches(patterns: string[] | undefined, toolName: string): bo
 export interface SystemPolicy {
   readOnly?: boolean;
   deniedTools?: string[];
+  allowDataPreview?: boolean;
   allowFreeSql?: boolean;
   deniedTables?: string[];
   allowedPackages?: string[];
   allowedTransports?: string[];
 }
 
-export type PolicyGate = 'readOnly' | 'deniedTools' | 'allowFreeSql' | 'deniedTables' | 'allowedPackages' | 'allowedTransports';
+export type PolicyGate = 'readOnly' | 'deniedTools' | 'allowDataPreview' | 'allowFreeSql' | 'deniedTables' | 'allowedPackages' | 'allowedTransports';
 
 export interface PolicyDecision {
   allowed: boolean;
@@ -100,6 +108,7 @@ export function parsePolicy(raw: any): SystemPolicy | undefined {
   const p: SystemPolicy = {
     readOnly: bool(raw.readOnly),
     deniedTools: list(raw.deniedTools),
+    allowDataPreview: bool(raw.allowDataPreview),
     allowFreeSql: bool(raw.allowFreeSql),
     deniedTables: list(raw.deniedTables),
     allowedPackages: list(raw.allowedPackages),
@@ -137,6 +146,24 @@ export interface PolicyContext {
   resolvePackage: (objectUrl: string) => Promise<string | undefined>;
 }
 
+/** Tools that return table or CDS rows, the business data of the system. */
+const DATA_TOOLS = new Set(['tableContents', 'runQuery']);
+
+export interface DataAccess {
+  allowDataPreview: boolean;
+  allowFreeSql: boolean;
+}
+
+/**
+ * Effective data access of a destination. Both are off unless stated.
+ * allowFreeSql: true implies allowDataPreview (SQL is a superset of reading a
+ * named table); an explicit allowDataPreview: false closes both.
+ */
+export function dataAccess(policy: SystemPolicy | undefined): DataAccess {
+  const preview = policy?.allowDataPreview ?? (policy?.allowFreeSql === true);
+  return { allowDataPreview: preview, allowFreeSql: preview && policy?.allowFreeSql === true };
+}
+
 export function summarizePolicy(policy: SystemPolicy | undefined): Record<string, unknown> | undefined {
   if (!policy) return undefined;
   const out: Record<string, unknown> = {};
@@ -146,13 +173,15 @@ export function summarizePolicy(policy: SystemPolicy | undefined): Record<string
 
 /**
  * Decide whether `toolName(args)` may run on a destination with `policy`.
- * Gates run in order: readOnly, deniedTools, allowFreeSql, deniedTables,
- * allowedPackages (closed: unknown package => denied), allowedTransports.
+ * Gates run in order: readOnly, deniedTools, allowFreeSql, allowDataPreview,
+ * deniedTables, allowedPackages (closed: unknown package => denied),
+ * allowedTransports. A destination without a policy passes every gate except
+ * the two data gates, which are closed until the policy opens them.
  */
 export async function evaluatePolicy(
   policy: SystemPolicy | undefined, toolName: string, args: any, ctx: PolicyContext
 ): Promise<PolicyDecision> {
-  if (!policy) return { allowed: true };
+  if (!policy) policy = {};
   const a = args || {};
   const deny = (gate: PolicyGate, reason: string): PolicyDecision => ({ allowed: false, gate, reason });
 
@@ -162,9 +191,21 @@ export async function evaluatePolicy(
   if (deniedToolMatches(policy.deniedTools, toolName)) {
     return deny('deniedTools', `${toolName} is listed in deniedTools`);
   }
-  if (policy.allowFreeSql === false) {
-    if (toolName === 'runQuery') return deny('allowFreeSql', 'free SQL (runQuery) is disabled; use tableContents on an allowed table');
-    if (toolName === 'tableContents' && a.sqlQuery) return deny('allowFreeSql', 'tableContents with sqlQuery counts as free SQL, which is disabled');
+  if (DATA_TOOLS.has(toolName)) {
+    const access = dataAccess(policy);
+    const how = (key: 'allowDataPreview' | 'allowFreeSql', env: string) => policy!.allowDataPreview === false && key === 'allowFreeSql'
+      ? 'its policy states "allowDataPreview": false, which closes SQL as well'
+      : policy![key] === false
+        ? `its policy states "${key}": false`
+        : `nothing allows it yet. To allow it, set "${key}": true in the policy of this destination in systems.json (${env}=1 sets the default for destinations that do not state it) and restart the server`;
+    if ((toolName === 'runQuery' || a.sqlQuery) && !access.allowFreeSql) {
+      const what = toolName === 'runQuery' ? 'free SQL (runQuery) is off on this destination' : 'tableContents with sqlQuery counts as free SQL, which is off on this destination';
+      const alternative = access.allowDataPreview ? '; tableContents without sqlQuery still reads a table by name' : '';
+      return deny('allowFreeSql', `${what}: ${how('allowFreeSql', 'MCP_ALLOW_FREE_SQL')}${alternative}`);
+    }
+    if (!access.allowDataPreview) {
+      return deny('allowDataPreview', `reading table data (${toolName}) is off on this destination: ${how('allowDataPreview', 'MCP_ALLOW_DATA_PREVIEW')}`);
+    }
   }
   if (policy.deniedTables?.length) {
     const tables: string[] = [];

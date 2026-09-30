@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.williansaez/abap-adt-mcp",
   "description": "ABAP development from Claude and other MCP hosts: source, transports, tests, ATC, debugger",
-  "version": "2.1.1",
+  "version": "2.6.0",
   "repository": {
     "url": "https://github.com/williansaez/abap-adt-mcp",
     "source": "github"
@@ -12,7 +12,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "abap-adt-mcp",
-      "version": "2.1.1",
+      "version": "2.6.0",
       "transport": {
         "type": "stdio"
       },
@@ -92,6 +92,16 @@
         {
           "name": "MCP_READ_ONLY",
           "description": "Set to 1 to make every destination read-only (server-side; only read-only annotated tools plus login/logout run). Per-destination policies live in systems.json",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_ALLOW_DATA_PREVIEW",
+          "description": "Set to 1 to let tableContents read table and CDS rows on every destination that does not state policy.allowDataPreview itself (reading table data is off by default)",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_ALLOW_FREE_SQL",
+          "description": "Set to 1 to allow runQuery and tableContents with sqlQuery on every destination that does not state policy.allowFreeSql itself (free SQL is off by default; implies table data)",
           "isRequired": false
         },
         {
@@ -204,6 +214,11 @@
         {
           "name": "MCP_CACHE_DIR",
           "description": "Directory for the cached SAP cloudification repository used by apiReleaseState (default ~/.abap-adt-mcp/cache)",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_API_CLASSIFICATION_FILES",
+          "description": "Extra classification files for apiReleaseState, comma list: a path inside SAP's cloudification repository (partner/objectClassifications_ACME.json) or an https URL",
           "isRequired": false
         }
       ]

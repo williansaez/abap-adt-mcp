@@ -24,9 +24,11 @@ import { browserLogin } from './lib/browserLogin.js';
 import { getSso2Cookies } from './lib/sso2TicketProvider.js';
 import { readSystems, defaultDestination, SystemConfig } from './lib/systems.js';
 import { classifyAdtError } from './lib/adtErrorHints.js';
+import { redactSecrets } from './lib/redact.js';
+import { installProcessGuards } from './lib/processGuards.js';
 import { TOOL_ROUTES, HandlerKey, toolAnnotations, resolveToolsets, ToolsetSelection, TOOLSETS } from './toolManifest.js';
 import { buildSystemProfile, SystemProfile } from './lib/systemProfile.js';
-import { evaluatePolicy, objectUrlOf, summarizePolicy } from './lib/policy.js';
+import { dataAccess, evaluatePolicy, objectUrlOf, summarizePolicy } from './lib/policy.js';
 import { clearLedger, releaseAll } from './lib/lockLedger.js';
 import { sourceCache } from './lib/sourceCache.js';
 import { normalizeArgs } from './lib/argAliases.js';
@@ -80,18 +82,6 @@ config({ path: path.resolve(__dirname, '../.env'), quiet: true });
  * constructor, where stderr is already redacted.
  */
 const tlsBypassRemoved = enforceTlsVerification();
-
-/**
- * Strip credential material from error text before it reaches the model/host.
- * Upstream HTTP errors can echo request headers or URLs with embedded secrets.
- */
-function redactSecrets(text: string): string {
-  return String(text)
-    .replace(/(authorization\s*[:=]\s*)(?:basic|bearer)?\s*[^\s,;"']+/gi, '$1[REDACTED]')
-    .replace(/((?:cookie|set-cookie)\s*[:=]\s*)[^\n"']+/gi, '$1[REDACTED]')
-    .replace(/((?:password|passwd|passphrase|client_secret|clientsecret|sap-password|token|api[_-]?key|secret|lock_?handle)\s*[=:]\s*)[^\s&,;"']+/gi, '$1[REDACTED]')
-    .replace(/(https?:\/\/)[^\/\s:@]+:[^\/\s:@]+@/gi, '$1[REDACTED]@');
-}
 
 /**
  * Every diagnostic this process prints goes through the same redaction as tool
@@ -221,7 +211,7 @@ export class AbapAdtServer extends Server {
           '',
           'ABAP Cloud: apiReleaseState(names or source) checks SAP objects against the official cloudification repository before you use them; runSnippet executes throwaway ABAP in $TMP and returns the console output.',
           '',
-          'Finding code: sourceTextSearch (server index) or grepPackage (client grep with context) locate usages of tables, messages, methods or literals; read whole sources only for the hits. Data: runQuery for SQL over tables and CDS views (statements are wrapped to the 255-character line limit of the data preview), tableContents when the preview refuses a table, getDataElementProperties/getDomainProperties for the internal format of a key (leading zeros, conversion exits).',
+          'Finding code: sourceTextSearch (server index) or grepPackage (client grep with context) locate usages of tables, messages, methods or literals; read whole sources only for the hits. Data: reading table data is closed on a destination until its policy opens it (listSystems shows dataAccess; a policy refusal is final, report it to the user). Where open: runQuery for SQL over tables and CDS views (statements are wrapped to the 255-character line limit of the data preview), tableContents when the preview refuses a table, getDataElementProperties/getDomainProperties for the internal format of a key (leading zeros, conversion exits).',
           '',
           'Errors carry kind/hint/nextTools: follow the hint instead of retrying blindly. systemProfile(destination) tells which toolsets the backend supports (S/4HANA Cloud lacks some); dumps/dumpDetails are the root-cause path when the debugger toolset is unavailable on a destination.',
         ].join('\n'),
@@ -621,6 +611,7 @@ export class AbapAdtServer extends Server {
         return {
           destination: s.name, url: s.url, client: s.client, authType: s.authType,
           ...(s.policy ? { policy: summarizePolicy(s.policy) } : {}),
+          dataAccess: dataAccess(s.policy),
           ...(describeTls(s.tls, s.insecureTls) ? { tls: describeTls(s.tls, s.insecureTls) } : {}),
           ...(profile ? { platform: profile.platform, unavailableToolsets: profile.unavailableToolsets } : {}),
         };
@@ -674,14 +665,14 @@ export class AbapAdtServer extends Server {
     // the re-authentication retry never interleave with another call.
     const work = async (): Promise<any> => {
       // Server-side policy gate, before any authentication or SAP call.
-      if (dest.system.policy) {
-        const decision = await evaluatePolicy(dest.system.policy, name, args, {
-          resolvePackage: async (objectUrl) => this.resolvePackage(destination, objectUrl),
-        });
-        if (!decision.allowed) {
-          throw new McpError(ErrorCode.InvalidRequest,
-            `Policy: ${name} blocked on destination ${destination} (${decision.gate}): ${decision.reason}. Configured in systems.json policy; retrying will not help.`);
-        }
+      // A destination without a policy still passes through it: the data gates
+      // (tableContents, runQuery) are closed until the policy opens them.
+      const decision = await evaluatePolicy(dest.system.policy, name, args, {
+        resolvePackage: async (objectUrl) => this.resolvePackage(destination, objectUrl),
+      });
+      if (!decision.allowed) {
+        throw new McpError(ErrorCode.InvalidRequest,
+          `Policy: ${name} blocked on destination ${destination} (${decision.gate}): ${decision.reason}. Configured in systems.json policy; retrying will not help.`);
       }
 
       // Explicit login for cookie-authenticated destinations.
@@ -754,13 +745,9 @@ export class AbapAdtServer extends Server {
       console.error(`MCP ABAP ADT API server running on stdio — ${this.systems.size} destination(s): ${[...this.systems.keys()].join(', ')}`);
     }
 
-    const shutdown = async (signal: string) => {
-      console.error(`[abap-adt-mcp] ${signal}: releasing locks and sessions`);
-      await Promise.race([this.close().catch(() => undefined), new Promise((r) => setTimeout(r, 5000))]);
-      process.exit(0);
-    };
-    process.on('SIGINT', () => { void shutdown('SIGINT'); });
-    process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+    // SIGINT, SIGTERM, uncaught exceptions and rejections nobody handles: locks
+    // and sessions are released before the process ends (src/lib/processGuards.ts).
+    installProcessGuards({ close: () => this.close() });
     this.onerror = (error) => { console.error('[MCP Error]', error); };
   }
 

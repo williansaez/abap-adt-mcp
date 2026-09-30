@@ -1,7 +1,7 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
-import { getReleaseIndex, lookup, parseObjectRef, objectRefFromUrl, candidatesFromSource, ReleaseEdition, Loader, ReleaseVerdict } from '../lib/apiReleases.js';
+import { getReleaseIndex, lookup, parseObjectRef, objectRefFromUrl, candidatesFromSource, RELEASE_EDITIONS, ReleaseEdition, Loader, ReleaseVerdict } from '../lib/apiReleases.js';
 import { sourceCache } from '../lib/sourceCache.js';
 import { shrinkToFit } from '../lib/responseSizing.js';
 
@@ -13,7 +13,7 @@ export class CloudHandlers extends BaseHandler {
         return [
             {
                 name: 'apiReleaseState',
-                description: 'Release state of SAP objects for ABAP Cloud / Clean Core, from SAP\'s official cloudification repository (released, deprecated with successors, classicAPI, noAPI) plus, when objectUrl is given, the backend\'s own /sap/bc/adt/apireleases answer. Check APIs before writing cloud code instead of recalling from memory. Pass names as "CL_X", "TABL:MARA", "FUGR:BAPI_..." (comma-separated) or a source to scan every referenced object.',
+                description: 'Release state of SAP objects for ABAP Cloud / Clean Core, from SAP\'s official cloudification repository (released, deprecated with successors, notToBeReleased, classicAPI, noAPI) plus, when objectUrl is given, the backend\'s own /sap/bc/adt/apireleases answer. Every result carries apiPolicy (released, classic, notReleased, prohibited, customer, unknown): prohibited means SAP classifies the interface as not permitted (in the repository or in an SAP Note) and outranks every other state, so do not write code that calls it. Check APIs before writing cloud code instead of recalling from memory. Pass names as "CL_X", "TABL:MARA", "FUGR:BAPI_..." (comma-separated) or a source to scan every referenced object.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -21,7 +21,7 @@ export class CloudHandlers extends BaseHandler {
                         objectUrl: { type: 'string', description: 'ADT object URL to check (also queried on the backend when it exposes apireleases)', optional: true },
                         source: { type: 'string', description: 'ABAP source to scan: every referenced SAP object (SELECT targets, TYPE references, CL_/IF_/CX_ classes, function modules) is checked', optional: true },
                         sourceUrl: { type: 'string', description: 'Source URL (…/source/main) to read and scan instead of passing the text', optional: true },
-                        edition: { type: 'string', enum: ['cloud', 'btp', 'pce2023', 'pce2022'], description: 'Target edition: cloud (S/4HANA Cloud Public Edition, default), btp (BTP ABAP Environment), pce2023/pce2022 (Private Cloud 3-tier)', optional: true },
+                        edition: { type: 'string', enum: RELEASE_EDITIONS, description: 'Target edition: cloud (S/4HANA Cloud Public Edition, default), btp (BTP ABAP Environment), pce (Private Cloud, latest release), pce2025/pce2023/pce2022 (Private Cloud, latest feature pack of that release)', optional: true },
                         refresh: { type: 'boolean', description: 'Re-download the repository data (default: 24h cache)', optional: true }
                     }
                 }
@@ -53,6 +53,9 @@ export class CloudHandlers extends BaseHandler {
         const startTime = performance.now();
         try {
             const edition = (args.edition || 'cloud') as ReleaseEdition;
+            if (!RELEASE_EDITIONS.includes(edition)) {
+                throw new McpError(ErrorCode.InvalidParams, `Unknown edition "${edition}". Valid: ${RELEASE_EDITIONS.join(', ')}`);
+            }
             const refs: Array<{ name: string; type?: string }> = [];
             for (const n of String(args.names || '').split(',').map((s: string) => s.trim()).filter(Boolean)) refs.push(parseObjectRef(n));
             if (args.objectUrl) {
@@ -90,13 +93,17 @@ export class CloudHandlers extends BaseHandler {
             this.trackRequest(startTime, true);
             const notReady = verdicts.filter(v => !v.cloudReady && v.state !== 'customer' && v.state !== 'unknown');
             const unknown = verdicts.filter(v => v.state === 'unknown');
+            const prohibited = verdicts.filter(v => v.apiPolicy === 'prohibited');
+            const unrecognized = [...new Set(verdicts.filter(v => v.unrecognizedState).map(v => v.state))];
             const text = shrinkToFit(verdicts.length, (count, capped) => ({
                 status: 'success',
                 edition,
-                repository: { loadedAt: index.loadedAt, releasedEntries: index.counts.released, classificationEntries: index.counts.classifications },
-                summary: { checked: verdicts.length, cloudReady: verdicts.filter(v => v.cloudReady).length, notCloudReady: notReady.length, unknown: unknown.length, customerObjects: verdicts.filter(v => v.state === 'customer').length },
+                repository: { loadedAt: index.loadedAt, releasedEntries: index.counts.released, classificationEntries: index.counts.classifications, ...(index.extraFiles.length ? { extraFiles: index.extraFiles } : {}) },
+                summary: { checked: verdicts.length, cloudReady: verdicts.filter(v => v.cloudReady).length, notCloudReady: notReady.length, prohibited: prohibited.length, unknown: unknown.length, customerObjects: verdicts.filter(v => v.state === 'customer').length },
+                ...(prohibited.length ? { prohibited: prohibited.slice(0, 50).map(v => ({ name: v.name, type: v.type, state: v.state, successors: v.successors, ...(v.sapNote ? { sapNote: v.sapNote } : {}), ...(v.source ? { source: v.source } : {}) })), prohibitedNote: 'SAP classifies these interfaces as not permitted for customer and third-party use. Do not write or keep code that calls them; tell the user which ones were found.' } : {}),
+                ...(unrecognized.length ? { unrecognizedStates: unrecognized, unrecognizedStatesNote: 'The repository uses states this version of the server does not know; they are reported as SAP wrote them and treated as not released.' } : {}),
                 ...(unknown.length ? { unknown: unknown.slice(0, 50).map(v => v.name), unknownNote: 'Not in the SAP cloudification repository: verify in the system before treating as blockers.' } : {}),
-                blockers: notReady.slice(0, 50).map(v => ({ name: v.name, type: v.type, state: v.state, successors: v.successors })),
+                blockers: notReady.slice(0, 50).map(v => ({ name: v.name, type: v.type, state: v.state, apiPolicy: v.apiPolicy, successors: v.successors, ...(v.successorConcept ? { successorConcept: v.successorConcept } : {}) })),
                 results: verdicts.slice(0, count),
                 ...(scanned ? { scannedIdentifiers: scanned.length } : {}),
                 ...(adt ? { backendApiRelease: adt } : {}),

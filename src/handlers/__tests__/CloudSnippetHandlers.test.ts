@@ -23,7 +23,9 @@ describe('apiReleaseState', () => {
   it('checks names against the repository and summarizes blockers', async () => {
     const { handler } = make();
     const res = parse(await handler.handle('apiReleaseState', { names: 'cl_abap_char_utilities, TABL:MARA, CL_GUI_ALV_GRID, ZCL_MINE', refresh: true }));
-    expect(res.summary).toEqual({ checked: 4, cloudReady: 2, notCloudReady: 2, unknown: 0, customerObjects: 1 });
+    expect(res.summary).toEqual({ checked: 4, cloudReady: 2, notCloudReady: 2, prohibited: 0, unknown: 0, customerObjects: 1 });
+    expect(res.prohibited).toBeUndefined();
+    expect(res.blockers.map((b: any) => b.apiPolicy)).toEqual(['released', 'classic']);
     expect(res.blockers.map((b: any) => b.name)).toEqual(['MARA', 'CL_GUI_ALV_GRID']);
     expect(res.blockers[0].successors).toEqual([{ name: 'I_PRODUCT', type: 'DDLS' }]);
   });
@@ -40,6 +42,16 @@ describe('apiReleaseState', () => {
   it('requires some input', async () => {
     const { handler } = make();
     await expect(handler.handle('apiReleaseState', {})).rejects.toThrow(/Pass names/);
+    await expect(handler.handle('apiReleaseState', { names: 'MARA', edition: 'pce2099' })).rejects.toThrow(/Unknown edition "pce2099"/);
+  });
+
+  it('lists interfaces SAP does not permit apart from ordinary blockers', async () => {
+    const { handler } = make();
+    const res = parse(await handler.handle('apiReleaseState', { source: "CALL FUNCTION 'RODPS_REPL_ODP_OPEN'.\nDATA x TYPE REF TO cl_gui_alv_grid." }));
+    expect(res.summary).toMatchObject({ checked: 2, prohibited: 1, notCloudReady: 2 });
+    expect(res.prohibited).toEqual([{ name: 'RODPS_REPL_ODP_OPEN', state: 'unpermitted', successors: [], sapNote: '3255746' }]);
+    expect(res.prohibitedNote).toMatch(/not permitted/);
+    expect(res.results.find((r: any) => r.name === 'RODPS_REPL_ODP_OPEN')).toMatchObject({ apiPolicy: 'prohibited', cloudReady: false });
   });
 });
 
@@ -80,7 +92,7 @@ describe('runSnippet', () => {
   it('creates, writes, activates, runs and deletes the temporary class', async () => {
     const { client, handler } = make();
     const res = parse(await handler.handle('runSnippet', { code: "out->write( 'hi' ).", className: 'zcl_t', responsible: 'dev' }));
-    expect(client.createObject).toHaveBeenCalledWith('CLAS/OC', 'ZCL_T', '$TMP', expect.any(String), '/sap/bc/adt/packages/%24tmp', 'DEV', undefined);
+    expect(client.createObject).toHaveBeenCalledWith({ objtype: 'CLAS/OC', name: 'ZCL_T', parentName: '$TMP', description: expect.any(String), parentPath: '/sap/bc/adt/packages/%24tmp', responsible: 'DEV', transport: '' });
     expect(client.setObjectSource).toHaveBeenCalledWith('/sap/bc/adt/oo/classes/zcl_t/source/main', expect.stringContaining('if_oo_adt_classrun'), 'H', undefined);
     expect(client.activate).toHaveBeenCalledWith('ZCL_T', '/sap/bc/adt/oo/classes/zcl_t');
     expect(client.runClass).toHaveBeenCalledWith('ZCL_T');

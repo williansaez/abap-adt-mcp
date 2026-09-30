@@ -107,4 +107,77 @@ describe('classifyAdtError', () => {
       expect(classifyAdtError({ code: 'CERT_HAS_EXPIRED', message: 'certificate has expired | status code 401' }).kind).toBe('tlsCertificate');
     });
   });
+
+  // What reaches the classifier on a cookie destination (sso, sso2): abap-adt-api
+  // wraps every error it does not recognise as an AdtErrorException with err 500.
+  describe('errors abap-adt-api wrapped as 500', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { fromException } = require('abap-adt-api/build/AdtException');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { AxiosError } = require('axios');
+    const wrapped = (message: string, code: string) => fromException(new AxiosError(message, code, {}, {}, undefined));
+
+    it('calls a connection failure what it is: SAP never answered, there is no status and no dump to look for', () => {
+      for (const [code, message] of [
+        ['ECONNRESET', 'socket hang up'],
+        ['ETIMEDOUT', 'connect ETIMEDOUT 10.0.0.1:443'],
+        ['ENOTFOUND', 'getaddrinfo ENOTFOUND sap.example.invalid'],
+        ['ECONNREFUSED', 'connect ECONNREFUSED 127.0.0.1:44300'],
+        ['ECONNABORTED', 'timeout of 30000ms exceeded'],
+        ['EAI_AGAIN', 'getaddrinfo EAI_AGAIN sap.example.invalid'],
+      ]) {
+        const e = wrapped(message, code);
+        expect(e.err).toBe(500);
+        const c = classifyAdtError(e);
+        expect({ code, kind: c.kind, status: c.status }).toEqual({ code, kind: 'network', status: undefined });
+        expect(c.hint).toMatch(/did not answer/);
+        expect(c.hint).not.toMatch(/dump/i);
+        expect(c.nextTools).not.toContain('dumps');
+      }
+    });
+
+    it('recognises the same failure by code, unwrapped and through a handler wrapper', () => {
+      expect(classifyAdtError(new AxiosError('socket hang up', 'ECONNRESET', {}, {}, undefined)).kind).toBe('network');
+      expect(classifyAdtError({ message: 'x', parent: { code: 'ETIMEDOUT' } }).kind).toBe('network');
+      const handler: any = new Error('Failed to get object source: AxiosError: socket hang up'); handler.cause = wrapped('socket hang up', 'ECONNRESET');
+      expect(classifyAdtError(handler).kind).toBe('network');
+      expect(classifyAdtError({ message: 'Failed to read: connect ETIMEDOUT 10.0.0.1:443' }).kind).toBe('network');
+    });
+
+    it('names the destination and its host when it knows them', () => {
+      const c = classifyAdtError(wrapped('getaddrinfo ENOTFOUND sap.example.invalid', 'ENOTFOUND'), { destination: 'DEV', url: 'https://sap.example.invalid:44300' });
+      expect(c.hint).toMatch(/^Destination DEV \(sap\.example\.invalid:44300\) did not answer/);
+    });
+
+    it('warns that a write may have reached SAP', () => {
+      expect(classifyAdtError(wrapped('socket hang up', 'ECONNRESET')).hint).toMatch(/may or may not have reached SAP/);
+    });
+
+    it('does not report the wrapper\'s 500 as the HTTP status of an expired SSO session', () => {
+      const loginPage: any = new Error('SSO session expired: the identity provider returned a login page instead of an ADT response. Re-authenticate (login) and retry.');
+      loginPage.code = 'SESSION_EXPIRED'; loginPage.status = 401;
+      const e = fromException(loginPage);
+      expect(e.err).toBe(500);
+      expect(classifyAdtError(e)).toMatchObject({ kind: 'sessionExpired', status: undefined });
+    });
+
+    it('does not call a wrapped client-side error an SAP server error', () => {
+      const e = fromException(new TypeError("Cannot read properties of undefined (reading 'type')"));
+      expect(e.err).toBe(500);
+      expect(classifyAdtError(e)).toEqual({ kind: 'unknown', status: undefined });
+    });
+
+    it('still reports a 500 that SAP sent', () => {
+      const xml = '<?xml version="1.0"?><exc:exception xmlns:exc="http://www.sap.com/abapxml/types/communicationframework"><namespace id="com.sap.adt"/><type id="ExceptionInternalError"/><message lang="EN">Internal error</message><localizedMessage lang="EN">Internal error</localizedMessage><properties/></exc:exception>';
+      expect(classifyAdtError(fromException({ status: 500, statusText: 'Internal Server Error', headers: {}, body: xml }))).toMatchObject({ kind: 'serverError', status: 500, nextTools: ['dumps'] });
+      expect(classifyAdtError(fromException({ status: 500, statusText: 'Internal Server Error', headers: {}, body: '' }))).toMatchObject({ kind: 'serverError', status: 500 });
+      expect(classifyAdtError(fromException({ status: 500, statusText: 'Internal Server Error', headers: {}, body: '<html><body>500 Internal Server Error</body></html>' }))).toMatchObject({ kind: 'serverError', status: 500 });
+    });
+
+    it('does not mistake SAP wording about time for a connection failure', () => {
+      expect(classifyAdtError('Error 400:Session timed out').kind).toBe('sessionExpired');
+      expect(classifyAdtError({ status: 404, message: 'Class ZCL_NETWORK_TIMEOUT does not exist' }).kind).toBe('notFound');
+      expect(classifyAdtError({ status: 500, message: 'Time limit exceeded' }).kind).toBe('serverError');
+    });
+  });
 });

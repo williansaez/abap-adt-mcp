@@ -49,7 +49,7 @@ Values are coerced leniently; the table says what each key accepts, so a file wr
 | Keys | Accepted | Notes |
 |---|---|---|
 | `client` | string or number | Converted to a string, then checked for three digits (`80` fails, `"080"` and `80` are not the same thing: write the leading zero). |
-| `insecureTls`, `default`, `policy.readOnly`, `policy.allowFreeSql` | JSON `true`; the strings `"1"`, `"true"`, `"yes"` (case-insensitive); the number `1` | Any other present value (`false`, `0`, `"no"`, `"off"`, `null`) counts as `false`. Only an absent key is "unset", which matters for `allowFreeSql`: a present key with any non-true value switches the gate on. |
+| `insecureTls`, `default`, `policy.readOnly`, `policy.allowDataPreview`, `policy.allowFreeSql` | JSON `true`; the strings `"1"`, `"true"`, `"yes"` (case-insensitive); the number `1` | Any other present value (`false`, `0`, `"no"`, `"off"`, `null`) counts as `false`. Only an absent key is "unset", which matters for `allowDataPreview` and `allowFreeSql`: an absent key takes the server default (`MCP_ALLOW_DATA_PREVIEW`, `MCP_ALLOW_FREE_SQL`, both off), a present key with any non-true value closes the gate whatever the default. |
 | `policy.deniedTools`, `deniedTables`, `allowedPackages`, `allowedTransports` | JSON array of strings, or one comma-separated string | `"toolset:git,transportRelease"` and `["toolset:git", "transportRelease"]` are equivalent. |
 | `tls.*` | string | A file path, or inline PEM text recognised by a `-----BEGIN ...-----` header. Empty or whitespace-only strings are treated as absent. |
 | Everything else | string | |
@@ -91,7 +91,7 @@ One object per destination; the key is the name you will use in `destination` an
 | `tls` | object | no | `ca`, `cert`, `key`, `pfx`, `passphrase`, `servername`. `servername` is the name the certificate is verified against (and sent as SNI) when `url` names an IP address or a short hostname; verification stays on (next section). `cert` and `key` go together; `pfx` (PKCS#12) is the alternative, with `passphrase`. The resulting `https.Agent` (keep-alive) is used for basic, OAuth, SSO and SSO2 API calls; the browser window of an SSO login uses its own trust store. |
 | `gitUser`, `gitPassword` | string | no | abapGit remote credentials. Backfilled into `gitExternalRepoInfo`, `gitCreateRepo`, `gitPullRepo`, `stageRepo`, `pushRepo`, `checkRepo`, `remoteRepoInfo` and `switchRepoBranch` when the call omits `user`/`password`, so the token never has to pass through the model. Explicit arguments win. |
 | `default` | boolean | no | Marks the entry used when `destination` is omitted. `SAP_DEFAULT_DESTINATION` overrides it. |
-| `policy` | object | no | Server-side guard rails, see [section 3](#3-policy-in-depth). A destination without `policy` is fully writable within the SAP user's authorizations. |
+| `policy` | object | no | Server-side guard rails, see [section 3](#3-policy-in-depth). A destination without `policy` is fully writable within the SAP user's authorizations and reads no table data (`tableContents` and `runQuery` are refused until `allowDataPreview` or `allowFreeSql` opens them). |
 
 `listSystems` reports each entry as `destination`, `url`, `client`, `authType`, the policy summary, a short `tls` description (`custom CA`, `client certificate`, `servername NAME`, `verification disabled`) and, once a profile has been built, `platform` and `unavailableToolsets`. Credentials and certificate material are never reported.
 
@@ -288,9 +288,9 @@ The word covers two different guarantees, and the README, [docs/AUTH.md](AUTH.md
 | Level | Policy | Guarantee | What still happens |
 |---|---|---|---|
 | No writes to SAP | `"readOnly": true` | No tool that changes SAP state runs: no source write, no `lock`, no create, delete or activation, no transport, no unit test or ATC run, no snippet or class run, no abapGit or RAP write, no refactoring execution, no debugger or trace write. | Reads of any kind, including `runQuery` and `tableContents` (they read business data with the user's display authorizations), `revisions`, `transportUnifiedDiff`, `grepPackage`, refactoring previews, and `exportPackageSources`, which writes to the local disk only. |
-| No writes, no data, no source export | `readOnly` plus `allowFreeSql: false`, `deniedTables` and `deniedTools: ["exportPackageSources", "runQuery", "tableContents"]` | The above, and no table content reaches the model or the audit file, and no package is copied to disk. | Source reads, navigation, transport reads, dumps. |
+| No writes, no data, no source export | `readOnly` plus `deniedTools: ["exportPackageSources", "runQuery", "tableContents"]`, with `allowDataPreview` and `allowFreeSql` left out or `false` | The above, and no table content reaches the model or the audit file, and no package is copied to disk. | Source reads, navigation, transport reads, dumps. |
 
-A "production must be read-only" requirement in the sense of "the model cannot change production" is met by `readOnly` alone. A requirement that also covers business data or source leaving SAP is met by the second level, which is the `PRD` recipe below and the on-prem production entry in section 2. The README's `PRD` entry sits in between (`readOnly`, `allowFreeSql: false` and denied tables, but `tableContents` by name still allowed on other tables).
+A "production must be read-only" requirement in the sense of "the model cannot change production" is met by `readOnly` alone. A requirement that also covers business data or source leaving SAP is met by the second level, which is the `PRD` recipe below and the on-prem production entry in section 2. Table data is closed on both levels unless the entry opens it: a read-only destination that should still show rows states `allowDataPreview: true` next to `deniedTables`.
 
 ### Keys
 
@@ -298,7 +298,8 @@ A "production must be read-only" requirement in the sense of "the model cannot c
 |---|---|---|
 | `readOnly` | boolean | Only tools annotated read-only (`READ_ONLY_TOOLS` in `src/toolManifest.ts`, the tools marked with a book in [docs/TOOLS.md](TOOLS.md)) may run, plus the always-allowed set below. |
 | `deniedTools` | globs | Tool names, globs or `toolset:<name>` refused outright. The tools stay listed. |
-| `allowFreeSql` | boolean | `false` refuses `runQuery` and `tableContents` when it carries `sqlQuery`. Absent or `true` changes nothing. |
+| `allowDataPreview` | boolean | `true` lets `tableContents` read the rows of a table or CDS entity by name. Absent: refused, unless `MCP_ALLOW_DATA_PREVIEW=1` or `allowFreeSql: true` opens it. `false`: refused, and SQL with it. |
+| `allowFreeSql` | boolean | `true` allows `runQuery` and `tableContents` when it carries `sqlQuery`, and opens table data by name as well. Absent: refused, unless `MCP_ALLOW_FREE_SQL=1`. `false`: refused. |
 | `deniedTables` | globs | Table names that must not be read or referenced. |
 | `allowedPackages` | globs | Closed list: writes are only allowed into packages that match; an unknown package is refused. Reads are never gated. |
 | `allowedTransports` | globs | Every transport argument must match; creating transports is refused. |
@@ -311,13 +312,26 @@ Patterns are matched case-insensitively against the whole value: `*` matches any
 
 ### Gate order and what each gate covers
 
-Gates run in a fixed order and the first refusal wins: `readOnly`, `deniedTools`, `allowFreeSql`, `deniedTables`, `allowedPackages`, `allowedTransports`.
+Gates run in a fixed order and the first refusal wins: `readOnly`, `deniedTools`, `allowFreeSql`, `allowDataPreview`, `deniedTables`, `allowedPackages`, `allowedTransports`. The two data gates are the only ones that also run on a destination without a `policy` block.
 
 **readOnly.** Always allowed regardless of annotation (`ALWAYS_ALLOWED`): `login`, `logout`, `dropSession`, `listSystems`, `healthcheck`, `systemProfile`, `exportPackageSources`. Everything not annotated read-only is refused: source writes, `lock`, create, delete and activation, `createTransport`, `transportRelease`, `unitTestRun`, `createAtcRun`, `atcSummary`, `runClass`, `runSnippet`, abapGit writes, refactoring executions, debugger and trace writes. Still allowed because they are reads: `runQuery`, `tableContents`, `revisions`, `transportUnifiedDiff`, `grepPackage`, refactoring previews.
 
 **deniedTools.** The tool name against each glob, or, for an entry written `toolset:<name>` (the name may be a glob), the tool's toolset from the manifest. Use `toolset:git` rather than `git*`: five abapGit tools (`pushRepo`, `stageRepo`, `checkRepo`, `remoteRepoInfo`, `switchRepoBranch`) carry no git prefix, and `pushRepo` sends ABAP source to an external remote.
 
-**allowFreeSql.** Only when set to `false`: `runQuery` (any statement) and `tableContents` with a `sqlQuery` argument.
+**allowFreeSql.** Unless `true`: `runQuery` (any statement) and `tableContents` with a `sqlQuery` argument.
+
+**allowDataPreview.** Unless open: `tableContents` and `runQuery`. Open means `allowDataPreview: true`, or `allowFreeSql: true` with `allowDataPreview` absent. The effective pair is what `listSystems` reports as `dataAccess` for every destination:
+
+| `allowDataPreview` | `allowFreeSql` | `tableContents` by name | `runQuery`, `sqlQuery` |
+|---|---|---|---|
+| absent | absent | refused | refused |
+| `true` | absent or `false` | allowed | refused |
+| absent | `true` | allowed | allowed |
+| `true` | `true` | allowed | allowed |
+| `false` | any | refused | refused |
+| absent | `false` | refused | refused |
+
+"Absent" takes the value of `MCP_ALLOW_DATA_PREVIEW` or `MCP_ALLOW_FREE_SQL` when that variable is set. The refusal names the key to set; the reasons for the default are in [docs/API-POLICY.md](API-POLICY.md#business-data).
 
 **deniedTables.** The names collected from the call: `ddicEntityName` of `tableContents`; every `FROM` and `JOIN` target of a `sqlQuery` (`tableContents` or `runQuery`); and, best effort, the `FROM`/`JOIN` targets found in the ABAP text of `runSnippet` (`code`), `setObjectSource` and `setMethodSource` (`source`). The scan is a regular expression over the text, so dynamic table names, `editObjectSource` replacements, CDS views over a denied table and `getObjectSource` of code that reads it are not detected. For data that must not leave SAP, rely on the display authorizations of the connected user and pair `deniedTables` with `allowFreeSql: false` and `deniedTools: ["runSnippet"]` or `readOnly`.
 
@@ -343,7 +357,7 @@ A refusal is an MCP `InvalidRequest` error rendered as a JSON text result with `
 
 ```json
 {
-  "error": "MCP error -32600: Policy: runQuery blocked on destination QAS (allowFreeSql): free SQL (runQuery) is disabled; use tableContents on an allowed table. Configured in systems.json policy; retrying will not help.",
+  "error": "MCP error -32600: Policy: runQuery blocked on destination QAS (allowFreeSql): free SQL (runQuery) is off on this destination: its policy states \"allowFreeSql\": false. Configured in systems.json policy; retrying will not help.",
   "code": -32600,
   "kind": "policyDenied",
   "hint": "The server policy for this destination refuses the call. Retrying will not help: pick another destination (listSystems shows each policy) or ask the owner to change the policy in systems.json.",
@@ -369,7 +383,7 @@ Production locked down (the second read-only level: no writes, no data, no sourc
 }
 ```
 
-`readOnly` alone still allows `runQuery`, `tableContents` and `exportPackageSources`; the `deniedTools` line closes them. `deniedTables` and `allowFreeSql` then only matter for the text scan of source writes, which `readOnly` already refuses; they are kept so that relaxing `deniedTools` later does not silently reopen the tables.
+`readOnly` alone still allows `exportPackageSources`, and table data wherever `allowDataPreview` or `allowFreeSql` (or their environment defaults) open it; the `deniedTools` line closes all three whatever the defaults are. `deniedTables` and `allowFreeSql: false` then only matter for the text scan of source writes, which `readOnly` already refuses; they are kept so that relaxing `deniedTools` later does not silently reopen the tables.
 
 Z-only development, local packages allowed, no releases, no abapGit:
 
@@ -467,6 +481,8 @@ All variables declared in [server.json](../server.json), plus the two the server
 | Variable | Default | Effect |
 |---|---|---|
 | `MCP_READ_ONLY` | off | Adds `readOnly: true` to every destination's policy on top of the file; redundant and harmless where the file already says so, fixed for the life of the process (section 1). |
+| `MCP_ALLOW_DATA_PREVIEW` | off | Default of `allowDataPreview` for the destinations that do not state the key: `tableContents` may read table data there. A destination that states `false` stays closed. |
+| `MCP_ALLOW_FREE_SQL` | off | Default of `allowFreeSql` for the destinations that do not state the key: `runQuery` and `sqlQuery` are allowed there, table data by name with them. A destination that states `false`, or `allowDataPreview: false`, stays closed. |
 | `SAP_ALLOW_REENTRANCE_TICKET` | off | Enables the `reentranceTicket` tool, which returns a live logon credential into the conversation; without it the tool answers `reentranceTicket is disabled ...` before calling SAP. |
 | `NODE_TLS_REJECT_UNAUTHORIZED` | unset | Not a server option, and it does not work here: `0` would disable certificate verification for every connection of the process, so the server deletes the variable at startup and reports that it was ignored. Use `tls.ca` (also for a self-signed certificate) or `insecureTls` on the destination that needs it. |
 
@@ -485,6 +501,7 @@ All variables declared in [server.json](../server.json), plus the two the server
 | `MCP_MAX_RESPONSE_CHARS` | `40000` | Character budget of one tool response; results are paged or truncated to fit and report `hasMore`. Values below `5000` or non-numeric are ignored with a stderr message. Raise it when the host accepts larger outputs. |
 | `MCP_SOURCE_CACHE_TTL_SECONDS` | `300` | Lifetime of the per-destination, per-session source cache reused by `syntaxCheckCode`, `grepPackage`, `cdsViewInfo`, `typeHierarchy`, `abapDocumentation` and `apiReleaseState(sourceUrl)`. `0` keeps entries until `logout`, `dropSession` or a re-authentication; a negative or non-numeric value falls back to `300`. Read once at process start. |
 | `MCP_CACHE_DIR` | `~/.abap-adt-mcp/cache` | Directory of the cloudification repository files downloaded by `apiReleaseState` (24-hour lifetime, 15-second download timeout, cached copy used when the download fails). Not in `server.json`. |
+| `MCP_API_CLASSIFICATION_FILES` | unset | Comma list of extra classification files for `apiReleaseState`: a `.json` path inside the `src` folder of SAP's cloudification repository (`partner/objectClassifications_ACME.json`) or an `https` URL. Anything else (`http`, `..`, an absolute path) fails the call by name. Entries are merged into the classifications; a file that cannot be read is listed with its error in `repository.extraFiles` of every answer. |
 | `MCP_EXPORT_ROOT` | `~/.abap-adt-mcp/exports` | The only directory tree `exportPackageSources` may write into; `targetDir` must be an absolute path inside it, compared on real paths so a symlink cannot escape. |
 
 **Audit**
@@ -531,7 +548,7 @@ All variables declared in [server.json](../server.json), plus the two the server
 | `SAP_TLS_INSECURE` | Disables certificate verification for that system. |
 | `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE` | OAuth2 client. Read when `SAP_AUTH_TYPE=oauth`, or when `SAP_AUTH_TYPE` is unset and the first three are all present; a missing one under `oauth` fails with `OAuth mode requires environment variables: ...`. |
 
-Legacy mode has no `policy`, `tls` or `gitUser` equivalents (only `MCP_READ_ONLY` applies); moving to `systems.json` is the way to get them.
+Legacy mode has no `policy`, `tls` or `gitUser` equivalents (only `MCP_READ_ONLY`, `MCP_ALLOW_DATA_PREVIEW` and `MCP_ALLOW_FREE_SQL` apply); moving to `systems.json` is the way to get them.
 
 ## 6. HTTP transport
 

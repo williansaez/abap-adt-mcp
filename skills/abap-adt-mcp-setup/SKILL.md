@@ -21,7 +21,7 @@ Create `~/.abap-adt-mcp/systems.json` (mode 0600) with one entry per destination
 ```
 
 - `authType`: `sso` opens a browser once per host and keeps a persistent profile (S/4HANA Cloud with IAS); `basic` for on-prem users; `oauth` with `oauth.tokenUrl/clientId/clientSecret` for a communication arrangement.
-- `policy` is enforced by the server before any SAP call: `readOnly`, `deniedTools`, `allowFreeSql`, `deniedTables`, `allowedPackages`, `allowedTransports` (globs). `MCP_READ_ONLY=1` makes everything read-only. `$*` (local packages) belongs on on-prem entries only: the tested S/4HANA Public Cloud tenant refuses `$TMP`.
+- `policy` is enforced by the server before any SAP call: `readOnly`, `deniedTools`, `allowDataPreview`, `allowFreeSql`, `deniedTables`, `allowedPackages`, `allowedTransports` (globs). `MCP_READ_ONLY=1` makes everything read-only. Table data is closed by default: `tableContents` needs `allowDataPreview: true` and `runQuery` needs `allowFreeSql: true` on the destination; ask the user before adding either, and never add them to a production entry on your own. `$*` (local packages) belongs on on-prem entries only: the tested S/4HANA Public Cloud tenant refuses `$TMP`.
 - Secrets: never inline. `${env:VAR}` works in every string and a missing variable fails at startup by name. A file readable by others is refused when it holds an inline password.
 - TLS stays on. `tls.ca` adds a corporate or self-signed CA; `tls.servername` names the certificate when the system is reached by IP address or short hostname; `tls.cert`/`tls.key` or `tls.pfx` for client certificates. `insecureTls: true` is the last resort, per destination, announced at startup. `NODE_TLS_REJECT_UNAUTHORIZED=0` is ignored by the server.
 

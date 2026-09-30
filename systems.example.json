@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to systems.json (gitignored) or point SAP_SYSTEMS_FILE at it. One entry per ABAP system (destination); tools take a `destination` argument naming one of these keys. Mark one entry with \"default\": true to use it when destination is omitted. Optional per-entry gitUser/gitPassword supply abapGit credentials so they never pass through the model. Optional per-entry \"policy\" block: readOnly, deniedTools (globs), allowFreeSql, deniedTables (globs), allowedPackages (globs, closed), allowedTransports (globs, no new transports). MCP_READ_ONLY=1 makes every destination read-only. Optional per-entry \"tls\": ca (extra CA bundle), cert+key or pfx+passphrase (client certificate). authType=sso2 accepts an ephemeral ticket from a trusted local provider; see docs/AUTH.md.",
+  "_comment": "Copy to systems.json (gitignored) or point SAP_SYSTEMS_FILE at it. One entry per ABAP system (destination); tools take a `destination` argument naming one of these keys. Mark one entry with \"default\": true to use it when destination is omitted. Optional per-entry gitUser/gitPassword supply abapGit credentials so they never pass through the model. Optional per-entry \"policy\" block: readOnly, deniedTools (globs), allowDataPreview, allowFreeSql, deniedTables (globs), allowedPackages (globs, closed), allowedTransports (globs, no new transports). Table data is closed unless stated: allowDataPreview=true opens tableContents by name, allowFreeSql=true opens runQuery and implies the former (MCP_ALLOW_DATA_PREVIEW=1 / MCP_ALLOW_FREE_SQL=1 set the default for entries that do not state the key). MCP_READ_ONLY=1 makes every destination read-only. Optional per-entry \"tls\": ca (extra CA bundle), cert+key or pfx+passphrase (client certificate). authType=sso2 accepts an ephemeral ticket from a trusted local provider; see docs/AUTH.md.",
   "DEV": {
     "url": "https://myXXXXXX.s4hana.cloud.sap",
     "client": "080",
@@ -32,6 +32,7 @@
         "HR*",
         "USR02"
       ],
+      "allowDataPreview": true,
       "allowFreeSql": false,
       "deniedTools": [
         "transportRelease",
@@ -60,7 +61,7 @@
     },
     "policy": {
       "readOnly": true,
-      "allowFreeSql": false,
+      "allowDataPreview": false,
       "deniedTools": [
         "exportPackageSources"
       ]
