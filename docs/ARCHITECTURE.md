@@ -268,7 +268,7 @@ That rewrite is narrow by design, and two things in README.md sit outside what i
 
 ## Test layout
 
-Tests are Jest with `ts-jest` (the `jest` block in `package.json`), rooted at `src/` and matched by `**/__tests__/**/*.test.ts`. Sources import siblings with a `.js` suffix while compiling to CommonJS, so `moduleNameMapper` strips it (`'^(\\.{1,2}/.*)\\.js$': '$1'`). Coverage is on by default; CI passes `--coverage=false`. `tsconfig.test.json` extends `tsconfig.json` with `noEmit` and the `jest` and `node` types and includes the tests, so `npx tsc --noEmit -p tsconfig.test.json` type-checks them; the production `tsconfig.json` excludes `src/**/__tests__/**` so they never reach `dist/`.
+Tests are Jest with `ts-jest` (the `jest` block in `package.json`), rooted at `src/` and matched by `**/__tests__/**/*.test.ts`. Sources import siblings with a `.js` suffix while compiling to CommonJS, so `moduleNameMapper` strips it (`'^(\\.{1,2}/.*)\\.js$': '$1'`). Coverage is on by default; CI passes `--coverage=false`. `src/__tests__/tsconfig.json` extends `tsconfig.json` with `noEmit` and the `jest` and `node` types and includes the tests, so `npx tsc --noEmit -p src/__tests__/tsconfig.json` type-checks them; the production `tsconfig.json` excludes `src/**/__tests__/**` so they never reach `dist/`.
 
 Three groups:
 

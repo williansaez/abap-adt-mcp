@@ -294,7 +294,7 @@ npm ci
 npm run build
 ```
 
-Then point the host at `node /absolute/path/abap-adt-mcp/dist/index.js`. A `systems.json` next to the checkout is picked up automatically; `.env` (see [.env.example](.env.example)) works for single-system setups. Both are git-ignored.
+Then point the host at `node /absolute/path/abap-adt-mcp/dist/index.js`. A `systems.json` next to the checkout is picked up automatically; `.env` (see [docs/env.example](docs/env.example)) works for single-system setups. Both are git-ignored.
 
 ## Authentication
 
@@ -361,7 +361,7 @@ Lessons that apply everywhere: `runQuery` statements are wrapped to the data pre
 
 Every option with its default, the policy gates tool by tool, host snippets and operational notes are in [docs/CONFIGURATION.md](docs/CONFIGURATION.md); this section is the summary.
 
-Configuration sources, in order of precedence: `SAP_SYSTEMS` (inline JSON), `SAP_SYSTEMS_FILE`, a `systems.json` next to the install, then the legacy single-system variables (`SAP_URL`, `SAP_CLIENT`, `SAP_USER`, `SAP_PASSWORD`, `SAP_LANGUAGE`, `SAP_TLS_INSECURE`, `SAP_SSO2_COMMAND`, `SAP_SSO2_ARGS`, `SAP_SSO2_TIMEOUT_MS`, `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE`, see [.env.example](.env.example)).
+Configuration sources, in order of precedence: `SAP_SYSTEMS` (inline JSON), `SAP_SYSTEMS_FILE`, a `systems.json` next to the install, then the legacy single-system variables (`SAP_URL`, `SAP_CLIENT`, `SAP_USER`, `SAP_PASSWORD`, `SAP_LANGUAGE`, `SAP_TLS_INSECURE`, `SAP_SSO2_COMMAND`, `SAP_SSO2_ARGS`, `SAP_SSO2_TIMEOUT_MS`, `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE`, see [docs/env.example](docs/env.example)).
 
 Per-destination keys in `systems.json`: `url`, `client`, `language`, `authType`, `default`, `user`/`password` (basic), `sso2` (`command`, `args`, `timeoutMs`), `oauth` (`tokenUrl`, `clientId`, `clientSecret`, `scope`), `insecureTls`, `gitUser`/`gitPassword`, `policy` and `tls` (`ca`, `servername`, `cert` + `key`, `pfx` + `passphrase`). Any string value may be `${env:VAR}`. Keys starting with `_` are ignored, so `_comment` entries are fine. All operational output (startup warnings, gate messages, the audit-file warning) goes to stderr, which MCP hosts capture in their logs.
 
