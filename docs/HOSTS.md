@@ -376,7 +376,7 @@ The image `ghcr.io/williansaez/abap-adt-mcp` (tags `latest` and `vX.Y.Z`) runs a
 
 **Pitfalls.**
 
-- Browser SSO cannot run inside the container (no browser, no display). Run `sso` destinations from npm on the workstation; `basic` and `oauth` work in the image ([AUTH.md](AUTH.md)).
+- Browser SSO cannot run inside the container (no browser, no display): the login refuses at once with `needs a display` instead of trying. Run `sso` destinations from npm on the workstation; `basic` and `oauth` work in the image ([AUTH.md](AUTH.md)).
 - The mounted file is read by uid 1000. A `systems.json` at mode `0600` owned by your own uid fails with `is not valid JSON: EACCES`; own it by uid 1000, or make it readable and keep every secret as `${env:VAR}` (the server warns and starts, see [Other ways to install](../README.md#other-ways-to-install)).
 - The `MCP_AUDIT_FILE` directory needs the same uid-1000 ownership, or the first call that would write to it fails once with `EACCES` on stderr (`docker logs`) and every later call is silently unrecorded while everything else keeps working; [docs/CONFIGURATION.md](CONFIGURATION.md#container-deployment) has the volume and `chown` recipe, including the Docker Desktop exception on macOS and Windows where bind mounts are writable to any uid.
 - `docker` must be on the host's `PATH`; the Claude Desktop rule applies (absolute path in `command` when needed).

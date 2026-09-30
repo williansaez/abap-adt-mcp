@@ -134,6 +134,19 @@ export function redirectedOrigin(
 
 export interface BrowserLoginOptions {
   timeoutMs?: number;
+  /** For tests: where the login runs. */
+  platform?: NodeJS.Platform;
+  env?: NodeJS.ProcessEnv;
+}
+
+/**
+ * Whether a browser window can open here. macOS and Windows always have a
+ * desktop session for the user running the server; on Linux a display is a
+ * variable, and a CI runner, a container or a server has none.
+ */
+export function displayAvailable(platform: NodeJS.Platform = process.platform, env: NodeJS.ProcessEnv = process.env): boolean {
+  if (platform !== 'linux') return true;
+  return !!(env.DISPLAY || env.WAYLAND_DISPLAY);
 }
 
 /**
@@ -148,6 +161,15 @@ export async function browserLogin(
 ): Promise<HarvestedCookie[]> {
   const host = new URL(sapUrl).host; // profile directory name and messages
   const cookieHost = cookieHostOf(sapUrl);
+  // A headless machine cannot complete a browser login: say so before touching
+  // a browser, instead of a launch error from Chrome or a 300-second wait.
+  if (!displayAvailable(opts.platform, opts.env)) {
+    throw new Error(
+      `Browser SSO for ${host} needs a display, and this machine has none (Linux without DISPLAY or WAYLAND_DISPLAY: a CI runner, a container, a server). ` +
+      'Nothing was launched. Use a destination that logs on without a browser: authType "oauth" (S/4HANA Cloud, client from a Communication Arrangement) or "sso2" (on-premise, local ticket provider), ' +
+      'or run the server on a workstation where the window can open. See docs/AUTH.md.'
+    );
+  }
   const executablePath = detectBrowser();
   // Profile for the login window. Default: a dedicated persistent profile per
   // host, so "keep me signed in" survives restarts without touching the user's

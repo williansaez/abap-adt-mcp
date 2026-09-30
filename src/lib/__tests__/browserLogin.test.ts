@@ -1,4 +1,4 @@
-import { belongsToHost, candidateBrowsers, cookieHostOf, profileDirName, redirectedOrigin } from '../browserLogin';
+import { belongsToHost, browserLogin, candidateBrowsers, cookieHostOf, displayAvailable, profileDirName, redirectedOrigin } from '../browserLogin';
 
 describe('browser SSO cookie host matching', () => {
   it('matches cookies against the hostname, never the host with its port', () => {
@@ -49,6 +49,24 @@ describe('browser SSO login redirected to another host', () => {
 
   it('ignores navigations without a usable URL', () => {
     expect(redirectedOrigin([session], '10.1.2.3', ['about:blank', 'chrome-error://chromewebdata/', ''])).toBeUndefined();
+  });
+});
+
+describe('browser SSO without a display', () => {
+  it('knows when a browser window can open', () => {
+    expect(displayAvailable('darwin', {})).toBe(true);
+    expect(displayAvailable('win32', {})).toBe(true);
+    expect(displayAvailable('linux', {})).toBe(false);
+    expect(displayAvailable('linux', { DISPLAY: ':0' })).toBe(true);
+    expect(displayAvailable('linux', { WAYLAND_DISPLAY: 'wayland-0' })).toBe(true);
+    expect(displayAvailable('linux', { DISPLAY: '' })).toBe(false);
+  });
+
+  it('refuses at once on a headless Linux machine, before looking for a browser, and says what to use instead', async () => {
+    const started = Date.now();
+    await expect(browserLogin('https://sap.example.com:44300', '100', { platform: 'linux', env: { SAP_BROWSER_PATH: '/usr/bin/google-chrome' } }))
+      .rejects.toThrow(/needs a display[\s\S]*oauth[\s\S]*sso2/);
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 });
 
