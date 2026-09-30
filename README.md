@@ -106,7 +106,7 @@ Create a folder `.abap-adt-mcp` in your home directory and a file `systems.json`
     "url": "https://myYYYYYY.s4hana.cloud.sap",
     "client": "100",
     "authType": "sso",
-    "policy": { "readOnly": true, "deniedTables": ["PA*", "HR*", "USR02"], "allowFreeSql": false }
+    "policy": { "readOnly": true, "allowDataPreview": true, "deniedTables": ["PA*", "HR*", "USR02"] }
   },
   "ONPREM": {
     "url": "https://sap.example.com:44300",
@@ -458,22 +458,25 @@ Destructive tools (`deleteObject`, `transportRelease`, `transportDelete`, `setOb
 
 ## Compared with SAP's official ADT MCP Server
 
-SAP's ADT MCP Server ships with ADT for VS Code and Eclipse and publishes under the server key `abap-adt` with its own tool names, which public skills such as `claude-abap-skills` route by. This project publishes under `abap-adt-mcp`, serves many destinations from one process over stdio or HTTP, enforces policies server-side, and adds compositions such as `resolveTransport`, `editObjectSource`, `grepPackage`, `apiReleaseState`, `runSnippet` and `objectDiff`. The two can be registered side by side in the same host, since keys and tool names do not collide. This README does not catalogue what SAP's server offers beyond this one; [docs/ROUTING.md](docs/ROUTING.md) maps SAP's names to ours where an equivalent exists. A few rows:
+SAP's ADT MCP Server ships with ADT for VS Code and Eclipse and publishes under the server key `abap-adt` with its own tool names, which public skills such as `claude-abap-skills` route by. This project publishes under `abap-adt-mcp`, serves many destinations from one process over stdio or HTTP, enforces policies server-side, and adds compositions such as `resolveTransport`, `editObjectSource`, `grepPackage`, `apiReleaseState`, `runSnippet` and `objectDiff`. The two can be registered side by side in the same host, since keys and tool names do not collide. This README does not catalogue what SAP's server offers beyond this one; [docs/ROUTING.md](docs/ROUTING.md) maps SAP's names to ours where an equivalent exists.
 
-| SAP official tool / capability | abap-adt-mcp tool(s) |
+Names as the SAP Help page "Model Context Protocol Tools" lists them (September 2026); a running server may spell one or two slightly differently. SAP's server creates, activates, tests, checks and transports; it does not read or search source, write source, lock, or show dumps: those come only from this server.
+
+| SAP official tool | abap-adt-mcp tool(s) |
 |---|---|
 | `abap_lists_destinations` | `listSystems`, `systemProfile` |
-| `SAPRead` / `abap_get_source` | `getObjectSource` (`version=inactive` for unactivated code) |
-| `SAPSearch` / `abap_search_objects` | `searchObject`; by content `sourceTextSearch`, `grepPackage` |
-| `abap_write_source` / `SAPWrite` | `setObjectSource` (`activate=true`), targeted `editObjectSource` |
-| `abap_activate_objects` / `ActivatePackage` | `activateByName`, `activateObjects`, `inactiveObjects` |
+| `abap_creation-get_all_creatable_objects`, `abap_creation-get_object_type_details` | `objectTypes`, `creatableTypeDetails` |
+| `abap_creation-run_validation`, `abap_creation-create_object` | `validateNewObject`, `createObject` |
+| `abap_activate_objects` | `activateByName`, `activateObjects`, `activatePackage` |
 | `abap_run_unit_tests` | `unitTestRun`, `unitTestEvaluation` |
-| `abap_atc_run` / `abap_atc_findings` | `createAtcRun`, `atcWorklists`, `atcQuickfixProposals`, `atcApplyQuickfix`, `atcDocumentation` |
-| `abap_transport-unifiedDifference` | `transportUnifiedDiff`, `transportDetails` |
-| `abap_generators-*` | `rapGenIsAvailable`, `rapGenGetSchema`, `rapGenValidateContent`, `rapGenPreview`, `rapGenGenerate`, `rapGenPublishService` |
-| `abap_lock` / `abap_unlock` | Not needed for single writes (auto-lock); `lock`, `unLock`, `listLocks`, `forceUnlock` |
-| `abap_dumps` | `dumps`, `dumpDetails` |
-| released-API / Clean Core check | `apiReleaseState` |
+| `abap_transport-create`, `abap_transport-get` | `createTransport`, `resolveTransport`, `transportInfo`, `transportDetails`, `userTransports` |
+| `abap_transport-unifiedDifference` | `transportUnifiedDiff` |
+| `abap_generators-list_generators`, `abap_generators-get_schema`, `abap_generators-generate_objects` | `rapGenIsAvailable`, `rapGenGetSchema`, `rapGenValidateContent`, `rapGenPreview`, `rapGenGenerate` |
+| `abap_business_services-fetch_services`, `abap_business_services-fetch_service_information` | `fetchServiceDetails`, `bindingDetails` |
+| `abap_atc_run`, `abap_atc_get_result` | `createAtcRun`, `atcWorklists`, `atcSummary` |
+| `abap_atc_execute_deterministic_quickfixes` | `atcQuickfixProposals`, `atcApplyQuickfix` |
+| `abap_atc_apply_ai_fix`, `abap_atc_get_ai_fix_result` (Joule licence) | No equivalent: the model reads the finding (`atcDocumentation`) and edits the source itself (`editObjectSource`) |
+| Not in SAP's server: read and search source, write source, locks, dumps, data, where-used, debugger, abapGit, Clean Core check | `getObjectSource`, `searchObject`, `sourceTextSearch`, `grepPackage`, `setObjectSource`, `editObjectSource`, `lock`, `dumps`, `runQuery`, `whereUsed`, the debugger and abapGit toolsets, `apiReleaseState` |
 
 ## SAP API Policy
 
