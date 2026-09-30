@@ -81,7 +81,7 @@
     ]
   },
   "apiReleaseState": {
-    "when": "Before using an SAP object in ABAP Cloud code, check its release state against SAP's cloudification repository: names (CL_X, TABL:MARA, FUGR:...), an objectUrl, or a whole source or sourceUrl to scan every referenced object. edition selects cloud, btp, pce2023 or pce2022.",
+    "when": "Before using an SAP object in ABAP Cloud code, check its release state against SAP's cloudification repository: names (CL_X, TABL:MARA, FUGR:...), an objectUrl, or a whole source or sourceUrl to scan every referenced object. edition selects cloud, btp, pce (Private Cloud, latest), pce2025, pce2023 or pce2022. Read apiPolicy on every result: prohibited means SAP classifies the interface as not permitted, so report it to the user and do not write code that calls it.",
     "returns": "{status, edition, repository {loadedAt, releasedEntries, classificationEntries}, summary {checked, cloudReady, notCloudReady, unknown, customerObjects}, blockers[] (up to 50), results[] with state and successors, unknown[] plus unknownNote (only when something is unknown), scannedIdentifiers (source scans), backendApiRelease (whenever objectUrl is given: available=true with attributes, or available=false with httpStatus or error when the backend has no /sap/bc/adt/apireleases), capped}.",
     "pitfalls": "Needs internet access to raw.githubusercontent.com (24h cache, refresh=true to re-download). unknown means not in the repository, not a blocker; verify in the system. Source scanning is heuristic on identifiers.",
     "seeAlso": [
@@ -915,7 +915,7 @@
   "listSystems": {
     "when": "First call of a session: it shows the configured destinations so you can pass `destination` to every other tool, and the policy each one enforces. It never talks to SAP.",
     "returns": "`{systems: [{destination, url, client, authType, policy?, tls?, platform?, unavailableToolsets?}], default, activeToolsets}`. `platform` and `unavailableToolsets` appear only for destinations whose profile has already been built (by systemProfile or by the first call of a gated toolset).",
-    "pitfalls": "`policy` echoes the per-destination guard rails from systems.json (readOnly, deniedTools, allowedPackages, allowedTransports, deniedTables, allowFreeSql; README section Keeping it safe and docs/AUTH.md). A `policyDenied` error points back here: the same call may be allowed on another destination.",
+    "pitfalls": "`policy` echoes the per-destination guard rails from systems.json (readOnly, deniedTools, allowedPackages, allowedTransports, deniedTables, allowDataPreview, allowFreeSql; README section Keeping it safe and docs/AUTH.md). `dataAccess` is the effective answer for table data on every destination, with or without a policy: both flags are false until the destination opens them. A `policyDenied` error points back here: the same call may be allowed on another destination.",
     "seeAlso": [
       "healthcheck",
       "systemProfile",
@@ -1282,7 +1282,7 @@
   "runQuery": {
     "when": "Run an ABAP SQL SELECT through the ADT data preview over tables and CDS views (released views included): the standard way to look at business data. Switch to tableContents when the preview refuses the table.",
     "returns": "{status, result {columns[] with name and type, values[]}, note?}; paged with totalRows, startRow, returnedRows, hasMore; note says when the statement was re-wrapped.",
-    "pitfalls": "The preview reads 255-character lines; the server re-flows long statements, but a single literal over 255 characters is an error. Keys keep their internal format (leading zeros). Errors carry hints for restricted tables and missing authorization. Refused when the policy sets allowFreeSql=false or lists the table in deniedTables.",
+    "pitfalls": "The preview reads 255-character lines; the server re-flows long statements, but a single literal over 255 characters is an error. Keys keep their internal format (leading zeros). Errors carry hints for restricted tables and missing authorization. Refused unless the destination's policy states allowFreeSql=true (free SQL is off by default), and when the table is in deniedTables. The refusal is final: tell the user which key opens it instead of retrying or switching tools.",
     "seeAlso": [
       "tableContents",
       "ddicElement",
@@ -1473,7 +1473,7 @@
   "tableContents": {
     "when": "Read rows of a table or CDS entity by name without SQL, and the fallback when runQuery is refused for a table with restricted dataMaintenance. Use runQuery for joins, projections and filters.",
     "returns": "{status, result {columns[], values[]}}; paged with totalRows, startRow, returnedRows, hasMore and autoPaged or capped flags when large.",
-    "pitfalls": "rowNumber (default 100) caps the rows requested from SAP; startRow and maxRows only page what was fetched. sqlQuery on this tool counts as free SQL under allowFreeSql=false, and deniedTables applies. Display authorization S_TABU_DIS or S_TABU_NAM is still required.",
+    "pitfalls": "rowNumber (default 100) caps the rows requested from SAP; startRow and maxRows only page what was fetched. Refused unless the destination's policy states allowDataPreview=true or allowFreeSql=true (table data is off by default); sqlQuery on this tool counts as free SQL and needs allowFreeSql=true; deniedTables applies. Display authorization S_TABU_DIS or S_TABU_NAM is still required.",
     "seeAlso": [
       "runQuery",
       "ddicElement",

@@ -17,7 +17,7 @@ export class QueryHandlers extends BaseHandler {
         return [
             {
                 name: 'tableContents',
-                description: `Retrieves the contents of an ABAP table or CDS entity by name (no SQL). Works on tables the data preview refuses for runQuery (dataMaintenance restricted); authorization (S_TABU_DIS/S_TABU_NAM) still applies. rowNumber caps how many rows are requested from SAP itself (default ${DEFAULT_ROW_NUMBER} if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.`,
+                description: `Retrieves the contents of an ABAP table or CDS entity by name (no SQL). Reading table data is off unless the destination allows it (policy allowDataPreview or allowFreeSql in systems.json; listSystems shows dataAccess per destination): a refusal is final, tell the user instead of retrying. Works on tables the data preview refuses for runQuery (dataMaintenance restricted); authorization (S_TABU_DIS/S_TABU_NAM) still applies. rowNumber caps how many rows are requested from SAP itself (default ${DEFAULT_ROW_NUMBER} if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.`,
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -56,7 +56,7 @@ export class QueryHandlers extends BaseHandler {
             },
             {
                 name: 'runQuery',
-                description: `Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, released API views included). Long statements are wrapped automatically to the preview's 255-character line limit, so wide select lists are fine; a single literal longer than 255 characters is not. Tables whose DDIC dataMaintenance is restricted are refused by the preview: use tableContents for those. Key fields keep their internal format (leading zeros, see getDataElementProperties). rowNumber caps how many rows are requested from SAP itself (default ${DEFAULT_ROW_NUMBER} if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.`,
+                description: `Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, released API views included). Free SQL is off unless the destination allows it (policy allowFreeSql in systems.json; listSystems shows dataAccess per destination): a refusal is final, tell the user instead of retrying. Long statements are wrapped automatically to the preview's 255-character line limit, so wide select lists are fine; a single literal longer than 255 characters is not. Tables whose DDIC dataMaintenance is restricted are refused by the preview: use tableContents for those. Key fields keep their internal format (leading zeros, see getDataElementProperties). rowNumber caps how many rows are requested from SAP itself (default ${DEFAULT_ROW_NUMBER} if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.`,
                 inputSchema: {
                     type: 'object',
                     properties: {

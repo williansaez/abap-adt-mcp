@@ -1,4 +1,4 @@
-import { refactoringTransports, evaluatePolicy, parsePolicy, globMatch, objectUrlOf, tablesInSql, summarizePolicy } from '../policy';
+import { refactoringTransports, evaluatePolicy, parsePolicy, globMatch, objectUrlOf, tablesInSql, summarizePolicy, dataAccess } from '../policy';
 import { readSystems } from '../systems';
 
 const ctx = (pkgs: Record<string, string | undefined> = {}) => ({
@@ -25,8 +25,45 @@ describe('policy helpers', () => {
 });
 
 describe('evaluatePolicy gates', () => {
-  it('allows everything without a policy', async () => {
+  it('allows everything but data reads without a policy', async () => {
     expect(await evaluatePolicy(undefined, 'deleteObject', {}, ctx())).toEqual({ allowed: true });
+    expect(await evaluatePolicy(undefined, 'getObjectSource', {}, ctx())).toEqual({ allowed: true });
+    expect(await evaluatePolicy(undefined, 'ddicElement', { path: 'MARA' }, ctx())).toEqual({ allowed: true });
+  });
+
+  it('keeps table data and free SQL closed until the destination opens them', async () => {
+    const preview = await evaluatePolicy(undefined, 'tableContents', { ddicEntityName: 'T000' }, ctx());
+    expect(preview).toMatchObject({ allowed: false, gate: 'allowDataPreview' });
+    expect(preview.reason).toMatch(/"allowDataPreview": true/);
+    expect(preview.reason).toMatch(/MCP_ALLOW_DATA_PREVIEW=1/);
+    const sql = await evaluatePolicy({}, 'runQuery', { sqlQuery: 'select * from t000' }, ctx());
+    expect(sql).toMatchObject({ allowed: false, gate: 'allowFreeSql' });
+    expect(sql.reason).toMatch(/"allowFreeSql": true/);
+    // No alternative is offered that is closed as well.
+    expect(sql.reason).not.toMatch(/tableContents without sqlQuery/);
+    // A policy written for other gates does not open data by accident.
+    expect((await evaluatePolicy({ allowedPackages: ['Z*'] }, 'tableContents', { ddicEntityName: 'T000' }, ctx())).gate).toBe('allowDataPreview');
+  });
+
+  it('opens table data and free SQL separately, free SQL implying table data', async () => {
+    const preview = { allowDataPreview: true };
+    expect((await evaluatePolicy(preview, 'tableContents', { ddicEntityName: 'T000' }, ctx())).allowed).toBe(true);
+    const refused = await evaluatePolicy(preview, 'runQuery', { sqlQuery: 'select * from t000' }, ctx());
+    expect(refused.gate).toBe('allowFreeSql');
+    expect(refused.reason).toMatch(/tableContents without sqlQuery/);
+    expect((await evaluatePolicy(preview, 'tableContents', { ddicEntityName: 'T000', sqlQuery: 'select * from t000' }, ctx())).gate).toBe('allowFreeSql');
+
+    const sql = { allowFreeSql: true };
+    expect((await evaluatePolicy(sql, 'runQuery', { sqlQuery: 'select * from t000' }, ctx())).allowed).toBe(true);
+    expect((await evaluatePolicy(sql, 'tableContents', { ddicEntityName: 'T000' }, ctx())).allowed).toBe(true);
+
+    // An explicit false on table data closes SQL too, and says so.
+    const closed = { allowDataPreview: false, allowFreeSql: true };
+    expect(dataAccess(closed)).toEqual({ allowDataPreview: false, allowFreeSql: false });
+    expect((await evaluatePolicy(closed, 'runQuery', { sqlQuery: 'select * from t000' }, ctx())).reason).toMatch(/"allowDataPreview": false, which closes SQL as well/);
+    expect((await evaluatePolicy(closed, 'tableContents', { ddicEntityName: 'T000' }, ctx())).reason).toMatch(/states "allowDataPreview": false/);
+    expect(dataAccess(undefined)).toEqual({ allowDataPreview: false, allowFreeSql: false });
+    expect(dataAccess(sql)).toEqual({ allowDataPreview: true, allowFreeSql: true });
   });
 
   it('readOnly blocks writes but keeps reads and session tools', async () => {
@@ -77,14 +114,17 @@ describe('evaluatePolicy gates', () => {
   });
 
   it('allowFreeSql=false blocks runQuery and SQL through tableContents', async () => {
-    const p = { allowFreeSql: false };
+    const p = { allowDataPreview: true, allowFreeSql: false };
     expect((await evaluatePolicy(p, 'runQuery', { sqlQuery: 'select * from t000' }, ctx())).gate).toBe('allowFreeSql');
+    expect((await evaluatePolicy(p, 'runQuery', { sqlQuery: 'select * from t000' }, ctx())).reason).toMatch(/states "allowFreeSql": false/);
     expect((await evaluatePolicy(p, 'tableContents', { ddicEntityName: 'T000', sqlQuery: 'x' }, ctx())).gate).toBe('allowFreeSql');
     expect((await evaluatePolicy(p, 'tableContents', { ddicEntityName: 'T000' }, ctx())).allowed).toBe(true);
+    // allowFreeSql: false alone no longer leaves table data open.
+    expect((await evaluatePolicy({ allowFreeSql: false }, 'tableContents', { ddicEntityName: 'T000' }, ctx())).gate).toBe('allowDataPreview');
   });
 
   it('deniedTables covers direct reads and SQL joins', async () => {
-    const p = { deniedTables: ['PA*', 'USR02'] };
+    const p = { allowFreeSql: true, deniedTables: ['PA*', 'USR02'] };
     expect((await evaluatePolicy(p, 'tableContents', { ddicEntityName: 'pa0008' }, ctx())).reason).toMatch(/PA0008/);
     expect((await evaluatePolicy(p, 'runQuery', { sqlQuery: 'select * from t000 join usr02 on 1=1' }, ctx())).gate).toBe('deniedTables');
     expect((await evaluatePolicy(p, 'runQuery', { sqlQuery: 'select * from t000' }, ctx())).allowed).toBe(true);
@@ -131,6 +171,29 @@ describe('systems.json policy parsing', () => {
     const ro = readSystems({ ...env, MCP_READ_ONLY: '1' });
     expect(ro.get('QAS')!.policy).toEqual({ readOnly: true });
     expect(ro.get('DEV')!.policy).toMatchObject({ readOnly: true, allowedPackages: ['Z*'] });
+  });
+
+  it('applies MCP_ALLOW_DATA_PREVIEW and MCP_ALLOW_FREE_SQL only where the destination is silent', () => {
+    const env = {
+      SAP_SYSTEMS: JSON.stringify({
+        DEV: { url: 'https://dev', authType: 'basic', user: 'u', password: 'p' },
+        QAS: { url: 'https://qas', authType: 'basic', user: 'u', password: 'p', policy: { allowFreeSql: false, deniedTables: ['USR02'] } },
+        PRD: { url: 'https://prd', authType: 'basic', user: 'u', password: 'p', policy: { allowDataPreview: false } },
+      })
+    } as any;
+    const closed = readSystems(env);
+    expect(dataAccess(closed.get('DEV')!.policy)).toEqual({ allowDataPreview: false, allowFreeSql: false });
+
+    const preview = readSystems({ ...env, MCP_ALLOW_DATA_PREVIEW: '1' });
+    expect(dataAccess(preview.get('DEV')!.policy)).toEqual({ allowDataPreview: true, allowFreeSql: false });
+    expect(dataAccess(preview.get('QAS')!.policy)).toEqual({ allowDataPreview: true, allowFreeSql: false });
+    expect(preview.get('QAS')!.policy).toMatchObject({ deniedTables: ['USR02'] });
+    expect(dataAccess(preview.get('PRD')!.policy)).toEqual({ allowDataPreview: false, allowFreeSql: false });
+
+    const sql = readSystems({ ...env, MCP_ALLOW_FREE_SQL: 'true' });
+    expect(dataAccess(sql.get('DEV')!.policy)).toEqual({ allowDataPreview: true, allowFreeSql: true });
+    expect(dataAccess(sql.get('QAS')!.policy)).toEqual({ allowDataPreview: false, allowFreeSql: false });
+    expect(dataAccess(sql.get('PRD')!.policy)).toEqual({ allowDataPreview: false, allowFreeSql: false });
   });
 
   it('covers activatePackage, activateObjects, createObject parentPath, refactorings and unresolvable writes under allowedPackages', async () => {

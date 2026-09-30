@@ -5,17 +5,28 @@
  * (github.com/SAP/abap-atc-cr-cv-s4hc), the same JSON the ATC "cloud
  * readiness" checks consume. Fetched once per edition, cached in memory and
  * on disk (~/.abap-adt-mcp/cache) for 24 hours.
+ *
+ * SAP announced (API Policy overview, 2026-05-30) that the repository will
+ * also classify non-released and explicitly prohibited interfaces. Nothing
+ * here depends on the exact shape of that content: every entry array of a
+ * file is read whatever its key, states and labels this version does not know
+ * are passed through and flagged, a state or label that says "prohibited"
+ * (or unpermitted, forbidden, not allowed) outranks every other answer, and
+ * MCP_API_CLASSIFICATION_FILES adds files without a new release of the server.
  */
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-export type ReleaseEdition = 'cloud' | 'btp' | 'pce2023' | 'pce2022';
+export type ReleaseEdition = 'cloud' | 'btp' | 'pce' | 'pce2025' | 'pce2023' | 'pce2022';
+export const RELEASE_EDITIONS: ReleaseEdition[] = ['cloud', 'btp', 'pce', 'pce2025', 'pce2023', 'pce2022'];
 
 const FILES: Record<ReleaseEdition, string> = {
   cloud: 'objectReleaseInfoLatest.json',
   btp: 'objectReleaseInfo_BTPLatest.json',
-  pce2023: 'objectReleaseInfo_PCE2023_2.json',
+  pce: 'objectReleaseInfo_PCELatest.json',
+  pce2025: 'objectReleaseInfo_PCE2025_2.json',
+  pce2023: 'objectReleaseInfo_PCE2023_3.json',
   pce2022: 'objectReleaseInfo_PCE2022_2.json',
 };
 const CLASSIFICATIONS = 'objectClassifications_SAP.json';
@@ -31,7 +42,37 @@ export interface ReleaseEntry {
   applicationComponent?: string;
   state: string;
   successorClassification?: string;
+  successorConceptName?: string;
+  labels?: string[];
   successors?: Array<{ tadirObject: string; tadirObjName: string; objectType?: string; objectKey?: string }>;
+  /** File the entry was read from (set while indexing). */
+  source?: string;
+}
+
+/**
+ * Standing of an object derived from the repository: released (released API),
+ * classic (classic API), notReleased (SAP-internal, no release for customer
+ * use), prohibited (explicitly not permitted), customer, unknown. A reading of
+ * SAP's published classification, not a legal assessment.
+ */
+export type ApiPolicyStanding = 'released' | 'classic' | 'notReleased' | 'prohibited' | 'customer' | 'unknown';
+
+const KNOWN_STATES = new Set(['released', 'deprecated', 'notToBeReleased', 'notToBeReleasedStable', 'classicAPI', 'noAPI']);
+
+/**
+ * Interfaces SAP has declared not permitted for customer and third-party use
+ * in an SAP Note, listed here until the repository carries the classification
+ * itself. Matched by name prefix.
+ */
+export const DECLARED_UNPERMITTED: Array<{ prefix: string; what: string; sapNote: string }> = [
+  { prefix: 'RODPS_REPL', what: 'ODP Data Replication API over RFC (ODP-RFC)', sapNote: '3255746' },
+];
+
+const PROHIBITED_MARKER = /prohibit|forbid|unpermitted|notpermitted|notallowed|disallowed/;
+const squash = (v: unknown) => String(v ?? '').toLowerCase().replace(/[^a-z]/g, '');
+/** True when the state or a label of an entry says the interface must not be used. */
+export function isProhibited(e: Pick<ReleaseEntry, 'state' | 'labels'>): boolean {
+  return PROHIBITED_MARKER.test(squash(e.state)) || (Array.isArray(e.labels) && e.labels.some(l => PROHIBITED_MARKER.test(squash(l))));
 }
 
 export interface ReleaseIndex {
@@ -40,14 +81,25 @@ export interface ReleaseIndex {
   classificationByName: Map<string, ReleaseEntry[]>;
   loadedAt: string;
   counts: { released: number; classifications: number };
+  /** Files named in MCP_API_CLASSIFICATION_FILES: how many entries each gave, or why it could not be read. */
+  extraFiles: Array<{ file: string; entries?: number; error?: string }>;
 }
 
 export interface ReleaseVerdict {
   name: string;
   type?: string;
-  /** released | deprecated | classicAPI | noAPI | unknown (not in the repository) | customer */
+  /** released | deprecated | notToBeReleased | notToBeReleasedStable | classicAPI | noAPI | unknown (not in the repository) | customer | unpermitted (declared in an SAP Note) | any state the repository adds later */
   state: string;
+  apiPolicy: ApiPolicyStanding;
   cloudReady: boolean;
+  labels?: string[];
+  /** Successor given as a concept instead of an object. */
+  successorConcept?: string;
+  /** The repository used a state this version of the server does not know. */
+  unrecognizedState?: boolean;
+  sapNote?: string;
+  /** File the verdict came from, when it is not one of the two standard files. */
+  source?: string;
   successors: Array<{ name: string; type: string }>;
   softwareComponent?: string;
   applicationComponent?: string;
@@ -70,8 +122,26 @@ async function fetchText(url: string): Promise<string> {
   return res.text();
 }
 
+/**
+ * Entries of MCP_API_CLASSIFICATION_FILES: a path inside the repository's src
+ * folder (partner/objectClassifications_ACME.json) or an https URL.
+ */
+export function extraClassificationFiles(env: NodeJS.ProcessEnv = process.env): Array<{ file: string; url: string; cacheName: string }> {
+  const out: Array<{ file: string; url: string; cacheName: string }> = [];
+  for (const raw of String(env.MCP_API_CLASSIFICATION_FILES || '').split(',').map(s => s.trim()).filter(Boolean)) {
+    if (/^https:\/\//i.test(raw)) {
+      out.push({ file: raw, url: raw, cacheName: 'extra-' + raw.replace(/^https:\/\//i, '').replace(/[^\w.-]+/g, '_').slice(0, 150) });
+    } else if (/^[\w][\w./-]*\.json$/.test(raw) && !raw.includes('..')) {
+      out.push({ file: raw, url: BASE + raw, cacheName: raw.replace(/\//g, '_') });
+    } else {
+      throw new Error(`MCP_API_CLASSIFICATION_FILES: "${raw}" is neither an https URL nor a .json path inside the repository`);
+    }
+  }
+  return out;
+}
+
 /** Read a repository file from disk cache (fresh) or the network, updating the cache; a stale cache beats a failed download. */
-async function loadFile(name: string, loader: Loader): Promise<string> {
+async function loadFile(name: string, loader: Loader, url: string = BASE + name): Promise<string> {
   const file = cacheFile(name);
   let stale: string | undefined;
   try {
@@ -81,7 +151,7 @@ async function loadFile(name: string, loader: Loader): Promise<string> {
   } catch { /* no cache */ }
   let text: string;
   try {
-    text = await loader(BASE + name);
+    text = await loader(url);
   } catch (e: any) {
     if (stale) { console.error(`[abap-adt-mcp] ${name}: download failed (${e?.message || e}); using the cached copy`); return stale; }
     throw e;
@@ -93,24 +163,47 @@ async function loadFile(name: string, loader: Loader): Promise<string> {
   return text;
 }
 
-export function buildIndex(edition: ReleaseEdition, releaseJson: string, classificationJson?: string): ReleaseIndex {
+/** Every entry of a repository file, whatever key its array sits under: an object with a name and a state. */
+export function entriesOf(json: string): ReleaseEntry[] {
+  const parsed = JSON.parse(json);
+  const out: ReleaseEntry[] = [];
+  for (const v of Object.values(parsed && typeof parsed === 'object' ? parsed : {})) {
+    if (!Array.isArray(v)) continue;
+    for (const e of v) if (e && typeof e === 'object' && e.state && (e.tadirObjName || e.objectKey)) out.push(e);
+  }
+  return out;
+}
+
+export type ExtraFile = { file: string; json?: string; error?: string };
+
+export function buildIndex(edition: ReleaseEdition, releaseJson: string, classificationJson?: string, extras: ExtraFile[] = []): ReleaseIndex {
   const byName = new Map<string, ReleaseEntry[]>();
-  const add = (map: Map<string, ReleaseEntry[]>, e: ReleaseEntry) => {
+  const add = (map: Map<string, ReleaseEntry[]>, e: ReleaseEntry, source?: string) => {
     const key = String(e.tadirObjName || e.objectKey || '').toUpperCase();
     if (!key) return;
     const list = map.get(key) || [];
-    list.push(e);
+    list.push(source ? { ...e, source } : e);
     map.set(key, list);
   };
-  const rel = JSON.parse(releaseJson);
-  for (const e of rel.objectReleaseInfo || []) add(byName, e);
+  const released = entriesOf(releaseJson);
+  for (const e of released) add(byName, e);
   const classificationByName = new Map<string, ReleaseEntry[]>();
   let classifications = 0;
   if (classificationJson) {
-    const cls = JSON.parse(classificationJson);
-    for (const e of cls.objectClassifications || []) { add(classificationByName, e); classifications++; }
+    for (const e of entriesOf(classificationJson)) { add(classificationByName, e); classifications++; }
   }
-  return { edition, byName, classificationByName, loadedAt: new Date().toISOString(), counts: { released: (rel.objectReleaseInfo || []).length, classifications } };
+  const extraFiles: ReleaseIndex['extraFiles'] = [];
+  for (const x of extras) {
+    if (x.json === undefined) { extraFiles.push({ file: x.file, error: x.error || 'not loaded' }); continue; }
+    try {
+      const list = entriesOf(x.json);
+      for (const e of list) { add(classificationByName, e, x.file); classifications++; }
+      extraFiles.push({ file: x.file, entries: list.length });
+    } catch (e: any) {
+      extraFiles.push({ file: x.file, error: `not valid JSON: ${e?.message || e}` });
+    }
+  }
+  return { edition, byName, classificationByName, loadedAt: new Date().toISOString(), counts: { released: released.length, classifications }, extraFiles };
 }
 
 const inFlight = new Map<string, Promise<ReleaseIndex>>();
@@ -121,11 +214,17 @@ export async function getReleaseIndex(edition: ReleaseEdition = 'cloud', loader:
   let p = inFlight.get(key);
   if (!p) {
     p = (async () => {
-      const [rel, cls] = await Promise.all([
+      const [rel, cls, extras] = await Promise.all([
         loadFile(FILES[edition], loader),
         loadFile(CLASSIFICATIONS, loader).catch(() => undefined),
+        // A file the operator named and the server cannot read is reported in
+        // the answer, not dropped: a missing prohibition list must be visible.
+        Promise.all(extraClassificationFiles().map(async (x): Promise<ExtraFile> => {
+          try { return { file: x.file, json: await loadFile(x.cacheName, loader, x.url) }; }
+          catch (e: any) { return { file: x.file, error: String(e?.message || e) }; }
+        })),
       ]);
-      const index = buildIndex(edition, rel, cls);
+      const index = buildIndex(edition, rel, cls, extras);
       memory.set(edition, { index, at: Date.now() });
       return index;
     })().finally(() => inFlight.delete(key));
@@ -157,33 +256,75 @@ export function objectRefFromUrl(objectUrl: string): { name: string; type?: stri
   return { name, type: map[seg] };
 }
 
+const successorsOf = (e: ReleaseEntry) => (e.successors || []).map(s => ({ name: s.tadirObjName || s.objectKey || '', type: s.tadirObject || s.objectType || '' }));
+
+const NOT_RELEASED_NOTE = 'SAP-internal object without a release for customer use. Under SAP\'s API Policy a non-published interface is used at the customer\'s own risk and is not supported.';
+
+/** Fields every verdict built from a repository entry shares. */
+function fromEntry(name: string, e: ReleaseEntry): Pick<ReleaseVerdict, 'name' | 'type' | 'state' | 'successors' | 'softwareComponent' | 'applicationComponent' | 'labels' | 'successorConcept' | 'unrecognizedState' | 'source'> {
+  return {
+    name, type: e.tadirObject || e.objectType,
+    state: e.state,
+    successors: successorsOf(e),
+    softwareComponent: e.softwareComponent, applicationComponent: e.applicationComponent,
+    ...(Array.isArray(e.labels) && e.labels.length ? { labels: e.labels } : {}),
+    ...(e.successorConceptName ? { successorConcept: e.successorConceptName } : {}),
+    ...(KNOWN_STATES.has(e.state) ? {} : { unrecognizedState: true }),
+    ...(e.source ? { source: e.source } : {}),
+  };
+}
+
 export function lookup(index: ReleaseIndex, ref: { name: string; type?: string }): ReleaseVerdict {
   const name = ref.name.toUpperCase();
+  const ofType = (list: ReleaseEntry[] | undefined) => (list || []).filter(e => !ref.type || (e.tadirObject || e.objectType || '').toUpperCase() === ref.type);
   const pick = (list: ReleaseEntry[] | undefined) => {
     if (!list || !list.length) return undefined;
-    if (ref.type) return list.find(e => (e.tadirObject || e.objectType || '').toUpperCase() === ref.type) || undefined;
+    if (ref.type) return ofType(list)[0];
     return list[0];
   };
+
+  // A prohibition outranks every other answer, whichever file carries it.
+  const banned = [...ofType(index.byName.get(name)), ...ofType(index.classificationByName.get(name))].find(isProhibited);
+  if (banned) {
+    return {
+      ...fromEntry(name, banned),
+      apiPolicy: 'prohibited', cloudReady: false,
+      note: 'Classified as not permitted in SAP\'s cloudification repository: do not call it from customer or third-party code; use a successor if listed.',
+    };
+  }
+  const declared = DECLARED_UNPERMITTED.find(d => name.startsWith(d.prefix));
+  if (declared) {
+    return {
+      name, type: ref.type, state: 'unpermitted', apiPolicy: 'prohibited', cloudReady: false, successors: [],
+      sapNote: declared.sapNote,
+      note: `${declared.what}: SAP Note ${declared.sapNote} declares its use by customer and third-party applications not permitted.`,
+    };
+  }
+
   const rel = pick(index.byName.get(name));
   if (rel) {
+    const known = KNOWN_STATES.has(rel.state);
+    const released = rel.state === 'released';
     return {
-      name, type: rel.tadirObject || rel.objectType,
-      state: rel.state,
-      cloudReady: rel.state === 'released',
-      successors: (rel.successors || []).map(s => ({ name: s.tadirObjName || s.objectKey || '', type: s.tadirObject || s.objectType || '' })),
-      softwareComponent: rel.softwareComponent, applicationComponent: rel.applicationComponent,
-      note: rel.state === 'deprecated' ? 'Deprecated for cloud development: use a successor if listed.' : undefined,
+      ...fromEntry(name, rel),
+      apiPolicy: released || rel.state === 'deprecated' ? 'released' : 'notReleased',
+      cloudReady: released,
+      note: rel.state === 'deprecated' ? 'Deprecated for cloud development: use a successor if listed.'
+        : released ? undefined
+        : !known ? `The repository gives the state "${rel.state}", which this version of the server does not know: treated as not released. Read the state as SAP wrote it.`
+        : NOT_RELEASED_NOTE + (rel.state === 'notToBeReleasedStable' ? ' The repository marks it as stable.' : ''),
     };
   }
   const cls = pick(index.classificationByName.get(name));
   if (cls) {
+    const known = KNOWN_STATES.has(cls.state);
     return {
-      name, type: cls.tadirObject || cls.objectType,
-      state: cls.state,
+      ...fromEntry(name, cls),
+      apiPolicy: cls.state === 'classicAPI' ? 'classic' : 'notReleased',
       cloudReady: false,
-      successors: (cls.successors || []).map(s => ({ name: s.tadirObjName || s.objectKey || '', type: s.tadirObject || s.objectType || '' })),
-      softwareComponent: cls.softwareComponent, applicationComponent: cls.applicationComponent,
-      note: cls.state === 'classicAPI' ? 'Classic API: usable in classic ABAP and (with care) in the 3-tier extensibility model, not in ABAP Cloud.' : 'Not released for cloud development.',
+      note: cls.state === 'classicAPI' ? 'Classic API: usable in classic ABAP and (with care) in the 3-tier extensibility model, not in ABAP Cloud.'
+        : !known ? `The repository gives the state "${cls.state}", which this version of the server does not know: treated as not released. Read the state as SAP wrote it.`
+        : 'Not released for cloud development. ' + NOT_RELEASED_NOTE,
     };
   }
   const customer = /^[YZ]|^\/[A-Z0-9]+\/[YZ]?/.test(name) && !/^\/(?:1BEA|1FB|1ISR|1SEM|ACCGO|AIF|BEV|CPD|DSD|IAM|ISDFPS|ISHCM|IWBEP|IWFND|IWWRK|MRSS|SAPSRM|SRMSMC|UI2|UI5)\//.test(name);
@@ -193,6 +334,7 @@ export function lookup(index: ReleaseIndex, ref: { name: string; type?: string }
   return {
     name, type: ref.type,
     state: customer ? 'customer' : 'unknown',
+    apiPolicy: customer ? 'customer' : 'unknown',
     cloudReady: customer,
     successors: [],
     note: customer ? 'Customer object (Y/Z namespace): not an SAP API; its own ABAP language version decides cloud readiness.' : 'Not listed in the SAP cloudification repository (neither released nor classified): verify in the system (ddicElement / abapDocumentation) before treating it as a blocker.',

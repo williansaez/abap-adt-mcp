@@ -223,6 +223,16 @@ export function readSystems(env: NodeJS.ProcessEnv = process.env): Map<string, S
   if (/^(1|true|yes)$/i.test(String(env.MCP_READ_ONLY || ''))) {
     for (const cfg of systems.values()) cfg.policy = { ...(cfg.policy || {}), readOnly: true };
   }
+  // Data access is closed unless a destination opens it. MCP_ALLOW_DATA_PREVIEW=1
+  // and MCP_ALLOW_FREE_SQL=1 set the default for destinations that do not state
+  // the key; a destination that states false keeps its own answer.
+  const dataDefaults: Array<['allowDataPreview' | 'allowFreeSql', string]> = [['allowDataPreview', 'MCP_ALLOW_DATA_PREVIEW'], ['allowFreeSql', 'MCP_ALLOW_FREE_SQL']];
+  for (const [key, variable] of dataDefaults) {
+    if (!/^(1|true|yes)$/i.test(String(env[variable] || ''))) continue;
+    for (const cfg of systems.values()) {
+      if (cfg.policy?.[key] === undefined) cfg.policy = { ...(cfg.policy || {}), [key]: true };
+    }
+  }
   return systems;
 }
 

@@ -136,7 +136,7 @@ Enable a subset with `MCP_TOOLSETS` (comma list, or a preset: `all`, `focused`) 
 | ✏️ [`fixEdits`](#fixedits) | Applies fix edits. | `proposal`*, `source`* |
 | 📖 [`fragmentMappings`](#fragmentmappings) | Retrieves fragment mappings. | `url`*, `type`*, `name`* |
 | 📖 [`abapDocumentation`](#abapdocumentation) | ABAP keyword documentation (the F1 help) as plain text. Two ways to ask: (a) keyword: a statement or addition such as "SELECT SINGLE", "WITH PRIVILEGED ACCESS", "LOOP AT GROUP BY" (the server builds the context for you); (b) cursor: objectUri, body (the sou... | `keyword`, `objectUri`, `body`, `line`, `column`, `language`, `startLine`, `maxLines`, `raw` |
-| 📖 [`apiReleaseState`](#apireleasestate) | Release state of SAP objects for ABAP Cloud / Clean Core, from SAP's official cloudification repository (released, deprecated with successors, classicAPI, noAPI) plus, when objectUrl is given, the backend's own /sap/bc/adt/apireleases answer. Check APIs bef... | `names`, `objectUrl`, `source`, `sourceUrl`, `edition`, `refresh` |
+| 📖 [`apiReleaseState`](#apireleasestate) | Release state of SAP objects for ABAP Cloud / Clean Core, from SAP's official cloudification repository (released, deprecated with successors, notToBeReleased, classicAPI, noAPI) plus, when objectUrl is given, the backend's own /sap/bc/adt/apireleases answe... | `names`, `objectUrl`, `source`, `sourceUrl`, `edition`, `refresh` |
 | ⚠️ [`runSnippet`](#runsnippet) | Run a piece of ABAP once and return its console output: wraps the code in a temporary IF_OO_ADT_CLASSRUN class (the "out" parameter is available: out->write( ... )), creates it in packageName (default $TMP; on S/4HANA Cloud use a customer package with ABAP... | `code`*, `packageName`, `className`, `transport`, `responsible`, `keep` |
 
 ### Unit tests (4) · toolset `tests`
@@ -179,8 +179,8 @@ Enable a subset with `MCP_TOOLSETS` (comma list, or a preset: `all`, `focused`) 
 | ⚠️ [`setDomainProperties`](#setdomainproperties) | Write a DDIC domain (type, length, fixed values, value table…). Read it first with getDomainProperties, modify the returned properties/metaData objects and pass them back as JSON. Requires lock (lockHandle) and a transport for transportable packages; activa... | `domainUrl`*, `properties`*, `metaData`*, `lockHandle`*, `transport` |
 | 📖 [`getDataElementProperties`](#getdataelementproperties) | Read a DDIC data element: type (domain or built-in), length, field labels (short/medium/long/heading), search help and flags. Pass the data element URL (/sap/bc/adt/ddic/dataelements/zde). | `dataElementUrl`*, `version` |
 | ⚠️ [`setDataElementProperties`](#setdataelementproperties) | Write a DDIC data element (type, field labels, search help…). Read it first with getDataElementProperties, modify the returned properties/metaData objects and pass them back as JSON. Requires lock (lockHandle) and a transport for transportable packages; act... | `dataElementUrl`*, `properties`*, `metaData`*, `lockHandle`*, `transport` |
-| 📖 [`tableContents`](#tablecontents) | Retrieves the contents of an ABAP table or CDS entity by name (no SQL). Works on tables the data preview refuses for runQuery (dataMaintenance restricted); authorization (S_TABU_DIS/S_TABU_NAM) still applies. rowNumber caps how many rows are requested from... | `ddicEntityName`*, `rowNumber`, `decode`, `sqlQuery`, `startRow`, `maxRows` |
-| 📖 [`runQuery`](#runquery) | Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, released API views included). Long statements are wrapped automatically to the preview's 255-character line limit, so wide select lists are fine; a single literal longer than 255 ch... | `sqlQuery`*, `rowNumber`, `decode`, `startRow`, `maxRows` |
+| 📖 [`tableContents`](#tablecontents) | Retrieves the contents of an ABAP table or CDS entity by name (no SQL). Reading table data is off unless the destination allows it (policy allowDataPreview or allowFreeSql in systems.json; listSystems shows dataAccess per destination): a refusal is final, t... | `ddicEntityName`*, `rowNumber`, `decode`, `sqlQuery`, `startRow`, `maxRows` |
+| 📖 [`runQuery`](#runquery) | Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, released API views included). Free SQL is off unless the destination allows it (policy allowFreeSql in systems.json; listSystems shows dataAccess per destination): a refusal is fina... | `sqlQuery`*, `rowNumber`, `decode`, `startRow`, `maxRows` |
 
 ### Discovery & metadata (7) · toolset `discovery`
 
@@ -350,7 +350,7 @@ No parameters besides `destination`.
 
 **What comes back.** `{systems: [{destination, url, client, authType, policy?, tls?, platform?, unavailableToolsets?}], default, activeToolsets}`. `platform` and `unavailableToolsets` appear only for destinations whose profile has already been built (by systemProfile or by the first call of a gated toolset).
 
-**Pitfalls.** `policy` echoes the per-destination guard rails from systems.json (readOnly, deniedTools, allowedPackages, allowedTransports, deniedTables, allowFreeSql; README section Keeping it safe and docs/AUTH.md). A `policyDenied` error points back here: the same call may be allowed on another destination.
+**Pitfalls.** `policy` echoes the per-destination guard rails from systems.json (readOnly, deniedTools, allowedPackages, allowedTransports, deniedTables, allowDataPreview, allowFreeSql; README section Keeping it safe and docs/AUTH.md). `dataAccess` is the effective answer for table data on every destination, with or without a policy: both flags are false until the destination opens them. A `policyDenied` error points back here: the same call may be allowed on another destination.
 
 See also: [`healthcheck`](#healthcheck), [`systemProfile`](#systemprofile), [`login`](#login).
 
@@ -1917,7 +1917,7 @@ See also: [`codeCompletionElement`](#codecompletionelement), [`syntaxCheckCode`]
 
 📖 API Release State · toolset `analysis` · read-only, idempotent, reaches the internet
 
-Release state of SAP objects for ABAP Cloud / Clean Core, from SAP's official cloudification repository (released, deprecated with successors, classicAPI, noAPI) plus, when objectUrl is given, the backend's own /sap/bc/adt/apireleases answer. Check APIs before writing cloud code instead of recalling from memory. Pass names as "CL_X", "TABL:MARA", "FUGR:BAPI_..." (comma-separated) or a source to scan every referenced object.
+Release state of SAP objects for ABAP Cloud / Clean Core, from SAP's official cloudification repository (released, deprecated with successors, notToBeReleased, classicAPI, noAPI) plus, when objectUrl is given, the backend's own /sap/bc/adt/apireleases answer. Every result carries apiPolicy (released, classic, notReleased, prohibited, customer, unknown): prohibited means SAP classifies the interface as not permitted (in the repository or in an SAP Note) and outranks every other state, so do not write code that calls it. Check APIs before writing cloud code instead of recalling from memory. Pass names as "CL_X", "TABL:MARA", "FUGR:BAPI_..." (comma-separated) or a source to scan every referenced object.
 
 | Parameter | Type | Required | Description | Example |
 |---|---|---|---|---|
@@ -1925,10 +1925,10 @@ Release state of SAP objects for ABAP Cloud / Clean Core, from SAP's official cl
 | `objectUrl` | string | no | ADT object URL to check (also queried on the backend when it exposes apireleases) | `/sap/bc/adt/oo/classes/zcl_order_service`, `/sap/bc/adt/programs/programs/zreport` |
 | `source` | string | no | ABAP source to scan: every referenced SAP object (SELECT targets, TYPE references, CL_/IF_/CX_ classes, function modules) is checked |  |
 | `sourceUrl` | string | no | Source URL (…/source/main) to read and scan instead of passing the text |  |
-| `edition` | `cloud` / `btp` / `pce2023` / `pce2022` | no | Target edition: cloud (S/4HANA Cloud Public Edition, default), btp (BTP ABAP Environment), pce2023/pce2022 (Private Cloud 3-tier) |  |
+| `edition` | `cloud` / `btp` / `pce` / `pce2025` / `pce2023` / `pce2022` | no | Target edition: cloud (S/4HANA Cloud Public Edition, default), btp (BTP ABAP Environment), pce (Private Cloud, latest release), pce2025/pce2023/pce2022 (Private Cloud, latest feature pack of that release) |  |
 | `refresh` | boolean | no | Re-download the repository data (default: 24h cache) |  |
 
-**When to use.** Before using an SAP object in ABAP Cloud code, check its release state against SAP's cloudification repository: names (CL_X, TABL:MARA, FUGR:...), an objectUrl, or a whole source or sourceUrl to scan every referenced object. edition selects cloud, btp, pce2023 or pce2022.
+**When to use.** Before using an SAP object in ABAP Cloud code, check its release state against SAP's cloudification repository: names (CL_X, TABL:MARA, FUGR:...), an objectUrl, or a whole source or sourceUrl to scan every referenced object. edition selects cloud, btp, pce (Private Cloud, latest), pce2025, pce2023 or pce2022. Read apiPolicy on every result: prohibited means SAP classifies the interface as not permitted, so report it to the user and do not write code that calls it.
 
 **What comes back.** {status, edition, repository {loadedAt, releasedEntries, classificationEntries}, summary {checked, cloudReady, notCloudReady, unknown, customerObjects}, blockers[] (up to 50), results[] with state and successors, unknown[] plus unknownNote (only when something is unknown), scannedIdentifiers (source scans), backendApiRelease (whenever objectUrl is given: available=true with attributes, or available=false with httpStatus or error when the backend has no /sap/bc/adt/apireleases), capped}.
 
@@ -2466,7 +2466,7 @@ See also: [`getDataElementProperties`](#getdataelementproperties), [`lock`](#loc
 
 📖 Table Contents · toolset `data` · read-only, idempotent
 
-Retrieves the contents of an ABAP table or CDS entity by name (no SQL). Works on tables the data preview refuses for runQuery (dataMaintenance restricted); authorization (S_TABU_DIS/S_TABU_NAM) still applies. rowNumber caps how many rows are requested from SAP itself (default 100 if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.
+Retrieves the contents of an ABAP table or CDS entity by name (no SQL). Reading table data is off unless the destination allows it (policy allowDataPreview or allowFreeSql in systems.json; listSystems shows dataAccess per destination): a refusal is final, tell the user instead of retrying. Works on tables the data preview refuses for runQuery (dataMaintenance restricted); authorization (S_TABU_DIS/S_TABU_NAM) still applies. rowNumber caps how many rows are requested from SAP itself (default 100 if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.
 
 | Parameter | Type | Required | Description | Example |
 |---|---|---|---|---|
@@ -2481,7 +2481,7 @@ Retrieves the contents of an ABAP table or CDS entity by name (no SQL). Works on
 
 **What comes back.** {status, result {columns[], values[]}}; paged with totalRows, startRow, returnedRows, hasMore and autoPaged or capped flags when large.
 
-**Pitfalls.** rowNumber (default 100) caps the rows requested from SAP; startRow and maxRows only page what was fetched. sqlQuery on this tool counts as free SQL under allowFreeSql=false, and deniedTables applies. Display authorization S_TABU_DIS or S_TABU_NAM is still required.
+**Pitfalls.** rowNumber (default 100) caps the rows requested from SAP; startRow and maxRows only page what was fetched. Refused unless the destination's policy states allowDataPreview=true or allowFreeSql=true (table data is off by default); sqlQuery on this tool counts as free SQL and needs allowFreeSql=true; deniedTables applies. Display authorization S_TABU_DIS or S_TABU_NAM is still required.
 
 See also: [`runQuery`](#runquery), [`ddicElement`](#ddicelement), [`getDataElementProperties`](#getdataelementproperties), [`runSnippet`](#runsnippet).
 
@@ -2489,7 +2489,7 @@ See also: [`runQuery`](#runquery), [`ddicElement`](#ddicelement), [`getDataEleme
 
 📖 Run Query · toolset `data` · read-only, idempotent
 
-Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, released API views included). Long statements are wrapped automatically to the preview's 255-character line limit, so wide select lists are fine; a single literal longer than 255 characters is not. Tables whose DDIC dataMaintenance is restricted are refused by the preview: use tableContents for those. Key fields keep their internal format (leading zeros, see getDataElementProperties). rowNumber caps how many rows are requested from SAP itself (default 100 if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.
+Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, released API views included). Free SQL is off unless the destination allows it (policy allowFreeSql in systems.json; listSystems shows dataAccess per destination): a refusal is final, tell the user instead of retrying. Long statements are wrapped automatically to the preview's 255-character line limit, so wide select lists are fine; a single literal longer than 255 characters is not. Tables whose DDIC dataMaintenance is restricted are refused by the preview: use tableContents for those. Key fields keep their internal format (leading zeros, see getDataElementProperties). rowNumber caps how many rows are requested from SAP itself (default 100 if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.
 
 | Parameter | Type | Required | Description | Example |
 |---|---|---|---|---|
@@ -2503,7 +2503,7 @@ Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, rele
 
 **What comes back.** {status, result {columns[] with name and type, values[]}, note?}; paged with totalRows, startRow, returnedRows, hasMore; note says when the statement was re-wrapped.
 
-**Pitfalls.** The preview reads 255-character lines; the server re-flows long statements, but a single literal over 255 characters is an error. Keys keep their internal format (leading zeros). Errors carry hints for restricted tables and missing authorization. Refused when the policy sets allowFreeSql=false or lists the table in deniedTables.
+**Pitfalls.** The preview reads 255-character lines; the server re-flows long statements, but a single literal over 255 characters is an error. Keys keep their internal format (leading zeros). Errors carry hints for restricted tables and missing authorization. Refused unless the destination's policy states allowFreeSql=true (free SQL is off by default), and when the table is in deniedTables. The refusal is final: tell the user which key opens it instead of retrying or switching tools.
 
 See also: [`tableContents`](#tablecontents), [`ddicElement`](#ddicelement), [`getDataElementProperties`](#getdataelementproperties), [`runSnippet`](#runsnippet).
 

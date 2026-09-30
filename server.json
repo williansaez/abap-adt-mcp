@@ -95,6 +95,16 @@
           "isRequired": false
         },
         {
+          "name": "MCP_ALLOW_DATA_PREVIEW",
+          "description": "Set to 1 to let tableContents read table and CDS rows on every destination that does not state policy.allowDataPreview itself (reading table data is off by default)",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_ALLOW_FREE_SQL",
+          "description": "Set to 1 to allow runQuery and tableContents with sqlQuery on every destination that does not state policy.allowFreeSql itself (free SQL is off by default; implies table data)",
+          "isRequired": false
+        },
+        {
           "name": "MCP_TOOLSETS",
           "description": "Toolsets to publish: comma list (core,source,objects,transports,analysis,tests,atc,data,discovery,runtime,refactoring,rap,services,git,debugger,traces) or a preset: all (default) or focused",
           "isRequired": false
@@ -204,6 +214,11 @@
         {
           "name": "MCP_CACHE_DIR",
           "description": "Directory for the cached SAP cloudification repository used by apiReleaseState (default ~/.abap-adt-mcp/cache)",
+          "isRequired": false
+        },
+        {
+          "name": "MCP_API_CLASSIFICATION_FILES",
+          "description": "Extra classification files for apiReleaseState, comma list: a path inside SAP's cloudification repository (partner/objectClassifications_ACME.json) or an https URL",
           "isRequired": false
         }
       ]
