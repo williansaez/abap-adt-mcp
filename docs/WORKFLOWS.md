@@ -1,6 +1,6 @@
 # Workflows
 
-End-to-end development workflows with abap-adt-mcp: the exact tool sequence, the arguments that matter and what each answer contains. The [README](../README.md#workflows-in-detail) has the short version; this document is the long one. Parameter names below are the ones the schemas declare (the full per-tool reference is [docs/TOOLS.md](TOOLS.md)); setup and authentication are in the README and [docs/AUTH.md](AUTH.md); what real sessions taught the server is in [docs/FIELD-NOTES.md](FIELD-NOTES.md).
+End-to-end development workflows with abap-adt-mcp: the exact tool sequence, the arguments that matter and what each answer contains. The [README](../README.md#what-to-ask-the-model) has the short version; this document is the long one. Parameter names below are the ones the schemas declare (the full per-tool reference is [docs/TOOLS.md](TOOLS.md)); setup and authentication are in the README and [docs/AUTH.md](AUTH.md); what real sessions taught the server is in [docs/FIELD-NOTES.md](FIELD-NOTES.md).
 
 Conventions used throughout:
 
@@ -98,7 +98,7 @@ resolveTransport(objSourceUrl="/sap/bc/adt/oo/classes/zcl_example")
 
 `objSourceUrl` takes the object URL or its source URL (the schema says "URL of the object (or its source URL)"; both go to the ADT transport check as they are). One call replaces interpreting `transportInfo` yourself. The decision order is: (1) the transport that already records or locks the object (a transport lock; `reason` says it must be used, `tasks` lists its tasks), (2) `transport: null` with `needsTransport: false` for local packages (`$TMP`, `DLVUNIT` `LOCAL` or a non-recording package without locks), (3) `preferTransport` when it is among the modifiable candidates, (4) the newest modifiable transport of the current user for that package, (5) with `createIfMissing=true` a new request described by `requestText` (`created: true`). Without `createIfMissing` and without a candidate you get `transport: null`, `needsTransport: true` and a reason telling you to call `createTransport` or rerun with `createIfMissing=true`. `devClass`, `recording`, `candidates` (each with `transport`, `description`, `status`, `owner`, `target`, `date`, `time`) and the raw `messages` are always included; a message of severity `E`, `A` or `X` aborts with "Transport check failed".
 
-A policy with `allowedTransports` refuses `createIfMissing=true` and `createTransport` outright (see [README, Keeping it safe](../README.md#keeping-it-safe)).
+A policy with `allowedTransports` refuses `createIfMissing=true` and `createTransport` outright (see [README, Policy keys](../README.md#policy-keys)).
 
 ### Step 2: check before you write
 

@@ -350,7 +350,7 @@ No parameters besides `destination`.
 
 **What comes back.** `{systems: [{destination, url, client, authType, policy?, tls?, platform?, unavailableToolsets?}], default, activeToolsets}`. `platform` and `unavailableToolsets` appear only for destinations whose profile has already been built (by systemProfile or by the first call of a gated toolset).
 
-**Pitfalls.** `policy` echoes the per-destination guard rails from systems.json (readOnly, deniedTools, allowedPackages, allowedTransports, deniedTables, allowDataPreview, allowFreeSql; README section Keeping it safe and docs/AUTH.md). `dataAccess` is the effective answer for table data on every destination, with or without a policy: both flags are false until the destination opens them. A `policyDenied` error points back here: the same call may be allowed on another destination.
+**Pitfalls.** `policy` echoes the per-destination guard rails from systems.json (readOnly, deniedTools, allowedPackages, allowedTransports, deniedTables, allowDataPreview, allowFreeSql; README section Policy keys and docs/CONFIGURATION.md). `dataAccess` is the effective answer for table data on every destination, with or without a policy: both flags are false until the destination opens them. A `policyDenied` error points back here: the same call may be allowed on another destination.
 
 See also: [`healthcheck`](#healthcheck), [`systemProfile`](#systemprofile), [`login`](#login).
 

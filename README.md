@@ -2,20 +2,24 @@
 
 **Let Claude read, write, test and check ABAP code on your SAP systems.**
 
+English · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md) · [Project site](https://williansaez.github.io/abap-adt-mcp/)
+
 [![npm version](https://img.shields.io/npm/v/abap-adt-mcp)](https://www.npmjs.com/package/abap-adt-mcp)
 [![CI](https://github.com/williansaez/abap-adt-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/williansaez/abap-adt-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/node/v/abap-adt-mcp)](https://nodejs.org)
-[![MCP Registry](https://img.shields.io/badge/MCP%20registry-io.github.williansaez%2Fabap--adt--mcp-informational)](https://registry.modelcontextprotocol.io/?search=abap-adt-mcp)
+[![MCP Registry](https://img.shields.io/badge/MCP%20registry-listed-informational)](https://registry.modelcontextprotocol.io/?search=abap-adt-mcp)
 [![Project site](https://img.shields.io/badge/project%20site-williansaez.github.io-4db1ff)](https://williansaez.github.io/abap-adt-mcp/)
-
-English · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md) · [Project site](https://williansaez.github.io/abap-adt-mcp/)
 
 You type a sentence in Claude. You get back an activated class, green unit tests and a transport number. abap-adt-mcp is the server in between: a [Model Context Protocol](https://modelcontextprotocol.io) server that gives Claude Desktop, Claude Code, VS Code or any other MCP host the same ADT services Eclipse uses, on every SAP system you configure, S/4HANA Cloud and on-prem alike. **173 tools**, one process, and guard rails the server enforces itself: a destination marked read-only refuses every write before it reaches SAP, whatever the host approves.
 
 **See it in motion.** The [project site](https://williansaez.github.io/abap-adt-mcp/) has seven short films, the setup in three steps and what to ask the model.
 
-> Use it deliberately, and prefer development systems. The model acts as your SAP user: a destination without a `policy` block is writable within your SAP authorizations, and table data stays closed until you open it.
+> **Before you connect a production system**
+>
+> - The model acts as your SAP user and can do nothing Eclipse would refuse you. What it reads (source, dumps, table rows where you open them) is sent to the model.
+> - A destination without a [`policy`](#policy-keys) block is writable in every package your user may edit; table data stays closed until you open it.
+> - Recommended: development and test systems only. If a production destination must exist, give it the `PRD` policy of [step 4](#4-add-production-and-on-prem-systems): the server enforces it before any SAP call, whatever the host approves, so a careless prompt cannot write where the policy forbids it ([For administrators](#for-administrators)).
 
 ## See it work
 
@@ -28,69 +32,35 @@ Seven short films show this and the single jobs behind it, a short dump traced t
 ## Table of contents
 
 - [See it work](#see-it-work)
-- [What is new in 2.7.0](#what-is-new-in-270)
-- [What is new in 2.6.0](#what-is-new-in-260)
-- [What is new in 2.0.0](#what-is-new-in-200)
 - [Setup](#setup)
 - [What to ask the model](#what-to-ask-the-model)
-- [Workflows in detail](#workflows-in-detail)
-- [Built-in prompts](#built-in-prompts)
-- [Other ways to install](#other-ways-to-install)
+- [For administrators](#for-administrators)
 - [Authentication](#authentication)
-- [Keeping it safe](#keeping-it-safe)
-- [Audit log](#audit-log)
 - [S/4HANA Cloud versus on-prem](#s4hana-cloud-versus-on-prem)
-- [Configuration reference](#configuration-reference)
-- [HTTP transport (optional)](#http-transport-optional)
-- [Tool catalog (all 173 tools, by toolset)](#tool-catalog-all-173-tools-by-toolset)
+- [Other ways to install](#other-ways-to-install)
+- [Configuration](#configuration)
+- [Tool catalog](#tool-catalog)
 - [Compared with SAP's official ADT MCP Server](#compared-with-saps-official-adt-mcp-server)
 - [SAP API Policy](#sap-api-policy)
-- [Skills and plugin](#skills-and-plugin)
 - [Troubleshooting](#troubleshooting)
 - [Testing and contributing](#testing-and-contributing)
+- [Credits](#credits)
 - [License](#license)
-
-## What is new in 2.7.0
-
-Released 2026-09-30. The full list is in [CHANGELOG.md](CHANGELOG.md#270---2026-09-30---copilot-verified-a-new-object-readable-at-once-registry-published-by-the-release). Nothing changes for an existing setup.
-
-- **GitHub Copilot verified**: VS Code agent mode and the Copilot CLI ran the server against a real system ([docs/TESTPLAN.md](docs/TESTPLAN.md) Layer 5, [docs/HOSTS.md](docs/HOSTS.md)). The four defects that run found are fixed: array parameters without `items` (VS Code refused every request), browser SSO on Windows and Linux, `runSnippet` running before the activation was visible, and the VS Code section of the hosts guide.
-- **A new object is readable right after `createObject`.** Created inside the stateful session, an object answered 400 to every read until its source was written; the creation now runs outside that session, and the case that remains (locks held) is named in the answer and in the error hint.
-- **Browser SSO refuses at once where no window can open** (a CI runner, a container, a server) and names `oauth` or `sso2` instead.
-- The MCP registry entry is updated by the release workflow.
-
-## What is new in 2.6.0
-
-Released 2026-09-30. The full list is in [CHANGELOG.md](CHANGELOG.md#260---2026-09-30---table-data-needs-a-decision-values-as-sap-sent-them-sap-api-policy-page); two things change what an existing setup gets:
-
-- **Reading table data needs a decision.** `tableContents` and `runQuery` are refused on every destination until its policy allows them: `"allowDataPreview": true` opens rows by name, `"allowFreeSql": true` opens SQL (and rows by name with it). To keep the behaviour of 2.1, state `"allowFreeSql": true` on the destinations that should read data, or start the server with `MCP_ALLOW_FREE_SQL=1`. `listSystems` shows the effective `dataAccess` of every destination. Why: SAP's FAQ on its API Policy names reading tables and running SQL among the uses the ADT services are not intended for; [docs/API-POLICY.md](docs/API-POLICY.md) has the whole picture.
-- **Table values come back as SAP sent them.** Numbers and dates are strings now: `"-12.34"`, `"000010"`, `"20260929"`. The old decoder lost the sign of `12.34-`, the zeros of `000010` and the digits of long amounts. `decode=true` gives JSON numbers where the number is exact and dates as `YYYY-MM-DD`.
-
-Also: `apiReleaseState` reports `apiPolicy` (`released`, `classic`, `notReleased`, `prohibited`) and lists interfaces SAP does not permit; objects are created in the logon language of the destination instead of EN; a connection failure is reported as `network`, not as an SAP server error; locks are released when the process dies of an error.
-
-## What is new in 2.0.0
-
-Released 2026-09-08. The full list is in [CHANGELOG.md](CHANGELOG.md#200---2026-09-08---node-22-floor-puppeteer-core-25-dependabot-cooldown-tls-by-name); what matters when you upgrade:
-
-- **Node.js 22.12 or newer is required** (breaking). Node 18 and 20 are past end of life and receive no security fixes; a server holding SAP credentials should not run on them. On an older Node, `npm` prints `EBADENGINE` and the server is untested; install the current LTS and restart the host. The container image was already on `node:22-alpine`.
-- **`tls.servername` on a destination.** For a system reached by IP address or short hostname whose certificate carries the fully qualified name: the name is verified and sent as SNI, verification stays on, and `insecureTls` is no longer the only way through that landscape. `listSystems` shows `servername NAME`.
-- **Certificate errors teach the fix.** A failed handshake reaches the model as `kind: "tlsCertificate"` with a hint that names the destination: unknown issuer gives the `openssl s_client` line for that host and points at `tls.ca`, a name mismatch quotes the names Node reported and points at `tls.servername`, an expired certificate says that only renewal fixes it. `insecureTls` is mentioned last.
-- **`insecureTls` stays**, per destination, off by default, announced at startup; [SECURITY.md](.github/SECURITY.md#tls) records why.
-- **Supply chain.** `puppeteer-core` 25 removes the last open Dependabot alert from the dependency tree (`npm audit` reports zero vulnerabilities); Dependabot now waits a cooldown before proposing updates and groups security updates into one pull request; `dotenv` is loaded quietly so stdout stays a clean JSON-RPC channel.
-
-Upgrading from 1.x needs no configuration change: `systems.json`, the policies, the tool names and the environment variables are unchanged.
 
 ## Setup
 
-Three things before you start:
+Three prerequisites:
 
-- **Node.js 22.12 or newer** (22 or 24 LTS; 2.0.0 dropped Node 18 and 20). Download the LTS installer from [nodejs.org](https://nodejs.org); it bundles `npm` and `npx`, which is all the host needs. No terminal is required to check: if Node is missing, the host's log says `spawn npx ENOENT` when it tries to start the server (see [step 2](#2-register-the-server-in-your-host)).
-- **Access to the SAP system.** On S/4HANA Cloud (public edition) there is nothing to configure on the SAP side for named users: your user needs the business role that allows Eclipse ADT on the tenant (`SAP_BR_DEVELOPER` in the standard delivery); if Eclipse ADT works for you, this server works too. On-prem, the `/sap/bc/adt` service must be active in transaction `SICF` (a Basis task) and your user needs the usual ADT development authorizations. Only unattended `oauth` clients need a Communication Arrangement, see [Authentication](#authentication).
-- **A Chromium browser** (Chrome, Edge or Brave) on the machine when you use browser SSO.
+- **Node.js 22.12 or newer** (22 or 24 LTS) from [nodejs.org](https://nodejs.org). On a managed laptop the ticket to IT is one line: "Please install Node.js LTS (22 or newer)"; nothing else needs installing.
+- **Access to the SAP system**, the same as for Eclipse ADT: on S/4HANA Cloud the developer business role (`SAP_BR_DEVELOPER` in the standard delivery); on-prem, ask your Basis team for the `/sap/bc/adt` service in `SICF` and the usual ADT authorizations.
+- **A Chromium browser** (Chrome, Edge or Brave) for the browser login (`authType: sso`, the default); not needed for `basic`, `oauth` or `sso2`.
 
 ### 1. Describe your SAP systems
 
-Create a folder `.abap-adt-mcp` in your home directory and a file `systems.json` inside it, one entry per system (a "destination"). Without a terminal: on macOS open Finder, press Shift-Cmd-G, enter `~`, create the folder (Finder asks you to confirm a name starting with a dot; Shift-Cmd-. shows hidden folders), then save the file there from any text editor. On Windows the folder is `C:\Users\<you>\.abap-adt-mcp`, created in File Explorer like any other. One S/4HANA Cloud tenant with browser SSO needs exactly this:
+Create the folder `.abap-adt-mcp` in your home directory and the file `systems.json` inside it, one entry per system (a "destination"):
+
+- Windows: the folder is `C:\Users\<your user name>\.abap-adt-mcp`. Paste the JSON into Notepad and in Save As set "Save as type" to "All files" and the name to `systems.json`, otherwise Notepad saves `systems.json.txt` and the server finds nothing.
+- macOS: the folder is `/Users/<you>/.abap-adt-mcp` (Finder, Shift-Cmd-G, `~`); any editor.
 
 ```json
 {
@@ -98,12 +68,76 @@ Create a folder `.abap-adt-mcp` in your home directory and a file `systems.json`
     "url": "https://myXXXXXX.s4hana.cloud.sap",
     "client": "080",
     "authType": "sso",
-    "default": true
+    "default": true,
+    "policy": { "allowedPackages": ["ZFIN"] }
   }
 }
 ```
 
-`url` is mandatory; `client` is the client your SSO session lands on (on the tested tenants the development system logged on to `080` and the customizing and test systems to `100`; the About entry in the launchpad's user menu shows it); `authType` defaults to `sso` and `"default": true` lets you omit the destination name in every call. The key (`DEV`) is your choice and is the name you will use in chats. Several systems, with guard rails, look like this (or copy [systems.example.json](docs/systems.example.json)):
+- `DEV` is your name for the system and the word you will use in chats; `"default": true` lets you omit it.
+- `url`: the address you open the launchpad or Eclipse with, without a path.
+- `client`: the client your SSO session logs on to (About in the launchpad's user menu shows it). A wrong client shows up later as "not authorized" on objects you can open in Eclipse.
+- `authType` defaults to `sso`: a browser window opens once for the login, like Eclipse ADT. Other modes: [Authentication](#authentication).
+- `policy.allowedPackages`: the packages the model may write to, exact names or patterns (`ZFIN`, `Z*`). Leave it out and every package you can edit in Eclipse is writable; start with one.
+
+Production and on-prem systems come in [step 4](#4-add-production-and-on-prem-systems), after the first successful call.
+
+### 2. Register the server in your host
+
+The package is on npm as [`abap-adt-mcp`](https://www.npmjs.com/package/abap-adt-mcp); `npx` fetches it. Claude Desktop, no terminal: first block. Claude Code: one command. VS Code, Cursor and others: pointer below. Every entry passes the server two settings: `SAP_SYSTEMS_FILE` (where `systems.json` is) and `MCP_TOOLSETS=focused`, which publishes the 114 everyday development tools instead of all 173 so the tool schemas do not eat the chat's context (drop it when you need the debugger, traces, abapGit, RAP or refactoring).
+
+**Claude Desktop**, no terminal needed:
+
+1. Settings > Developer > Edit Config opens the folder that holds `claude_desktop_config.json`; open the file in Notepad or any editor. If Settings has no Developer tab, your Claude Desktop is managed by IT: ask them to add the entry below.
+2. If the file already contains `"mcpServers"`, add only the `"abap-adt-mcp"` entry inside it; if it is empty, paste the whole block.
+3. Replace `<you>` with your user name (macOS: `/Users/<you>/.abap-adt-mcp/systems.json`). The forward slashes in the Windows path are deliberate: JSON needs `\\` for every backslash, forward slashes need nothing.
+4. Quit and reopen the app.
+
+```json
+{
+  "mcpServers": {
+    "abap-adt-mcp": {
+      "command": "npx",
+      "args": ["-y", "abap-adt-mcp"],
+      "env": { "SAP_SYSTEMS_FILE": "C:/Users/<you>/.abap-adt-mcp/systems.json", "MCP_TOOLSETS": "focused" }
+    }
+  }
+}
+```
+
+**Claude Code**, one line in a terminal (`-s user` registers the server for every project, not only the current folder):
+
+```bash
+claude mcp add -s user abap-adt-mcp -e SAP_SYSTEMS_FILE=$HOME/.abap-adt-mcp/systems.json -e MCP_TOOLSETS=focused -- npx -y abap-adt-mcp
+```
+
+The same on Windows PowerShell:
+
+```powershell
+claude mcp add -s user abap-adt-mcp -e SAP_SYSTEMS_FILE=$env:USERPROFILE\.abap-adt-mcp\systems.json -e MCP_TOOLSETS=focused -- npx -y abap-adt-mcp
+```
+
+**VS Code with GitHub Copilot**: the same entry in `.vscode/mcp.json` under a top-level `servers` key instead of `mcpServers`; [docs/HOSTS.md](docs/HOSTS.md#vs-code-with-github-copilot-agent-mode) has the file as tested, with `${input:}` for secrets.
+
+- Cursor, Cline, Windsurf, the Copilot CLI and Eclipse: [docs/HOSTS.md](docs/HOSTS.md).
+- Keep the key `abap-adt-mcp`: it is the name the host shows, the prefix of every tool, and what this project's agent skills look for.
+
+### 3. Say hello
+
+Open a new chat and type (replace `DEV` with the key you chose; the class is standard SAP, so the prompt is read-only and safe on any system):
+
+> List my SAP systems, log in to DEV and show me the source of class CL_ABAP_CHAR_UTILITIES.
+
+A browser window opens for the SSO login (tick "stay signed in" and later logins are silent); the model then calls `listSystems`, `searchObject` and `getObjectSource`, and the reply names your destinations and ends with the class source. The host asks before running a tool you have not approved permanently: that dialog is a courtesy of the host, the `policy` block is the guarantee. If the server does not appear in the host, [Troubleshooting](#troubleshooting) names the log to read.
+
+Two things worth knowing before the first edit:
+
+- A write the policy forbids comes back as a refusal, not as a silent no-op: `kind: "policyDenied"`, `Policy: setObjectSource blocked on destination PRD (readOnly)`.
+- Every change the model makes is on your transport and in the object's version history: `objectDiff` and `revisions` show it, and nothing leaves DEV without a transport release you approve.
+
+### 4. Add production and on-prem systems
+
+The same file with a production entry and an on-prem entry ([systems.example.json](docs/systems.example.json) has every option):
 
 ```json
 {
@@ -118,7 +152,7 @@ Create a folder `.abap-adt-mcp` in your home directory and a file `systems.json`
     "url": "https://myYYYYYY.s4hana.cloud.sap",
     "client": "100",
     "authType": "sso",
-    "policy": { "readOnly": true, "allowDataPreview": true, "deniedTables": ["PA*", "HR*", "USR02"] }
+    "policy": { "readOnly": true, "allowDataPreview": false, "deniedTools": ["exportPackageSources"] }
   },
   "ONPREM": {
     "url": "https://sap.example.com:44300",
@@ -132,55 +166,15 @@ Create a folder `.abap-adt-mcp` in your home directory and a file `systems.json`
 }
 ```
 
-The pattern for any productive or test system is the `PRD` entry: add `"policy": { "readOnly": true }` and the server refuses every write there, whatever the model is asked. `sso` opens a real browser once for S/4HANA Cloud named users; `sso2` optionally accepts an ephemeral ticket from a trusted local SNC/RFC provider for headless on-prem access; `basic` is for on-prem users and Communication Users; `oauth` is for unattended clients. `${env:VAR}` pulls a secret from the environment so it never sits in the file, `policy` is enforced by the server, and `tls.ca` adds a corporate CA with verification kept on (`tls.servername` names the certificate when the system is reached by IP address). `$*` (local packages) is listed only on the on-prem entry because the tested Public Cloud tenant refuses `$TMP`.
+- If a production destination must exist, `PRD` is its minimum policy: `readOnly` refuses every write, whatever the model is asked; `allowDataPreview: false` keeps table data closed even where the environment opens it for other destinations; `deniedTools` closes `exportPackageSources`, the one read that copies whole packages to disk.
+- `${env:VAR}` reads a secret from the environment, so it never sits in the file; add the variable where the host starts the server: `-e ONPREM_PASSWORD=...` on `claude mcp add` (or export it in the shell that starts Claude Code), a `"ONPREM_PASSWORD": "..."` line in the `env` block of Claude Desktop, which does not pass your shell environment on. A file with an inline password must be readable by you only (`chmod 600 ~/.abap-adt-mcp/systems.json` on macOS and Linux; on Windows your profile folder is already private); an SSO-only file needs nothing.
+- `tls.ca` names a corporate CA certificate. Verification can be relaxed per destination only (`insecureTls: true`, announced at startup), never for the whole process.
 
-If you have a terminal, restrict the file to your user:
-
-```bash
-chmod 600 ~/.abap-adt-mcp/systems.json
-```
-
-You can skip this step when the file holds no inline passwords (an SSO-only file, or secrets referenced as `${env:VAR}`): the server then only prints a warning if the file is readable by others. It refuses to start only when a shared-readable file contains inline passwords, client secrets or git passwords. Windows has no file modes; the check is skipped there.
-
-### 2. Register the server in your host
-
-The package is on npm as [`abap-adt-mcp`](https://www.npmjs.com/package/abap-adt-mcp) (published through trusted publishing with provenance), so `npx` is all you need.
-
-**Claude Code**, one line:
-
-```bash
-claude mcp add abap-adt-mcp -e SAP_SYSTEMS_FILE=$HOME/.abap-adt-mcp/systems.json -- npx -y abap-adt-mcp
-```
-
-**Claude Desktop** (Settings > Developer > Edit Config, then quit and reopen the app). Replace `me` with your own user name; on Windows write the path as `C:/Users/<you>/.abap-adt-mcp/systems.json`:
-
-```json
-{
-  "mcpServers": {
-    "abap-adt-mcp": {
-      "command": "npx",
-      "args": ["-y", "abap-adt-mcp"],
-      "env": { "SAP_SYSTEMS_FILE": "/Users/me/.abap-adt-mcp/systems.json", "MCP_TOOLSETS": "focused" }
-    }
-  }
-}
-```
-
-`MCP_TOOLSETS=focused` publishes the 114 development tools instead of all 173, which keeps the tool schemas from eating the chat's context window; drop it when you need the debugger, traces, abapGit, RAP or refactoring toolsets. The same JSON works in Cursor, Cline and other hosts that read an `mcpServers` map; VS Code names the map `servers` instead, so rename the top-level key there ([docs/HOSTS.md](docs/HOSTS.md) has the per-host form). The key `abap-adt-mcp` is the name the host shows for the server and the prefix of every tool (`mcp__abap-adt-mcp__searchObject` in Claude Code); public ABAP skills written for this server look for that name, so a different key only stops those skills from recognising the server, nothing else breaks.
-
-After the restart, Claude Desktop lists `abap-adt-mcp` with a status under Settings > Developer, and the tools menu below the chat input (the sliders icon) shows the server with its tools. If nothing appears, read the host's log: at the time of writing Claude Desktop writes `mcp.log` and `mcp-server-abap-adt-mcp.log` to `~/Library/Logs/Claude` on macOS and `%APPDATA%\Claude\logs` on Windows, and Claude Code shows the state with `/mcp`. Everything the server prints (startup warnings, the audit-file warning, `MCP_PROFILE_GATE=warn` messages) goes to stderr and lands in that log. Both Claude Desktop and Claude Code ask before running a tool you have not approved permanently; that dialog is host behaviour and independent of the `destructiveHint` annotation, so treat it as a courtesy and the `policy` block as the guarantee.
-
-### 3. Say hello
-
-Open a new chat and type (replace `DEV` with the key you chose in `systems.json`):
-
-> List my SAP systems, log in to DEV and show me the source of class CL_ABAP_CHAR_UTILITIES.
-
-The model calls `listSystems`, `login` (a browser window appears for SSO destinations; tick "stay signed in" and later logins are silent), `searchObject` and `getObjectSource`. When the source comes back, you are done. `login` is optional in every mode: the dispatcher performs the browser login before the first call on an SSO destination, and `basic` and `oauth` destinations authenticate on their first request. Call it explicitly only to force a fresh login or to prove the credentials before anything else. Asking for `healthcheck` returns the server version, the destination names, the default destination, the active toolsets and the tool count; `systemProfile` tells whether a destination is S/4HANA Cloud or on-prem and which toolsets it cannot serve.
+That is the whole setup. Next: [What to ask the model](#what-to-ask-the-model).
 
 ## What to ask the model
 
-The server is a toolbox the model picks from: ask in plain language and it chooses the sequence. Things that work well from the first session:
+The server is a toolbox the model picks from: ask in plain language and it chooses the sequence.
 
 | Ask | Tools the model reaches for |
 |---|---|
@@ -193,286 +187,155 @@ The server is a toolbox the model picks from: ask in plain language and it choos
 | "What changed in transport `DEVK900123`? Review it and tell me if it is safe to release." | `transportDetails`, `transportUnifiedDiff` |
 | "Why did the last short dump of user DEVELOPER happen? Propose a fix." | `dumps`, `dumpDetails`, `getObjectSource` |
 | "Is ZCL_ORDER_SERVICE ready for ABAP Cloud? Which SAP objects block it?" | `apiReleaseState`, `createAtcRun` |
-| "Select the ten newest rows of ZTABLE where STATUS = 'X'." | `runQuery` (or `tableContents` when the data preview refuses a table) |
+| "Select the ten newest rows of ZTABLE where STATUS = 'X'." | `runQuery`, or `tableContents` when the data preview refuses a table |
 | "Try this snippet and show me the output." | `runSnippet` |
 | "Which toolsets does DEV support? Is the debugger available there?" | `systemProfile` |
 
-On a plain on-prem system the create example also works with `$TMP` and no transport; the tested S/4HANA Cloud tenant refused `$TMP`, so there you name a customer package and its transport (see [S/4HANA Cloud versus on-prem](#s4hana-cloud-versus-on-prem)).
+What the server does on its own, so you do not have to spell it out:
 
-Habits the server bakes in, so you do not have to spell them out: write tools lock and unlock by themselves; `activate=true` activates in the same call; every error is JSON with `kind`, `hint` and `nextTools`, so the model recovers instead of retrying blindly; expired sessions are re-authenticated and the call retried once; large results are paged inside a 40,000-character budget (`MCP_MAX_RESPONSE_CHARS`) and report `hasMore`; long calls send MCP progress notifications to hosts that pass a `progressToken` (plus a heartbeat every 10 seconds). The canonical create and edit flows travel in the MCP `instructions` field, and every tool carries `readOnlyHint`/`destructiveHint` annotations so hosts that gate approval by annotation can ask only on writes.
+- Write tools lock, write and unlock by themselves; `activate=true` activates in the same call.
+- Every error comes back as JSON with `kind`, `hint` and `nextTools`, so the model recovers instead of retrying blindly; an expired session is re-authenticated and the call retried once.
+- Large results are paged inside a 40,000-character budget and report `hasMore`; long calls send progress notifications.
+- Table reads run only where the destination allows them: `tableContents` by name needs `allowDataPreview`, `runQuery` needs `allowFreeSql`.
+- The create and edit flows travel in the MCP `instructions` field, and six ready-made workflows ship as MCP prompts (`create-object`, `safe-edit`, `review-transport`, `fix-atc`, `clean-core-check`, `debug-dump`; in Claude Code `/mcp__abap-adt-mcp__safe-edit DEV ZCL_ORDER_SERVICE "return early when the input table is empty"`).
+- Every tool carries `readOnlyHint`/`destructiveHint` annotations, so hosts that gate approval by annotation ask only on writes.
 
-## Workflows in detail
+The tool-by-tool sequences, argument shapes and recipes are in [docs/WORKFLOWS.md](docs/WORKFLOWS.md).
 
-The full tool-by-tool sequences, argument shapes and recipes are in [docs/WORKFLOWS.md](docs/WORKFLOWS.md); this section is the short version.
+## For administrators
 
-Every tool except `listSystems` and `healthcheck` takes an optional `destination`; it is required when several systems are configured and none is marked `default` (or named in `SAP_DEFAULT_DESTINATION`).
+What the server is, in the terms a landscape owner asks about:
 
-**URLs and names.** `searchObject` returns the object URL, for example `/sap/bc/adt/oo/classes/zcl_example`; the source URL is that plus `/source/main`; class includes (implementations, test classes) use the URLs from `classIncludes` as they are. The tools inherited from several upstream generations name that URL differently (`objSourceUrl`, `objectSourceUrl`, `objectUrl`, `classUrl`, `url`, `mainUrl`), so the dispatcher maps the names onto each tool's schema and strips or appends `/source/main` where needed: the value from `searchObject` can be passed to any of them. Class-level tools (`getMethodSource`, `setMethodSource`, `whereUsed`, `cdsViewInfo`) also accept the plain name.
+- **Identity.** Every call reaches SAP as the user of the destination, with that user's authorizations; the server removes no SAP check and has no access the user does not have. With `sso` and `sso2` that user is the person at the keyboard; `basic` and `oauth` carry stored credentials, so prefer named users where accountability matters. The authorizations of a display-only SAP user are listed in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#on-prem-production-read-only-with-a-dedicated-display-user).
+- **Process.** One process per person, started by the MCP host, speaking stdio; nothing listens on the network unless you start the optional [HTTP transport](docs/CONFIGURATION.md#6-http-transport).
+- **Network.** It talks to the configured SAP hosts, to the identity provider during browser SSO, and to `raw.githubusercontent.com` for SAP's cloudification repository when `apiReleaseState` runs (cached 24 hours; `deniedTools: ["apiReleaseState"]` keeps that off the network). No telemetry, no update checks; `npx` itself contacts the npm registry.
+- **What the model sees.** The result of every tool call the user approves (source, table rows where opened, dumps, ATC findings, error text after redaction) goes to the MCP host and from there to the model provider under the host's own data terms (the host decides the provider, not this server); the server sends nothing anywhere else. `readOnly`, `deniedTables` and `deniedTools` bound that set per destination.
+- **Disk.** `~/.abap-adt-mcp/`: `systems.json` (yours), the SSO browser profile per host (`sso/<host>`, mode `0700`), the cloudification cache, package exports (`exports/`, only where `exportPackageSources` may write), the HTTP token and, when enabled, the audit log. SAP session cookies are never written to disk.
+- **Secrets.** `${env:VAR}` works in every string of `systems.json`; a file readable by others is refused when it holds inline passwords. Error messages pass through a redaction step (bearer tokens, cookies, passwords, `user:password@host` URLs); successful tool results are not redacted, so `readOnly`, `deniedTables` and `deniedTools` are what bounds them. `reentranceTicket` (a logon ticket the model could carry elsewhere) stays disabled unless `SAP_ALLOW_REENTRANCE_TICKET=1`.
+- **What the policy cannot see.** ABAP the model runs (`runSnippet`, `runClass`, `unitTestRun`) executes with the user's authorizations; `deniedTables` scans the snippet text, but dynamic SQL and whatever the code calls are not inspected. Where code execution is unacceptable, list those tools in `deniedTools` or use `readOnly`.
+- **Untrusted input.** Comments, table rows and feeds from SAP can carry text that tries to steer the model. Use a host that asks before tool calls and review the tools in bold in the [Tool catalog](#tool-catalog) (the destructive ones) before approving.
+- **Audit.** `MCP_AUDIT_FILE=/var/log/abap-adt-mcp/audit.jsonl` appends one JSON line per call: tool, destination, outcome, duration, the policy gate that refused it, and the arguments with secrets redacted. The file is written per workstation by the user's own process; central collection and tamper protection are yours to arrange. [docs/CONFIGURATION.md](docs/CONFIGURATION.md#7-audit-log-record-format) has the record format.
+- **SAP API Policy.** SAP calls the ADT services this server uses internal, for development through the channels it endorses, and this project is not among them; unpublished interfaces are used at own risk. Ask your SAP contact and keep the server to development and test systems. Details under [SAP API Policy](#sap-api-policy).
+- **Revocation.** A lost laptop or a leaked secret is closed piece by piece (SSO profile, identity-provider session, OAuth secret, SAP password, local files): [SECURITY.md, Decommissioning](.github/SECURITY.md#decommissioning).
+- **Releases.** Only the newest release receives fixes; for a controlled rollout pin the version instead of the unpinned `npx -y abap-adt-mcp` of the setup ([Other ways to install](#other-ways-to-install)). Tested modes: `sso`, `sso2` and on-prem `basic`; `oauth` and Communication-User `basic` are not ([Authentication](#authentication)). Vulnerabilities: [SECURITY.md, Reporting a vulnerability](.github/SECURITY.md#reporting-a-vulnerability).
 
-**Find and read code.** `searchObject` finds objects by name. By content, `sourceTextSearch` uses the ADT text index and `grepPackage` greps package sources client-side with context lines (the fallback when a tenant has no text index). `packageTree`, `whereUsed`, `cdsViewInfo`, `typeHierarchy` and `classComponents` give IDE-style navigation. `getObjectSource` reads a source (paged with `startLine`/`maxLines`, `version=inactive` for unactivated code), `getMethodSource` one method, and `exportPackageSources` writes a package tree to disk in abapGit layout for local tools.
+### Policy keys
 
-**Edit safely.** Writes lock, write and unlock by themselves and activate when you pass `activate=true`:
+Enforced in the server before any SAP call, per destination in `systems.json`:
 
-1. `resolveTransport(objSourceUrl)` returns the transport that already records the object, the newest modifiable one for its package, or `needsTransport: false` for local packages; `createIfMissing=true` creates one when none exists.
-2. `syntaxCheckCode` on the intended source: optional for a one-line change, cheap insurance for anything larger.
-3. `editObjectSource(objectSourceUrl, replacements=[{oldText, newText}], activate=true, transport)` for targeted changes (the server re-reads SAP first; each `oldText` must match exactly once, otherwise the call fails with "0 matches" or the line numbers of every match and nothing is written), `setMethodSource(classUrl, methodName, source, activate=true, transport)` to swap one `METHOD ... ENDMETHOD` block in the implementation (pass the full block or only the body; the definition part stays as it is; `include` and `className` select local or test classes; an unknown method is refused with the list of methods present), `setObjectSource` for full rewrites.
-4. Read the `activation` field of the result; fix and write again, or `activateByName` / `activatePackage` later.
-5. `unitTestRun(url)`, then `objectDiff(objectUrl)` to show what changed against the previous revision.
+| Key | Effect |
+|---|---|
+| `readOnly` | Only read-only tools run: every source write, `lock`, `runSnippet`, `runClass`, `unitTestRun`, `createAtcRun` and `atcSummary` are refused. Table reads (where opened) and `exportPackageSources` stay allowed; close them with the keys below. |
+| `allowDataPreview` | Off unless `true`: `tableContents` may read the rows of a table or CDS entity by name. An explicit `false` overrides `MCP_ALLOW_DATA_PREVIEW`. |
+| `allowFreeSql` | Off unless `true`: `runQuery` and `tableContents` with `sqlQuery` (implies `allowDataPreview`). |
+| `deniedTables` | Patterns the model may not read (`["PA*", "HR*", "USR02"]`), applied to reads and to the ABAP text it writes or runs; SAP's own display authorization remains the floor. |
+| `deniedTools` | Tools refused outright: names, patterns (`rapGen*`) or `toolset:git`. |
+| `allowedPackages` | Writes only inside these packages (`["Z*", "$*"]`); an unresolvable package is refused. |
+| `allowedTransports` | Writes only on these transports; creating new ones is refused. |
 
-`lock`/`unLock` only hold a lock across several writes; `listLocks` and `forceUnlock` recover from a failed write. A lock held by another session (an open Eclipse window, for example) is reported as foreign: `dropSession` and `forceUnlock` cannot release it, only that session or `SM12` can.
-
-**Create objects and transports.** `loadTypes` (pick the `objtype`, for example `CLAS/OC`), `validateNewObject`, then `resolveTransport(objSourceUrl="/sap/bc/adt/packages/<pkg>", devClass="<pkg>")` for the package itself, since the object has no URL yet (or `createTransport`), then `createObject(objtype, name, parentName=<pkg>, description, parentPath="/sap/bc/adt/packages/<pkg>", responsible, transport)`, `setObjectSource` with `activate=true`, `createTestInclude`, `unitTestRun`. `creatableTypeDetails` tells which fields each type requires; packages (`DEVC/K`) need `swcomp`, and cloud backends need `responsible`.
-
-**Unit tests and ATC.** `unitTestRun` after every change (paged with `startIndex`/`maxItems`); `unitTestEvaluation` drills into results. ATC: `createAtcRun(mainUrl, variant)` on an object, package or transport (a variant name such as `ABAP_CLOUD_DEVELOPMENT_DEFAULT` is resolved to a worklist for you), then `atcWorklists` or `atcSummary` (totals by priority, check and object), `atcQuickfixProposals` and `atcApplyQuickfix` for deterministic fixes, `atcDocumentation` for unfamiliar checks; exemptions go through `atcExemptProposal` and `atcRequestExemption`.
-
-**Review a transport.** `transportDetails` lists objects, owner, tasks and status; `transportUnifiedDiff` compares every source object recorded on the transport against the version predating it, including `LIMU` class includes and methods, `REPS` includes and `FUNC` modules (messages and DDIC are skipped with a reason). The comparison is against the current source, so on an already released transport later changes to the same objects show up too. It runs on S/4HANA Cloud tenants (the `LIMU` coverage came out of a RAP session there, see [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md)). `objectDiff` covers objects with several revisions. `userTransports`, `transportRelease`, `transportSetOwner` and `transportAddUser` complete the picture.
-
-**Data.** `runQuery(sqlQuery)` runs an ABAP SQL `SELECT` through the ADT data preview over tables and CDS views (by entity name, released API views included), for example `SELECT carrid, connid, fldate FROM sflight WHERE carrid = 'LH' ORDER BY fldate DESCENDING`. `rowNumber` caps how many rows SAP returns (default 100) and `startRow`/`maxRows` page the result. Statements are wrapped to the preview's 255-character line limit before sending (a single literal longer than that still fails). Tables whose DDIC `dataMaintenance` is restricted are refused by the preview: `tableContents(ddicEntityName)` reads them (S_TABU_DIS/S_TABU_NAM still apply). Keys come back in internal format, so `getDataElementProperties` and `getDomainProperties` tell you about leading zeros and conversion exits. Values come back as SAP sent them, as strings: keys keep their leading zeros, amounts keep every digit, and a negative number carries its sign in front (`-12.34`, where SAP writes `12.34-`). `decode=true` turns numbers into JSON numbers where the number is exact and dates into `YYYY-MM-DD`; NUMC always stays a string.
-
-**Dumps and debugger.** `dumps(from, to, user, contains)` returns compact summaries (runtime error, exception, program, termination point with source URL and line, top of the stack) and `dumpDetails(dumpId)` the full analysis; `getObjectSource` around `terminatedAt.line` and `whereUsed` find the cause. The `debugger` and `traces` toolsets exist only where the backend exposes them (`systemProfile` tells) and only when the toolset is published (`focused` leaves both out). Without a debugger the paths are: a dump (`dumps`), reproducing the bug with `runSnippet` or `runClass` on a development system and reading the output, and `traces` where the backend serves them. When the debugger is available, `debuggerListen` needs `debuggingMode`, `terminalId`, `ideId` and `user`, as in Eclipse.
-
-**ABAP Cloud readiness.** `apiReleaseState` takes one of four inputs: `names` (comma-separated, optionally typed such as `TABL:MARA`), `objectUrl`, `source` (pasted ABAP text) or `sourceUrl` (a `.../source/main` URL the server reads and scans). It checks the SAP objects against SAP's official cloudification repository (released, deprecated with successors, notToBeReleased, classicAPI, noAPI; editions `cloud`, `btp`, `pce`, `pce2025`, `pce2023`, `pce2022`) plus the backend's `/sap/bc/adt/apireleases` answer, so the model never recalls release states from memory. Every result carries `apiPolicy` (`released`, `classic`, `notReleased`, `prohibited`, `customer`, `unknown`); interfaces SAP classifies as not permitted are listed apart under `prohibited` ([docs/API-POLICY.md](docs/API-POLICY.md#released-not-released-not-permitted)).
-
-**Run code.** `runSnippet(code, packageName)` wraps throwaway ABAP in a temporary `IF_OO_ADT_CLASSRUN` class, creates, activates and runs it, returns the console output and deletes the class again, also when activation or the run fails (a failed deletion is reported as `cleanupError`; `keep=true` keeps it). On-prem `packageName` defaults to `$TMP`; on S/4HANA Cloud pass a customer package, its `transport` and `responsible`, and the create and delete are recorded on that transport. `runClass` runs an existing class. Both need S_DEVELOP, so development systems only.
-
-**abapGit, RAP generator, refactoring, services.** abapGit: `gitRepos`, `gitCreateRepo`, `gitPullRepo`, `stageRepo`, `pushRepo`, `checkRepo`, `switchRepoBranch`, with per-destination `gitUser`/`gitPassword` keeping remote credentials out of the conversation. RAP generator: `rapGenIsAvailable`, `rapGenGetContent`, `rapGenValidateContent`, `rapGenPreview`, `rapGenGenerate` (transport required), then `activateObjects` on the generated objects and `rapGenPublishService`. Refactoring: `renameEvaluate`, `renamePreview`, `renameExecute`; the same triple for `extractMethod*`; `changePackagePreview` and `changePackageExecute`. Business services: `fetchServiceDetails(name)`, `bindingDetails`, `publishServiceBinding`, `unPublishServiceBinding`.
-
-## Built-in prompts
-
-Six ready-made workflows travel as MCP prompts. Each names the exact tools to call, in order, and says where it must stop and ask:
-
-| Prompt | Arguments | What it does | Where it stops |
-|---|---|---|---|
-| `create-object` | optional `destination`, then `objectType` (ADT type id such as `CLAS/OC`, `INTF/OI`, `PROG/P`, `DDLS/DF`), `name`, `package`, optional `purpose` | Validate, create, write, activate, unit-test and ATC-check a new object in the right package and transport. | Creates and activates; never deletes or releases. |
-| `safe-edit` | optional `destination`, then `object` (name or URL), `change` | Read, change with text-anchored replacements, activate, test and show the diff. | Never reaches `deleteObject`, `transportRelease` or `forceUnlock` on its own; if a foreign lock or a release question comes up it stops and asks. |
-| `review-transport` | optional `destination`, then `transport` (request number) | Diff every object on a transport and produce a go/no-go review. | Never calls `transportRelease`. |
-| `fix-atc` | optional `destination`, then `target` (object URL, package name or transport), optional `variant` | Run ATC, apply deterministic quickfixes, fix the rest with edits, re-run until priority 1 and 2 are clean. | Applies quickfixes and edits; exemptions only with approval. |
-| `clean-core-check` | optional `destination`, then `target` (object name or URL, or package name) | Assess ABAP Cloud readiness: released APIs, deprecated objects, successors, cloud ATC checks. | Changes no code. |
-| `debug-dump` | optional `destination`, then optional `filter` (user, program, exception or time window) | Find the root cause of a short dump and propose the fix at the exact line. | Proposes replacements; does not apply them without approval. |
-
-How you invoke them depends on the host. Claude Code exposes MCP prompts as slash commands named `/mcp__<server>__<prompt>`, with the arguments given positionally in the order the prompt declares them (`destination` comes first in every prompt, as in the table):
-
-```text
-/mcp__abap-adt-mcp__safe-edit DEV ZCL_ORDER_SERVICE "return early when the input table is empty"
-```
-
-Claude Desktop offers them from the chat's attachment (plus) menu under the server name at the time of writing; hosts without prompt support simply do not show them, and the same flows still reach the model through the server's `instructions` field.
-
-## Other ways to install
-
-**Pin the version.** `npx -y abap-adt-mcp` fetches the newest release at every start. For a controlled rollout pin it (`npx -y abap-adt-mcp@X.Y.Z`, or the `vX.Y.Z` container tag) and verify the provenance attestation that trusted publishing attaches with `npm audit signatures` in a directory where the package is installed.
-
-**Claude Code plugin.** The repository is its own plugin marketplace (`.claude-plugin/marketplace.json` next to `plugin.json`), so two commands in Claude Code register the server and load both skills, with no `claude mcp add`:
-
-```text
-/plugin marketplace add williansaez/abap-adt-mcp
-/plugin install abap-adt-mcp@abap-adt-mcp
-```
-
-The manifest starts the server as `npx -y abap-adt-mcp@<version>`, pinned to the release it ships with (the pin moves with each release and CI checks it against `package.json`), so a plugin host keeps the version it installed instead of taking whatever npm serves as latest at its next start; it sets `SAP_SYSTEMS_FILE=${HOME}/.abap-adt-mcp/systems.json` and no `MCP_TOOLSETS`, so it publishes all 173 tools; `systems.json` from step 1 is still yours to write. The skills alone install, at the time of writing, with `npx skills add williansaez/abap-adt-mcp` (a third-party installer, not part of this repository) or by copying the two directories under `skills/` into `~/.claude/skills/`.
-
-**Container.** Images are built from `node:22-alpine`, run as the unprivileged `node` user (uid 1000) and are published to GHCR on every release (tags `latest` and `vX.Y.Z`). Mount your `systems.json` read-only and pass referenced secrets through:
-
-```bash
-docker run -i --rm \
-  -v "$PWD/systems.json:/config/systems.json:ro" \
-  -e SAP_SYSTEMS_FILE=/config/systems.json \
-  -e ONPREM_PASSWORD \
-  ghcr.io/williansaez/abap-adt-mcp:latest
-```
-
-The file-mode check runs inside the container as well: a mounted file with mode `0600` owned by another uid cannot be read by the `node` user at all (the start fails with `is not valid JSON: EACCES`, since the read and the parse share one error path), and a file readable by others only warns unless it holds inline secrets. Either own the file by uid 1000 and keep `0600`, or reference every secret as `${env:VAR}` and accept the warning. Secrets passed with `-e` are visible to `docker inspect`; there is no file-based alternative for `MCP_HTTP_TOKEN`, so treat the container's environment as confidential. For Streamable HTTP inside the container add `-e MCP_HTTP_PORT=2236 -e MCP_HTTP_HOST=0.0.0.0 -e MCP_HTTP_TOKEN=<token> -p 127.0.0.1:2236:2236`. Browser SSO needs a local browser, so run SSO destinations from npm on the workstation; `basic` and `oauth` destinations work inside the container.
-
-**MCP registry.** Listed as `io.github.williansaez/abap-adt-mcp` for hosts that browse the registry; [server.json](server.json) is the registry manifest.
-
-**From source.**
-
-```bash
-git clone https://github.com/williansaez/abap-adt-mcp.git
-cd abap-adt-mcp
-npm ci
-npm run build
-```
-
-Then point the host at `node /absolute/path/abap-adt-mcp/dist/index.js`. A `systems.json` next to the checkout is picked up automatically; `.env` (see [docs/env.example](docs/env.example)) works for single-system setups. Both are git-ignored.
+Refusals come back as `kind: "policyDenied"` naming the gate; `listSystems` shows every policy and the effective `dataAccess`. The threat model and the residual risks are in [SECURITY.md](.github/SECURITY.md); the gates tool by tool, with recipes, in [docs/CONFIGURATION.md](docs/CONFIGURATION.md#3-policy-in-depth); the standing under SAP's API Policy in [docs/API-POLICY.md](docs/API-POLICY.md).
 
 ## Authentication
 
-Every destination picks its own `authType` (`sso` unless `SAP_AUTH_TYPE` says otherwise). Details and SAP-side steps are in [docs/AUTH.md](docs/AUTH.md).
+Every destination picks its own `authType`. Details and the SAP-side steps are in [docs/AUTH.md](docs/AUTH.md).
 
-| Mode | Use it for | What you configure | SAP-side setup |
+| Mode | Use it for | What you configure | SAP side |
 |---|---|---|---|
-| `sso` (default) | S/4HANA Cloud named users, exactly like Eclipse ADT (SAML2/OIDC via IAS) | A Chromium browser (Chrome, Edge, Brave) opens once per host; the session cookies are read over the DevTools protocol and kept in memory, with `sap-client` pinned on every request. The identity-provider session lives in a dedicated profile under `~/.abap-adt-mcp/sso/<host>` (mode `0700`). `SAP_BROWSER_PATH` overrides the browser, `SAP_BROWSER_PROFILE_DIR` reuses a custom profile with saved passkeys (the browser's default profile is rejected on purpose). | None beyond the developer business role your user already needs for Eclipse ADT |
-| `sso2` | Headless on-prem named users when an approved local SNC/RFC bridge can issue a short-lived ticket | An absolute provider command, argument array and timeout. It returns `{"ticket":"..."}`; output is never logged and the `MYSAPSSO2` cookie stays in memory. | SNC mapping plus ticket issuance/acceptance and ADT ICF logon configured by Basis; availability is release/policy dependent |
-| `basic` | On-prem AS ABAP, S/4HANA Cloud Communication Users | `user` and `password` (use `${env:VAR}`). Authenticates on the first call, `login` is optional. | A user with ADT authorizations |
-| `oauth` | S/4HANA Cloud unattended clients | `oauth.tokenUrl`, `oauth.clientId`, `oauth.clientSecret`, optional `oauth.scope` (client credentials grant; the token is cached until shortly before expiry and invalidated on a 401). | A Communication User, a Communication System with OAuth 2.0, and a Communication Arrangement for the scenario that exposes ADT on your tenant (it varies by tenant and is not listed here; the arrangement gives the token endpoint). The tools then run with the Communication User's authorizations. |
+| `sso` (default) | S/4HANA Cloud named users, and on-prem systems that answer with a Basic challenge | Nothing: a browser opens once per host; the session is kept in memory. `SAP_BROWSER_PATH` overrides the browser. | The developer business role your user already needs for Eclipse ADT |
+| `sso2` | Headless on-prem named users, when a trusted local SNC/RFC bridge can issue a short-lived ticket | `sso2.command`, `args`, `timeoutMs` | SNC mapping, ticket acceptance and ADT ICF logon set up by Basis |
+| `basic` | On-prem AS ABAP users, S/4HANA Cloud Communication Users | `user` and `password` (as `${env:VAR}`) | A user with ADT authorizations |
+| `oauth` | S/4HANA Cloud unattended clients | `oauth.tokenUrl`, `clientId`, `clientSecret` | Communication User, Communication System with OAuth 2.0, Communication Arrangement for the ADT scenario of your tenant |
 
-Named business users on S/4HANA Cloud cannot use basic auth; they log in through `sso` or you create a Communication User. The SSO session is created for the tenant's logon client, which may differ from the one you expect (`100` instead of `080`, for example): set `client` to the one the session actually uses. A wrong client shows up as authorization or not-found errors on objects you can open in Eclipse, after a login that itself succeeded. The SSO profile directory is an ordinary Chromium user-data directory: it holds the cookies and local storage the identity provider sets when you tick "stay signed in", nothing the server adds, and it is protected by file permissions and by whatever Chromium does on your OS, not encrypted by the server; how long the session stays valid is the identity provider's policy, and deleting the directory is the only way to end it early (the harvested SAP session cookie itself is never written to disk). Per-destination `tls` adds a corporate CA (`ca`), the name to verify the certificate against when `url` holds an IP address or short hostname (`servername`, also sent as SNI), or an X.509 client certificate (`cert` + `key`, or `pfx` + `passphrase`), with verification kept on; the SSO browser window manages its own trust store. Optional `gitUser`/`gitPassword` supply abapGit credentials so they never pass through the model. Expired sessions in any mode are re-established once and the call retried; if that fails the error says `kind: "sessionExpired"`.
-
-## Keeping it safe
-
-This server gives a language model read and write access to SAP. A few rules make that comfortable:
-
-- **Guard rails live in the server, not in the host.** A destination's `policy` block is evaluated in the server before the tool's own SAP call, whatever the host approves; `allowedPackages` is the one gate that may need a lookup (`transportInfo`, cached) to learn an existing object's package first. Refusals come back as `kind: "policyDenied"` naming the gate, and `listSystems` shows each policy and the effective `dataAccess`. A destination without a `policy` block is fully writable and reads no table data.
-
-  | Key | Type | Effect |
-  |---|---|---|
-  | `readOnly` | boolean | Only tools annotated read-only may run, plus `login`, `logout`, `dropSession`, `listSystems`, `healthcheck`, `systemProfile` and `exportPackageSources` (which writes locally only). Blocked as writes: every source write, `lock`, `runSnippet`, `runClass`, `unitTestRun`, `createAtcRun` and `atcSummary`. `runQuery` and `tableContents` are reads, so `readOnly` does not refuse them: `allowDataPreview` and `allowFreeSql` decide. |
-  | `deniedTools` | globs | Tools refused outright on this destination: a name, a glob (`rapGen*`) or `toolset:<name>` for every tool of a toolset, for example `["transportRelease", "toolset:git"]`. Five abapGit tools are not git-prefixed (`pushRepo`, `stageRepo`, `checkRepo`, `remoteRepoInfo`, `switchRepoBranch`), so `git*` alone leaves the push path open. The tools stay listed. |
-  | `allowDataPreview` | boolean, off unless stated | `true` lets `tableContents` read the rows of a table or CDS entity by name. Absent or `false`: refused. An explicit `false` also closes SQL. |
-  | `allowFreeSql` | boolean, off unless stated | `true` allows `runQuery` and `tableContents` with `sqlQuery`, and implies `allowDataPreview`. Absent or `false`: refused. |
-  | `deniedTables` | globs | Applied to `tableContents`, to every `FROM`/`JOIN` target of a `runQuery`, and (best effort, by scanning the ABAP text) to `runSnippet`, `setObjectSource` and `setMethodSource`. Dynamic SQL and views over the table are not detected: for data that must not leave SAP, rely on the SAP display authorizations of the connected user and leave `allowFreeSql` off and add `deniedTools: ["runSnippet"]` or `readOnly`. |
-  | `allowedPackages` | globs, closed list | Gates writes only; reads and navigation of any object (SAP objects included) are never gated. Package arguments are checked directly; object writes resolve the object's package through `transportInfo`; an unresolvable package is refused. `gitPullRepo`, `rapGenGenerate`, `rapGenPublishService`, `publishServiceBinding` and `unPublishServiceBinding` cannot derive a package and are refused whenever this key is set. |
-  | `allowedTransports` | globs | Every `transport`/`transportNumber` argument must match; `createTransport` and `resolveTransport(createIfMissing=true)` are refused. |
-
-  Server-wide switches are `MCP_READ_ONLY=1` (adds `readOnly` to every destination), `MCP_ALLOW_DATA_PREVIEW=1` and `MCP_ALLOW_FREE_SQL=1` (open table data or SQL on the destinations that do not state the key themselves; a destination that states `false` stays closed) and `MCP_DISABLED_TOOLSETS` (hides whole toolsets from every destination); there is no global `deniedTools`, `deniedTables` or `allowedPackages`, those are repeated per entry. Hidden and refused differ: a toolset left out by `MCP_TOOLSETS`/`MCP_DISABLED_TOOLSETS` is absent from the tool list and a call by name (from a prompt, a host that cached an older list, or a skill) is refused with the toolset name; `deniedTools` keeps the tool listed and refuses it on that destination; tools a destination cannot serve (detected by `systemProfile`) stay listed and are refused before calling SAP (`MCP_PROFILE_GATE=enforce|warn|off`).
-- **Secrets stay out of files and chats.** `${env:VAR}` works in every string of `systems.json` (`password`, `oauth.clientSecret`, `gitPassword`, `tls.passphrase`, even `url`); a missing variable fails at startup by name, never by value. Keep `systems.json` at mode `0600`: a group- or world-readable file is warned about and refused when it holds an inline `password`, `oauth.clientSecret` or `gitPassword`. Prefer `SAP_SYSTEMS_FILE` over inline `SAP_SYSTEMS` in host configs. `MCP_HTTP_TOKEN` is an environment variable, not a file entry; the client side of the HTTP transport has to carry the token in its host config, so keep that file at `0600` too. `listSystems` and `healthcheck` report no credentials, error messages pass through a redaction step that masks bearer tokens, cookies, passwords and `user:password@host` URLs, and `exportPackageSources` may only write inside `MCP_EXPORT_ROOT` (default `~/.abap-adt-mcp/exports`, checked against symlinks). `reentranceTicket` stays disabled unless `SAP_ALLOW_REENTRANCE_TICKET=1`, because it returns a live logon credential into the conversation.
-- **TLS stays on, and cannot be turned off for everything at once.** `NODE_TLS_REJECT_UNAUTHORIZED=0` is removed from the environment before the first connection, and the server says so at startup: one destination's problem never silences verification for the others, for the OAuth token request or for the cloudification download. For a corporate or self-signed certificate use `tls.ca` on that destination, for a certificate issued to a name other than the one in `url` use `tls.servername` (verification stays on in both cases, no warning), or as a last resort `insecureTls: true` on that destination only (announced at startup, shown by `listSystems`). A failed handshake comes back as `kind: "tlsCertificate"` with the fix for that destination spelled out.
-- **Content from SAP is untrusted input.** Comments, table rows and feeds can carry text that tries to steer the model. Use a host that asks before tool calls and review destructive ones (`deleteObject`, `transportRelease`, `transportDelete`, `setObjectSource`, `editObjectSource`, `setMethodSource`, `pushRepo`, `forceUnlock`) before approving them.
-- **Least privilege, and what "read-only" still reads.** Connect with users that have only the authorizations the task needs. `runQuery` and `tableContents` read real business data, which is why they are off until a destination allows them: open them only where that is acceptable, and keep `deniedTables` next to them. [docs/API-POLICY.md](docs/API-POLICY.md) explains how this relates to the SAP API Policy. `exportPackageSources` copies whole packages of source to local disk even on a `readOnly` destination: add it to `deniedTools` where source must not leave SAP.
-- **What leaves the machine.** The server talks to the configured SAP hosts, to the identity provider during browser SSO, and to GitHub for SAP's cloudification repository when `apiReleaseState` runs (one JSON file per edition from `raw.githubusercontent.com/SAP/abap-atc-cr-cv-s4hc`, 15-second timeout, cached for 24 hours under `~/.abap-adt-mcp/cache`, relocatable with `MCP_CACHE_DIR`; a cached copy is used when the download fails). There is no offline switch, mirror URL or proxy support for that download (it uses Node's built-in `fetch`, which ignores `HTTPS_PROXY`): on an air-gapped host seed the cache directory once, or leave that single tool to fail. Nothing else is sent anywhere: no telemetry, no update checks. `npx` itself contacts the npm registry.
-
-## Audit log
-
-Set `MCP_AUDIT_FILE=/var/log/abap-adt-mcp/audit.jsonl` to append one JSON line per tool call. The directory is created with mode `0700` and the file with `0600`; a write failure is reported once on stderr and never breaks a call. Each record is appended by path, so rotating the file by renaming it is safe (the next call creates a fresh one); the server keeps no retention of its own. [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) explains how to turn the file into a useful session report.
-
-```json
-{"ts":"2026-09-03T10:15:42.117Z","requestId":42,"tool":"editObjectSource","destination":"DEV","durationMs":1834,"outcome":"ok","args":{"objectSourceUrl":"/sap/bc/adt/oo/classes/zcl_example/source/main","replacements":"[array 312 chars]","activate":true,"transport":"DEVK900123"}}
-{"ts":"2026-09-03T10:16:03.902Z","requestId":43,"tool":"runQuery","destination":"QAS","durationMs":2,"outcome":"denied","args":{"sqlQuery":"SELECT * FROM ztable"},"errorKind":"policyDenied","gate":"allowFreeSql","message":"MCP error -32600: Policy: runQuery blocked on destination QAS (allowFreeSql): free SQL (runQuery) is off on this destination: its policy states \"allowFreeSql\": false. Configured in systems.json policy; retrying will not help."}
-```
-
-Fields: `ts`, `requestId`, `tool`, `destination`, `durationMs`, `outcome` (`ok`, `error`, `denied` for policy refusals, `unavailable` for toolset or platform gates), `errorKind`, `gate` (the policy key), `message` (the error text, first 300 characters), `args` and `retried` (set when the call was re-authenticated and retried). What `args` keeps: argument keys containing `pass` (so `password` and `passphrase`), `secret`, `token`, `authorization`, `cookie` or `lockHandle` become `[REDACTED]`; string values up to 200 characters are stored verbatim after the same redaction as error messages (so an SQL statement or a short snippet with business literals is in the file), longer strings are truncated, and arrays or objects over 200 characters collapse to `[array N chars]` or `[object N chars]`. Treat the file as sensitive. There is no caller identity in a record (no remote address, MCP session id or token id): on stdio the process belongs to one person, and on a shared HTTP instance attribution has to come from running one instance per person or from the access log of the reverse proxy in front.
+- Named business users on S/4HANA Cloud cannot use basic auth: they log in through `sso`, or you create a Communication User. `oauth` and `basic` with a Communication User follow SAP's documentation for technical users but were not exercised by this project against a live tenant; confirm on yours before relying on them.
+- On an on-prem Basic challenge the browser window asks for the SAP password; if you let the browser save it, it sits in the dedicated profile under `~/.abap-adt-mcp/sso/<host>`.
+- TLS verification stays on for the process. Per destination, `tls.ca` adds a corporate CA, `tls.servername` names the certificate of a system reached by IP address, `tls.cert` + `key` (or `pfx` + `passphrase`) present a client certificate, and `insecureTls: true` is announced at startup. Optional `gitUser`/`gitPassword` keep abapGit credentials out of the conversation.
 
 ## S/4HANA Cloud versus on-prem
 
-`systemProfile(destination)` reports whether a destination is cloud or on-prem (host domain, system information and discovery document) and which toolsets the backend lacks; those tools are refused before calling SAP. If you only have an S/4HANA Cloud tenant, the middle column is yours. What [docs/TESTPLAN.md](docs/TESTPLAN.md) and [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) recorded on a Public Cloud tenant:
+`systemProfile(destination)` reports whether a destination is cloud or on-prem and which toolsets the backend lacks; those tools are refused before calling SAP. What [docs/TESTPLAN.md](docs/TESTPLAN.md) recorded on a Public Cloud tenant:
 
 | Topic | S/4HANA Cloud (public edition) | On-prem / private |
 |---|---|---|
-| Authentication | Named users: browser SSO only. Unattended: OAuth2 from a Communication Arrangement, or basic auth with a Communication User. | Basic auth; client certificates through `tls`; optional headless `sso2` through a trusted local SNC/RFC ticket provider. |
-| Local objects | `$TMP` was refused on the tested tenant (authorization object S_ABPLNGVS: objects in `$TMP` get the Standard language version); use a customer package with ABAP for Cloud Development and its transport, `resolveTransport` picks it. `runSnippet` needs `packageName`, `transport` and `responsible` there. | `$TMP` available, no transport needed; `runSnippet` defaults to `$TMP`. |
-| Toolsets | RAP generator absent on the tested tenant; debugger, traces and abapGit depend on the tenant and authorizations. `dumps`/`dumpDetails` are the root-cause path when the debugger is missing. `sourceTextSearch` falls back to `grepPackage` when the tenant answers "Source Search is not supported". | Full ADT collection set on a current release. |
+| Authentication | Named users: browser SSO only. Unattended: OAuth2 from a Communication Arrangement, or basic auth with a Communication User. | Basic auth; client certificates through `tls`; browser SSO on systems with a Basic challenge; headless `sso2` through a local ticket provider. |
+| Local objects | `$TMP` was refused on the tested tenant (authorization object `S_ABPLNGVS`); use a customer package with ABAP for Cloud Development and its transport, `resolveTransport` picks it. `runSnippet` needs `packageName`, `transport` and `responsible` there. | `$TMP` available, no transport needed; `runSnippet` defaults to `$TMP`. |
+| Toolsets | RAP generator absent on the tested tenant; debugger, traces and abapGit depend on the tenant and authorizations. `dumps`/`dumpDetails` are the root-cause path when the debugger is missing; `sourceTextSearch` falls back to `grepPackage` when the tenant has no text index. | Full ADT collection set on a current release. |
 | Released APIs | `apiReleaseState` checks names, an object URL or a whole source; ATC variant `ABAP_CLOUD_DEVELOPMENT_DEFAULT`. `createObject` needs `responsible`. | Optional. |
-| Business data | `runQuery`/`tableContents` respect display authorizations; deny tables per policy. `runSnippet` needs S_DEVELOP, so development systems only. | Same. |
+| Business data | `runQuery`/`tableContents` respect display authorizations, and the destination has to allow them. `runSnippet` needs `S_DEVELOP`, so development systems only. | Same. |
 
-Lessons that apply everywhere: `runQuery` statements are wrapped to the data preview's 255-character line limit; tables with restricted `dataMaintenance` are read with `tableContents`; a lock held by an open Eclipse session is foreign and only `SM12` or that session can release it; writing a message class through `setObjectSource` rewrites the whole class and resets `masterLanguage` to the logon language.
+More in [docs/CLOUD.md](docs/CLOUD.md) and, from real sessions, [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md).
 
-## Configuration reference
+## Other ways to install
 
-Every option with its default, the policy gates tool by tool, host snippets and operational notes are in [docs/CONFIGURATION.md](docs/CONFIGURATION.md); this section is the summary.
+- **Pin the version.** `npx -y abap-adt-mcp` fetches the newest release at every start; for a controlled rollout pin it (`npx -y abap-adt-mcp@X.Y.Z`, or the `vX.Y.Z` container tag). Releases carry an npm provenance attestation, verifiable with `npm audit signatures`.
+- **Claude Code plugin.** Two commands register the server and install the two agent skills (`abap-adt-mcp` teaches the development flow, `abap-adt-mcp-setup` walks through installation): `/plugin marketplace add williansaez/abap-adt-mcp`, then `/plugin install abap-adt-mcp@abap-adt-mcp`. The plugin pins the release it ships with and publishes every toolset; `systems.json` from step 1 is still yours to write.
+- **Container.** `ghcr.io/williansaez/abap-adt-mcp:latest` (also `vX.Y.Z`), built from `node:22-alpine`, runs as uid 1000. Mount `systems.json` read-only and pass referenced secrets through; browser SSO needs a local browser, so run `sso` destinations from npm on the workstation. [docs/HOSTS.md](docs/HOSTS.md#docker-based-hosts) has the `docker run` line and the file-ownership pitfalls.
+- **MCP registry.** Listed as `io.github.williansaez/abap-adt-mcp` for hosts that browse the registry.
+- **From source.** `git clone https://github.com/williansaez/abap-adt-mcp.git`, `npm ci`, `npm run build`, then point the host at `node /absolute/path/abap-adt-mcp/dist/index.js`. A `systems.json` next to the checkout is picked up automatically.
 
-Configuration sources, in order of precedence: `SAP_SYSTEMS` (inline JSON), `SAP_SYSTEMS_FILE`, a `systems.json` next to the install, then the legacy single-system variables (`SAP_URL`, `SAP_CLIENT`, `SAP_USER`, `SAP_PASSWORD`, `SAP_LANGUAGE`, `SAP_TLS_INSECURE`, `SAP_SSO2_COMMAND`, `SAP_SSO2_ARGS`, `SAP_SSO2_TIMEOUT_MS`, `SAP_OAUTH_TOKEN_URL`, `SAP_OAUTH_CLIENT_ID`, `SAP_OAUTH_CLIENT_SECRET`, `SAP_OAUTH_SCOPE`, see [docs/env.example](docs/env.example)).
+## Configuration
 
-Per-destination keys in `systems.json`: `url`, `client`, `language`, `authType`, `default`, `user`/`password` (basic), `sso2` (`command`, `args`, `timeoutMs`), `oauth` (`tokenUrl`, `clientId`, `clientSecret`, `scope`), `insecureTls`, `gitUser`/`gitPassword`, `policy` and `tls` (`ca`, `servername`, `cert` + `key`, `pfx` + `passphrase`). Any string value may be `${env:VAR}`. Keys starting with `_` are ignored, so `_comment` entries are fine. All operational output (startup warnings, gate messages, the audit-file warning) goes to stderr, which MCP hosts capture in their logs.
+- Sources, in order of precedence: `SAP_SYSTEMS` (inline JSON), `SAP_SYSTEMS_FILE`, a `systems.json` next to the install, then the legacy single-system variables (`SAP_URL`, `SAP_CLIENT`, `SAP_USER`, `SAP_PASSWORD`, ...).
+- Per-destination keys: `url`, `client`, `language`, `authType`, `default`, `user`/`password`, `sso2`, `oauth`, `insecureTls`, `gitUser`/`gitPassword`, `policy`, `tls`; any string may be `${env:VAR}`.
+- There is no global `deniedTools`, `deniedTables` or `allowedPackages`: those are repeated per entry.
 
-Every variable declared in [server.json](server.json):
+The variables you are most likely to set:
 
-| Variable | Purpose | Default / notes |
+| Variable | Purpose | Default |
 |---|---|---|
-| `SAP_SYSTEMS_FILE` | Path to the destinations file | Recommended; keep mode `0600` |
-| `SAP_SYSTEMS` | The same map inline | Contains credentials, prefer the file |
-| `SAP_DEFAULT_DESTINATION` | Destination used when a call omits `destination` | Or mark an entry `"default": true` |
-| `SAP_AUTH_TYPE` | Default auth type for entries without one, and the mode of the legacy single-system setup | `sso`; `sso2`, `basic` or `oauth` |
-| `MCP_TOOLSETS` | Toolsets to publish: preset `all` or `focused`, or a comma list | `all` |
-| `MCP_DISABLED_TOOLSETS` | Toolsets to hide, comma list | `core` cannot be disabled |
-| `MCP_READ_ONLY` | `1` makes every destination read-only, server-side | Off |
-| `MCP_ALLOW_DATA_PREVIEW` | `1` lets `tableContents` read table data on destinations that do not state `policy.allowDataPreview` | Off |
-| `MCP_ALLOW_FREE_SQL` | `1` allows `runQuery` on destinations that do not state `policy.allowFreeSql` (implies table data) | Off |
-| `MCP_MAX_RESPONSE_CHARS` | Character budget of one tool response before paging or truncation | 40000, minimum 5000 |
-| `MCP_PROFILE_GATE` | Gate for toolsets the destination does not expose | `enforce`; `warn` logs only, `off` disables |
-| `MCP_SOURCE_CACHE_TTL_SECONDS` | Lifetime of the per-session source cache used by `syntaxCheckCode`, `grepPackage`, `cdsViewInfo`, `typeHierarchy`, `abapDocumentation` and `apiReleaseState(sourceUrl)` | 300; `0` keeps entries until logout |
-| `MCP_EXPORT_ROOT` | Directory `exportPackageSources` may write into | `~/.abap-adt-mcp/exports` |
-| `MCP_AUDIT_FILE` | JSONL audit trail path | Off when unset |
-| `SAP_ALLOW_REENTRANCE_TICKET` | `1` enables the `reentranceTicket` tool | Disabled |
-| `SAP_BROWSER_PATH` | SSO: path to a Chromium, Chrome or Edge binary | Auto-detected |
-| `SAP_BROWSER_PROFILE_DIR` | SSO: persistent browser profile holding the identity-provider session | `~/.abap-adt-mcp/sso/<host>` |
-| `SAP_SSO2_COMMAND` | Legacy single-system `sso2`: absolute path to the trusted ticket provider | Required for this mode |
-| `SAP_SSO2_ARGS` | Legacy single-system `sso2`: provider arguments as a JSON array | `[]`; never put a ticket here |
-| `SAP_SSO2_TIMEOUT_MS` | Legacy single-system `sso2`: provider timeout | 30000; range 1000–300000 |
-| `MCP_HTTP_PORT` | Serve Streamable HTTP on `http://127.0.0.1:<port>/mcp` with bearer auth instead of stdio | Unset (stdio); accepts 1024 to 65535 |
-| `MCP_HTTP_HOST` | Bind address of the HTTP transport | `127.0.0.1`; `0.0.0.0` only in containers |
-| `MCP_HTTP_TOKEN` | Bearer token for the HTTP transport | Generated into `~/.abap-adt-mcp/http-token` |
-| `MCP_HTTP_MAX_SESSIONS` | Maximum concurrent MCP sessions; further `initialize` requests get `503` | 16 |
-| `MCP_HTTP_MAX_BODY_BYTES` | Largest request body the HTTP transport accepts; larger bodies get `413` | 4194304 (4 MB) |
-| `MCP_HTTP_SESSION_TTL_MINUTES` | Idle minutes after which an HTTP session (and its SAP sessions and locks) is closed | 30 |
-| `MCP_HTTP_ALLOWED_ORIGINS` | Comma-separated `Origin` values allowed; `*` allows any | Loopback origins always allowed on a loopback bind |
-| `MCP_HTTP_ALLOWED_HOSTS` | Comma-separated `Host` header values allowed (DNS-rebinding protection) | Loopback hosts always allowed on a loopback bind; any host on a non-loopback bind |
-| `SAP_URL` | Legacy single-system mode: base URL, for example `https://host:44300` | |
-| `SAP_CLIENT` | Legacy single-system mode: client, for example `100` | |
-| `SAP_LANGUAGE` | Legacy single-system mode: logon language, for example `EN` | |
-| `SAP_USER` | Legacy single-system mode: SAP user | |
-| `SAP_PASSWORD` | Legacy single-system mode: SAP password | Secret |
-| `SAP_TLS_INSECURE` | Legacy single-system mode: `1` skips certificate verification for that system only | Sandboxes only |
-| `SAP_OAUTH_TOKEN_URL` | Legacy single-system mode with `SAP_AUTH_TYPE=oauth`: token endpoint | |
-| `SAP_OAUTH_CLIENT_ID` | Legacy single-system mode: OAuth2 client id | |
-| `SAP_OAUTH_CLIENT_SECRET` | Legacy single-system mode: OAuth2 client secret | Secret |
-| `SAP_OAUTH_SCOPE` | Legacy single-system mode: optional OAuth2 scope | |
+| `SAP_SYSTEMS_FILE` | Path to the destinations file | Recommended over inline `SAP_SYSTEMS` |
+| `MCP_TOOLSETS` | `all`, `focused`, or a comma list of toolsets to publish | `all` (the setup above chose `focused`) |
+| `MCP_READ_ONLY` | `1` makes every destination read-only | Off |
+| `MCP_ALLOW_DATA_PREVIEW`, `MCP_ALLOW_FREE_SQL` | `1` opens table data or SQL on destinations that do not state the key | Off |
+| `MCP_AUDIT_FILE` | JSONL audit trail | Off |
+| `MCP_MAX_RESPONSE_CHARS` | Budget of one tool response before paging | 40000 |
+| `MCP_HTTP_PORT` | Serve Streamable HTTP on `127.0.0.1:<port>/mcp` with a bearer token instead of stdio | Unset (stdio) |
+| `SAP_BROWSER_PATH` | SSO: the Chromium binary to use | Auto-detected |
 
-Read at runtime but not part of the registry manifest: `MCP_CACHE_DIR` relocates the cloudification repository cache (default `~/.abap-adt-mcp/cache`), `MCP_API_CLASSIFICATION_FILES` adds classification files to `apiReleaseState` (comma list of paths inside SAP's cloudification repository or `https` URLs), and `NODE_TLS_REJECT_UNAUTHORIZED=0` is removed at startup so it cannot disable certificate verification for the whole process.
+Every variable, with its default and what it touches, the HTTP transport (token, session and body limits, DNS-rebinding protection, what a shared instance means) and the audit record format are in [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
-## HTTP transport (optional)
+## Tool catalog
 
-By default the server speaks stdio: one process per user, nothing listening on the network. For hosts that expect an HTTP endpoint (Eclipse, another machine, a container, a shared team instance), start it with a port:
+The per-tool reference (description, parameters, read-only/destructive annotations) is [docs/TOOLS.md](docs/TOOLS.md), generated from the live `tools/list` response and verified by a contract test in CI. Every tool except `listSystems` and `healthcheck` accepts an optional `destination`.
 
-```bash
-MCP_HTTP_PORT=2236 npx -y abap-adt-mcp
-```
+Tool schemas cost context. `MCP_TOOLSETS` takes a preset (`all`, the default, or `focused` = 114 development tools) or a comma list of the toolset names below; `MCP_DISABLED_TOOLSETS` removes some; `core` is always published.
 
-It listens on `http://127.0.0.1:2236/mcp` (loopback only unless `MCP_HTTP_HOST` says otherwise) and requires `Authorization: Bearer <token>` on every request. The token is generated at startup and written to `~/.abap-adt-mcp/http-token` (mode `0600`); `MCP_HTTP_TOKEN` sets your own. Host config:
+<!-- toolsets:begin -->
+Names in **bold** carry `destructiveHint: true` (23 tools): they overwrite, delete, release or run something, and hosts that gate approval by annotation ask before each one.
 
-```json
-{
-  "mcpServers": {
-    "abap-adt-mcp": {
-      "type": "http",
-      "url": "http://127.0.0.1:2236/mcp",
-      "headers": { "Authorization": "Bearer <token>" }
-    }
-  }
-}
-```
+**In the `focused` preset (114 tools)**
 
-What the front door enforces:
+| Toolset | Tools |
+|---|---|
+| `core` (6)<br>Destinations, health & session | `login`, `logout`, **`dropSession`**, `listSystems`, `healthcheck`, `systemProfile` |
+| `source` (16)<br>Source code | `lock`, `unLock`, `listLocks`, **`forceUnlock`**, `getObjectSource`, **`setObjectSource`**, **`editObjectSource`**, `getMethodSource`, **`setMethodSource`**, `prettyPrinterSetting`, `setPrettyPrinterSetting`, `prettyPrinter`, `revisions`, `objectDiff`, `getTextElements`, **`setTextElements`** |
+| `objects` (27)<br>Objects & navigation | `objectStructure`, `searchObject`, `findObjectPath`, `objectTypes`, `reentranceTicket`, `classIncludes`, `classComponents`, **`deleteObject`**, `activateObjects`, `activateByName`, `activatePackage`, `inactiveObjects`, `objectRegistrationInfo`, `creatableTypeDetails`, `validateNewObject`, `createObject`, `nodeContents`, `mainPrograms`, `typeHierarchy`, `objectStructureElements`, `objectEnhancements`, `packageTree`, `exportPackageSources`, `whereUsed`, `cdsViewInfo`, `sourceTextSearch`, `grepPackage` |
+| `transports` (18)<br>Transports | `transportDetails`, `transportUnifiedDiff`, `transportInfo`, `resolveTransport`, `createTransport`, `hasTransportConfig`, `transportConfigurations`, `getTransportConfiguration`, `setTransportsConfig`, `createTransportsConfig`, `userTransports`, `transportsByConfig`, **`transportDelete`**, **`transportRelease`**, `transportSetOwner`, `transportAddUser`, `systemUsers`, `transportReference` |
+| `analysis` (16)<br>Syntax & code analysis | `syntaxCheckCode`, `syntaxCheckCdsUrl`, `codeCompletion`, `findDefinition`, `usageReferences`, `syntaxCheckTypes`, `codeCompletionFull`, **`runClass`**, `codeCompletionElement`, `usageReferenceSnippets`, `fixProposals`, `fixEdits`, `fragmentMappings`, `abapDocumentation`, `apiReleaseState`, **`runSnippet`** |
+| `tests` (4)<br>Unit tests | `unitTestRun`, `unitTestEvaluation`, `unitTestOccurrenceMarkers`, `createTestInclude` |
+| `atc` (14)<br>ATC | `atcCustomizing`, `atcQuickfixProposals`, **`atcApplyQuickfix`**, `atcCheckVariant`, `atcSummary`, `createAtcRun`, `atcWorklists`, `atcUsers`, `atcExemptProposal`, `atcRequestExemption`, `isProposalMessage`, `atcContactUri`, `atcChangeContact`, `atcDocumentation` |
+| `data` (10)<br>Data access & DDIC | `annotationDefinitions`, `ddicElement`, `ddicRepositoryAccess`, `packageSearchHelp`, `getDomainProperties`, **`setDomainProperties`**, `getDataElementProperties`, **`setDataElementProperties`**, `tableContents`, `runQuery` |
+| `runtime` (3)<br>Runtime errors | `feeds`, `dumps`, `dumpDetails` |
 
-- Ports below 1024 are refused; the bearer token is compared in constant time; `GET /health` is the only unauthenticated route and answers with version, session count, the session cap and uptime (block it at the proxy if that disclosure matters). Everything else outside `/mcp` is `404`.
-- DNS-rebinding protection: on a loopback bind only loopback `Host` and `Origin` values pass, extendable with `MCP_HTTP_ALLOWED_HOSTS` and `MCP_HTTP_ALLOWED_ORIGINS` (`*` allows any). On a non-loopback bind every `Host` header passes (the Host check only guards loopback binds), while an `Origin` header still has to be listed in `MCP_HTTP_ALLOWED_ORIGINS` (browser callers); requests without an `Origin` header (non-browser clients) pass on either bind.
-- One server instance per MCP session: separate SAP sessions, lock ledger and caches per caller. Idle sessions expire after `MCP_HTTP_SESSION_TTL_MINUTES` (default 30); beyond `MCP_HTTP_MAX_SESSIONS` (default 16) new `initialize` requests get `503` with `Retry-After`; a closed or expired session releases its locks and SAP sessions. On SIGINT/SIGTERM the process closes the listening instance and exits without walking the open sessions, so send `DELETE /mcp` from the clients before stopping a shared instance. Every request body is capped at `MCP_HTTP_MAX_BODY_BYTES` (default 4 MB); larger bodies are refused with `413` and the connection is closed.
-- Warnings at startup when the bind reaches beyond loopback, and again when an SSO destination is exposed that way: every remote caller would share the browser login of the user running the server.
+**Only with `MCP_TOOLSETS=all` or by toolset name (59 tools)**
 
-What it does not provide: TLS (put a reverse proxy in front), rate limiting, per-user tokens or token rotation without a restart (a restart without `MCP_HTTP_TOKEN` already generates a new token and overwrites `http-token`; when you set the variable yourself, change it and restart; open sessions end with the process). A shared instance therefore means one token and, for each destination, one set of SAP credentials for every caller. Prefer one instance per person, or `basic`/`oauth` destinations with a `readOnly` policy, keep the token secret and put TLS in front.
+| Toolset | Tools |
+|---|---|
+| `discovery` (7)<br>Discovery & metadata | `featureDetails`, `collectionFeatureDetails`, `findCollectionByUrl`, `loadTypes`, `adtDiscovery`, `adtCoreDiscovery`, `adtCompatibilityGraph` |
+| `refactoring` (8)<br>Refactoring | `renameEvaluate`, `renamePreview`, **`renameExecute`**, `extractMethodEvaluate`, `extractMethodPreview`, **`extractMethodExecute`**, `changePackagePreview`, **`changePackageExecute`** |
+| `rap` (8)<br>RAP generation | `rapGenIsAvailable`, `rapGenGetSchema`, `rapGenGetContent`, `rapGenValidateInitial`, `rapGenValidateContent`, `rapGenPreview`, `rapGenGenerate`, `rapGenPublishService` |
+| `services` (4)<br>Business services | `publishServiceBinding`, **`unPublishServiceBinding`**, `fetchServiceDetails`, `bindingDetails` |
+| `git` (10)<br>abapGit | `gitRepos`, `gitExternalRepoInfo`, `gitCreateRepo`, `gitPullRepo`, **`gitUnlinkRepo`**, `stageRepo`, **`pushRepo`**, `checkRepo`, `remoteRepoInfo`, `switchRepoBranch` |
+| `debugger` (13)<br>Debugger | `debuggerListeners`, `debuggerListen`, `debuggerDeleteListener`, `debuggerSetBreakpoints`, `debuggerDeleteBreakpoints`, `debuggerAttach`, `debuggerSaveSettings`, `debuggerStackTrace`, `debuggerVariables`, `debuggerChildVariables`, `debuggerStep`, `debuggerGoToStack`, **`debuggerSetVariableValue`** |
+| `traces` (9)<br>Traces | `tracesList`, `tracesListRequests`, `tracesHitList`, `tracesDbAccess`, `tracesStatements`, `tracesSetParameters`, `tracesCreateConfiguration`, **`tracesDeleteConfiguration`**, **`tracesDelete`** |
+<!-- toolsets:end -->
 
-## Tool catalog (all 173 tools, by toolset)
-
-The per-tool reference (description, parameters, read-only/destructive annotations) is [docs/TOOLS.md](docs/TOOLS.md), generated from the live `tools/list` response by `npm run tools:docs` and verified by a contract test in CI. Every tool except `listSystems` and `healthcheck` accepts an optional `destination`; without it the default destination is used.
-
-Tool schemas cost context. Set `MCP_TOOLSETS` to a preset (`all`, the default, or `focused` = 114 development tools) or to a comma list of the names below; `MCP_DISABLED_TOOLSETS` removes some. `core` is always published. Unknown names fail at startup.
-
-| Toolset | In `focused` | Tools |
-|---|---|---|
-| `core` · Destinations, health & session (6) | yes | `login`, `logout`, `dropSession`, `listSystems`, `healthcheck`, `systemProfile` |
-| `source` · Source code (16) | yes | `lock`, `unLock`, `listLocks`, `forceUnlock`, `getObjectSource`, `setObjectSource`, `editObjectSource`, `getMethodSource`, `setMethodSource`, `prettyPrinterSetting`, `setPrettyPrinterSetting`, `prettyPrinter`, `revisions`, `objectDiff`, `getTextElements`, `setTextElements` |
-| `objects` · Objects & navigation (27) | yes | `objectStructure`, `searchObject`, `findObjectPath`, `objectTypes`, `reentranceTicket`, `classIncludes`, `classComponents`, `deleteObject`, `activateObjects`, `activateByName`, `activatePackage`, `inactiveObjects`, `objectRegistrationInfo`, `creatableTypeDetails`, `validateNewObject`, `createObject`, `nodeContents`, `mainPrograms`, `typeHierarchy`, `objectStructureElements`, `objectEnhancements`, `packageTree`, `exportPackageSources`, `whereUsed`, `cdsViewInfo`, `sourceTextSearch`, `grepPackage` |
-| `transports` · Transports (18) | yes | `transportDetails`, `transportUnifiedDiff`, `transportInfo`, `resolveTransport`, `createTransport`, `hasTransportConfig`, `transportConfigurations`, `getTransportConfiguration`, `setTransportsConfig`, `createTransportsConfig`, `userTransports`, `transportsByConfig`, `transportDelete`, `transportRelease`, `transportSetOwner`, `transportAddUser`, `systemUsers`, `transportReference` |
-| `analysis` · Syntax & code analysis (16) | yes | `syntaxCheckCode`, `syntaxCheckCdsUrl`, `codeCompletion`, `findDefinition`, `usageReferences`, `syntaxCheckTypes`, `codeCompletionFull`, `runClass`, `codeCompletionElement`, `usageReferenceSnippets`, `fixProposals`, `fixEdits`, `fragmentMappings`, `abapDocumentation`, `apiReleaseState`, `runSnippet` |
-| `tests` · Unit tests (4) | yes | `unitTestRun`, `unitTestEvaluation`, `unitTestOccurrenceMarkers`, `createTestInclude` |
-| `atc` · ATC (14) | yes | `atcCustomizing`, `atcQuickfixProposals`, `atcApplyQuickfix`, `atcCheckVariant`, `atcSummary`, `createAtcRun`, `atcWorklists`, `atcUsers`, `atcExemptProposal`, `atcRequestExemption`, `isProposalMessage`, `atcContactUri`, `atcChangeContact`, `atcDocumentation` |
-| `data` · Data access & DDIC (10) | yes | `annotationDefinitions`, `ddicElement`, `ddicRepositoryAccess`, `packageSearchHelp`, `getDomainProperties`, `setDomainProperties`, `getDataElementProperties`, `setDataElementProperties`, `tableContents`, `runQuery` |
-| `discovery` · Discovery & metadata (7) | no | `featureDetails`, `collectionFeatureDetails`, `findCollectionByUrl`, `loadTypes`, `adtDiscovery`, `adtCoreDiscovery`, `adtCompatibilityGraph` |
-| `runtime` · Runtime errors (3) | yes | `feeds`, `dumps`, `dumpDetails` |
-| `refactoring` · Refactoring (8) | no | `renameEvaluate`, `renamePreview`, `renameExecute`, `extractMethodEvaluate`, `extractMethodPreview`, `extractMethodExecute`, `changePackagePreview`, `changePackageExecute` |
-| `rap` · RAP generation (8) | no | `rapGenIsAvailable`, `rapGenGetSchema`, `rapGenGetContent`, `rapGenValidateInitial`, `rapGenValidateContent`, `rapGenPreview`, `rapGenGenerate`, `rapGenPublishService` |
-| `services` · Business services (4) | no | `publishServiceBinding`, `unPublishServiceBinding`, `fetchServiceDetails`, `bindingDetails` |
-| `git` · abapGit (10) | no | `gitRepos`, `gitExternalRepoInfo`, `gitCreateRepo`, `gitPullRepo`, `gitUnlinkRepo`, `stageRepo`, `pushRepo`, `checkRepo`, `remoteRepoInfo`, `switchRepoBranch` |
-| `debugger` · Debugger (13) | no | `debuggerListeners`, `debuggerListen`, `debuggerDeleteListener`, `debuggerSetBreakpoints`, `debuggerDeleteBreakpoints`, `debuggerAttach`, `debuggerSaveSettings`, `debuggerStackTrace`, `debuggerVariables`, `debuggerChildVariables`, `debuggerStep`, `debuggerGoToStack`, `debuggerSetVariableValue` |
-| `traces` · Traces (9) | no | `tracesList`, `tracesListRequests`, `tracesHitList`, `tracesDbAccess`, `tracesStatements`, `tracesSetParameters`, `tracesCreateConfiguration`, `tracesDeleteConfiguration`, `tracesDelete` |
-
-Destructive tools (`deleteObject`, `transportRelease`, `transportDelete`, `setObjectSource`, `editObjectSource`, `setMethodSource`, `atcApplyQuickfix`, `runClass`, `runSnippet`, `pushRepo`, `forceUnlock` and others) carry `destructiveHint: true` for hosts that gate approval by annotation. A tool can be missing for two reasons: its toolset is not published (the `focused` preset leaves out `debugger`, `traces`, `git`, `rap`, `services`, `refactoring` and `discovery`; the refusal names the toolset), or the destination cannot serve it (`systemProfile` reports what is missing; the refusal says "not available on destination").
+A tool can be missing for two reasons: its toolset is not published (the refusal names the toolset), or the destination cannot serve it (`systemProfile` reports what is missing).
 
 ## Compared with SAP's official ADT MCP Server
 
-SAP's ADT MCP Server ships with ADT for VS Code and Eclipse and publishes under the server key `abap-adt` with its own tool names, which public skills such as `claude-abap-skills` route by. This project publishes under `abap-adt-mcp`, serves many destinations from one process over stdio or HTTP, enforces policies server-side, and adds compositions such as `resolveTransport`, `editObjectSource`, `grepPackage`, `apiReleaseState`, `runSnippet` and `objectDiff`. The two can be registered side by side in the same host, since keys and tool names do not collide. This README does not catalogue what SAP's server offers beyond this one; [docs/ROUTING.md](docs/ROUTING.md) maps SAP's names to ours where an equivalent exists.
+SAP's ADT MCP Server ships with ADT for VS Code and Eclipse and publishes under the server key `abap-adt` with its own tool names. This project publishes under `abap-adt-mcp`, serves many destinations from one process, enforces policies server-side, and adds compositions such as `resolveTransport`, `editObjectSource`, `grepPackage`, `apiReleaseState`, `runSnippet` and `objectDiff`. The two can run side by side in the same host; [docs/ROUTING.md](docs/ROUTING.md) maps SAP's names to ours.
 
-Names as the SAP Help page "Model Context Protocol Tools" lists them (September 2026); a running server may spell one or two slightly differently. SAP's server creates, activates, tests, checks and transports; it does not read or search source, write source, lock, or show dumps: those come only from this server.
+Names as the SAP Help page "Model Context Protocol Tools" lists them (September 2026). SAP's server creates, activates, tests, checks and transports; it does not read or search source, write source, lock, or show dumps: those come only from this server.
 
 | SAP official tool | abap-adt-mcp tool(s) |
 |---|---|
@@ -492,31 +355,30 @@ Names as the SAP Help page "Model Context Protocol Tools" lists them (September 
 
 ## SAP API Policy
 
-The ADT REST services this server calls (`/sap/bc/adt`) are the ones Eclipse ADT uses. SAP does not list them on the SAP Business Accelerator Hub, and the SAP API Policy (April 2026) restricts both interfaces that are not published and the use of APIs by AI agents outside the architectures SAP endorses. SAP's FAQ on the policy calls the ADT APIs internal, for development purposes through endorsed channels only, and a third-party MCP server is not among the channels it lists; the same FAQ allows third-party MCP servers in general and says that interfaces that are not published are used at own risk. Whether SAP accepts your use is a question for your SAP contact; ask it, and keep the server to development work on development and test systems.
+- **What SAP says.** The ADT REST services this server calls (`/sap/bc/adt`) are the ones Eclipse ADT uses; SAP does not list them on the SAP Business Accelerator Hub. The SAP API Policy (April 2026) restricts unpublished interfaces and the use of APIs by AI agents outside the architectures SAP endorses. SAP's FAQ on the policy calls the ADT APIs internal, for development through endorsed channels only, and a third-party MCP server is not among the channels it lists; the same FAQ allows third-party MCP servers in general and says unpublished interfaces are used at own risk.
+- **What that means for you.** Whether SAP accepts your use is a question for your SAP contact, not for this project.
+- **What to do.** Ask that question, and keep the server to development work on development and test systems.
 
 What the server does on its side: it runs as the SAP user who logged on and removes no SAP authorization check, it reads no table data until a destination allows it, it runs the calls to a destination one at a time, and `apiReleaseState` marks every SAP object it checks as `released`, `classic`, `notReleased` or `prohibited`. [docs/API-POLICY.md](docs/API-POLICY.md) has the policy section by section, the questions to put to SAP and a conservative configuration.
 
-## Skills and plugin
-
-Two agent skills ship under `skills/`: `abap-adt-mcp` teaches the model how to develop ABAP with these tools (session start, finding code, the change flow, cloud readiness, errors, safety) and `abap-adt-mcp-setup` walks through installation, configuration and a first health check. They reach the host through the Claude Code plugin (`/plugin marketplace add williansaez/abap-adt-mcp`, then `/plugin install abap-adt-mcp@abap-adt-mcp`, which also registers the server), through the third-party `npx skills add williansaez/abap-adt-mcp` installer, or by copying the two directories into `~/.claude/skills/`; a plain `npx` registration of the server installs no skill, and the essential flows still arrive through the server's `instructions` field and the [built-in prompts](#built-in-prompts).
-
-This README also exists in [Portuguese (Brazil)](README.pt-BR.md) and [German](README.de.md); the English version is the reference and the generated counts are synced into all three. What real sessions taught the server is in [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md), the live test plan in [docs/TESTPLAN.md](docs/TESTPLAN.md), the roadmap in [docs/ROADMAP.md](docs/ROADMAP.md) and releases in [CHANGELOG.md](CHANGELOG.md).
-
 ## Troubleshooting
 
-- **The server never appears in the host.** Read the host's MCP log (locations in [step 2](#2-register-the-server-in-your-host)). `spawn npx ENOENT`: Node.js is not installed or not on the PATH the app sees; install it or put the absolute path to `npx` in `command` (`/usr/local/bin/npx` for the macOS installer, `/opt/homebrew/bin/npx` for Homebrew). `EBADENGINE` in the log: the Node the host found is older than 22.12; install the current LTS. `No ABAP systems configured`: `SAP_SYSTEMS_FILE` points at a missing file. `is not valid JSON`: a stray comma or a Windows path with single backslashes. Claude Desktop reads the config only at start, so quit and reopen it after every change.
-- **No browser window, or SSO fails.** A Chromium browser must be installed; `SAP_BROWSER_PATH` points at it when auto-detection fails. The browser's default profile is rejected on purpose; `SAP_BROWSER_PROFILE_DIR` names a dedicated one. Delete `~/.abap-adt-mcp/sso/<host>` to log out of a tenant completely (on Windows the port's colon becomes an underscore: `sso\\<host>_<port>`).
-- **Login works, then everything is "not authorized" or "not found".** The SSO session landed on another client than `client` says: set `client` to the tenant's logon client (the About entry of the launchpad user menu shows it).
-- **`kind: "sessionExpired"` keeps coming back.** The server already re-authenticated and retried once; ask the model to call `login` for that destination. Lock handles from the old session are invalid (`kind: "staleLockHandle"`): lock again.
-- **`kind: "locked"` by another session.** `listLocks` shows the server's own locks; if the object is not there the lock belongs to another session (Eclipse or another user) and only that session or `SM12` releases it.
-- **`editObjectSource` reports 0 matches, or several.** Nothing was written. The anchor must be the exact current text on SAP, indentation included: re-read with `getObjectSource` and copy it; for several matches include more surrounding lines.
-- **Tool refused as not available or not enabled.** "Not available on destination": run `systemProfile`, the tenant lacks that ADT collection (`MCP_PROFILE_GATE=warn` only logs, `off` disables the gate). "Belongs to toolset ... which is not enabled": the toolset is missing from `MCP_TOOLSETS` (the `focused` preset has no `debugger` or `traces`); add it or use `MCP_TOOLSETS=all`. Without a debugger, `dumps` and `dumpDetails` are the root-cause path.
-- **`kind: "policyDenied"`.** The destination's `policy` (or `MCP_READ_ONLY`) forbids the call and the message names the gate: the guard rail is working. Adjust the policy if the call was intended. The gates `allowDataPreview` and `allowFreeSql` refuse `tableContents` and `runQuery` on every destination that has not opened them, a destination without a `policy` included: the message names the key to set.
-- **Startup refuses the config file.** It is readable by other users and holds inline passwords: `chmod 600` it or reference the secrets as `${env:VAR}`.
-- **Certificate errors on-prem (`kind: "tlsCertificate"`).** The hint names the destination and the fix. Unknown issuer: give the destination its CA bundle with `tls.ca` (the hint carries the `openssl s_client` line). Name mismatch (the system is reached by IP address or short hostname): set `tls.servername` to the `DNS:` name the message quotes. Expired: only renewal in `STRUST` fixes it. `insecureTls: true` (or `SAP_TLS_INSECURE=1` in legacy mode) disables verification for that destination only. `NODE_TLS_REJECT_UNAUTHORIZED=0` will not help: the server removes it.
-- **Connection errors.** Check URL and client, ADT authorizations, and on-prem that `/sap/bc/adt` is active in `SICF`.
-- **`runQuery` fails on a table the user can display.** The data preview refuses tables with restricted `dataMaintenance`; use `tableContents`. A statement that still fails after the 255-character reflow has a single literal longer than that, or a real syntax error at the named token.
-- **Tool schemas eat the context window.** Start with `MCP_TOOLSETS=focused`, or hide toolsets (`MCP_DISABLED_TOOLSETS=debugger,traces`).
+- **The server never appears in the host.** Read the host's MCP log: Claude Desktop writes `mcp.log` and `mcp-server-abap-adt-mcp.log` to `~/Library/Logs/Claude` on macOS and `%APPDATA%\Claude\logs` on Windows; Claude Code shows the state with `/mcp`. Claude Desktop reads the config only at start: quit and reopen it after every change.
+  - `spawn npx ENOENT`: Node.js is not installed, or not on the PATH the app sees. Install it, or put the absolute path to `npx` in `command` (`C:/Program Files/nodejs/npx.cmd` on Windows, `/usr/local/bin/npx` or `/opt/homebrew/bin/npx` on macOS).
+  - `EBADENGINE`: the Node the host found is older than 22.12.
+  - `No ABAP systems configured`: `SAP_SYSTEMS_FILE` points at a missing file (on Windows, check for `systems.json.txt`).
+  - `is not valid JSON`: a stray comma, or a Windows path written with single backslashes.
+- **No browser window, or SSO fails.** A Chromium browser must be installed; `SAP_BROWSER_PATH` points at it when auto-detection fails. To log out of a tenant completely delete the folder `sso/<host>` under `.abap-adt-mcp` in your home directory (`C:\Users\<you>` on Windows). On a machine without a display (a CI runner, a container) the login refuses at once and names `oauth` or `sso2` instead.
+- **Login works, then everything is "not authorized" or "not found".** The SSO session landed on another client than `client` says: set `client` to the tenant's logon client.
+- **`kind: "sessionExpired"` keeps coming back.** The server already re-authenticated and retried once; ask the model to call `login` for that destination. Lock handles from the old session are invalid: lock again.
+- **`kind: "locked"` by another session.** `listLocks` shows the server's own locks; if the object is not there, the lock belongs to another session (Eclipse or another user) and only that session or `SM12` releases it.
+- **`kind: "policyDenied"`.** The destination's `policy` forbids the call and the message names the gate: the guard rail is working. `tableContents` and `runQuery` are refused on every destination that has not opened them, a destination without a `policy` included; the message names the key to set.
+- **Tool refused as not available or not enabled.** "Not available on destination": the tenant lacks that ADT collection (`systemProfile` shows it). "Belongs to toolset ... which is not enabled": add the toolset to `MCP_TOOLSETS` or use `MCP_TOOLSETS=all`.
+- **Certificate errors on-prem (`kind: "tlsCertificate"`).** The hint names the destination and the fix: `tls.ca` for an unknown issuer (the hint carries the `openssl` line), `tls.servername` for a name mismatch, renewal in `STRUST` for an expired certificate.
+- **`editObjectSource` reports 0 matches, or several.** Nothing was written. The anchor must be the exact current text on SAP, indentation included; for several matches include more surrounding lines.
+- **`runQuery` fails on a table the user can display.** The data preview refuses tables with restricted `dataMaintenance`; use `tableContents`.
+
+More cases, with the exact messages, in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ## Testing and contributing
 
@@ -528,13 +390,19 @@ npm run build
 npm test
 ```
 
-Jest suites cover handlers, error hints, response sizing, toolsets and the catalog contract against `docs/tools.snapshot.json`; CI runs them on Node 22 and 24, builds the container image and checks that it starts and lists tools. After changing a tool description or schema, run `npm run tools:docs` and commit the regenerated `docs/TOOLS.md`, snapshot and README counts (the translated READMEs included), or CI flags them as stale; `npm run docs:check` runs the documentation hygiene gate (no customer identifiers, no em-dashes, no dead links, every environment variable declared in `server.json`). Releases are tag-driven: npm through trusted publishing (GitHub OIDC, provenance attached) plus the GHCR image. Fork, branch, open a pull request. Session reports for [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) are welcome, without customer names, tenants or transport numbers.
+- Jest suites cover handlers, error hints, response sizing, toolsets and the catalog contract; CI runs them on Node 22 and 24 and builds the container image.
+- After changing a tool, run `npm run tools:docs` and commit the regenerated `docs/TOOLS.md`, snapshot and README catalog (the translated READMEs included).
+- `npm run docs:check` is the documentation gate: no customer identifiers, no em-dashes, no dead links, every environment variable declared in `server.json`.
+- Releases are tag driven: npm through trusted publishing with provenance, the GHCR image and the MCP registry entry.
+- Fork, branch, open a pull request; [CONTRIBUTING.md](.github/CONTRIBUTING.md) has the details. Session reports for [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) are welcome, without customer names, tenants or transport numbers.
 
-## Collaboration
+The English README is the reference for the [Portuguese](README.pt-BR.md) and [German](README.de.md) versions. The roadmap is in [docs/ROADMAP.md](docs/ROADMAP.md) and every release in [CHANGELOG.md](CHANGELOG.md).
+
+## Credits
 
 This server grows with the people who run it against real landscapes and send back what they found.
 
-- [João Gementi](https://github.com/JoaoVTGementi) contributed the headless `sso2` mode: an opt-in bridge that asks a trusted local provider for a short-lived SAP logon ticket, so a named on-prem user who already authenticates through SNC connects without a browser and without a stored password. He also tightened the cookie client, which now refuses any request that would carry the SAP session off its configured origin.
+- [João Gementi](https://github.com/JoaoVTGementi) contributed the headless `sso2` mode (a named on-prem user who already authenticates through SNC connects without a browser and without a stored password) and tightened the cookie client, which now refuses any request that would carry the SAP session off its configured origin.
 - [Alexandre Leite](https://github.com/Dregus) reported the Secure Login Client scenario that opened milestone 2.1.0 and tested the on-prem authentication paths.
 - The original `mcp-abap-abap-adt-api` server by [mario-andreschak](https://github.com/mario-andreschak) is where this project started.
 

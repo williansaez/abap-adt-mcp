@@ -121,25 +121,52 @@ fs.writeFileSync(path.join(docsDir, 'tools.snapshot.json'), JSON.stringify(snaps
 const focusedCount = catalog.filter(t => TOOLSET_PRESETS.focused.includes(selection.toolsetOf.get(t.name) || 'core')).length;
 const rootDir = path.join(__dirname, '..');
 const rewrite = (file, fn) => { const p = path.join(rootDir, file); const before = fs.readFileSync(p, 'utf8'); const after = fn(before); if (after !== before) fs.writeFileSync(p, after); };
-// The translated READMEs carry the same counts and the same table; only the
-// phrases around the numbers, the table header and the yes/no words differ.
-// The toolset titles stay in English: they are the server's own labels.
+// The translated READMEs carry the same counts and the same catalog block; only
+// the phrases around the numbers and the table headers differ. The toolset
+// titles stay in English: they are the server's own labels. The block sits
+// between `<!-- toolsets:begin -->` and `<!-- toolsets:end -->`: two tables,
+// the `focused` preset first, then the toolsets published only by name or
+// with `MCP_TOOLSETS=all`.
 const README_VARIANTS = [
-  { file: 'README.md', intro: [/exposes \*\*\d+ tools\*\*/, n => `exposes **${n} tools**`], heading: [/## Tool catalog \(all \d+ tools, by toolset\)/, n => `## Tool catalog (all ${n} tools, by toolset)`], focused: [/`focused` = \d+ development tools/, n => `\`focused\` = ${n} development tools`], header: '| Toolset | In `focused` | Tools |', yes: 'yes', no: 'no' },
-  { file: 'README.pt-BR.md', intro: [/expõe \*\*\d+ ferramentas\*\*/, n => `expõe **${n} ferramentas**`], heading: [/## Catálogo de ferramentas \(todas as \d+ ferramentas, por toolset\)/, n => `## Catálogo de ferramentas (todas as ${n} ferramentas, por toolset)`], focused: [/`focused` = \d+ ferramentas de desenvolvimento/, n => `\`focused\` = ${n} ferramentas de desenvolvimento`], header: '| Toolset | Em `focused` | Ferramentas |', yes: 'sim', no: 'não' },
-  { file: 'README.de.md', intro: [/stellt \*\*\d+ Tools\*\* bereit/, n => `stellt **${n} Tools** bereit`], heading: [/## Tool-Katalog \(alle \d+ Tools, nach Toolset\)/, n => `## Tool-Katalog (alle ${n} Tools, nach Toolset)`], focused: [/`focused` = \d+ Entwicklungs-Tools/, n => `\`focused\` = ${n} Entwicklungs-Tools`], header: '| Toolset | In `focused` | Tools |', yes: 'ja', no: 'nein' },
+  { file: 'README.md', intro: [/exposes \*\*\d+ tools\*\*/, n => `exposes **${n} tools**`], focused: [/`focused` = \d+ development tools/, n => `\`focused\` = ${n} development tools`], setup: [/publishes the \d+ everyday development tools instead of all \d+/, (f, n) => `publishes the ${f} everyday development tools instead of all ${n}`], header: '| Toolset | Tools |', legend: n => `Names in **bold** carry \`destructiveHint: true\` (${n} tools): they overwrite, delete, release or run something, and hosts that gate approval by annotation ask before each one.`, inFocused: n => `**In the \`focused\` preset (${n} tools)**`, outside: n => `**Only with \`MCP_TOOLSETS=all\` or by toolset name (${n} tools)**` },
+  { file: 'README.pt-BR.md', intro: [/expõe \*\*\d+ ferramentas\*\*/, n => `expõe **${n} ferramentas**`], focused: [/`focused` = \d+ ferramentas de desenvolvimento/, n => `\`focused\` = ${n} ferramentas de desenvolvimento`], setup: [/publica as \d+ ferramentas de desenvolvimento do dia a dia em vez de todas as \d+/, (f, n) => `publica as ${f} ferramentas de desenvolvimento do dia a dia em vez de todas as ${n}`], header: '| Toolset | Ferramentas |', legend: n => `Nomes em **negrito** carregam \`destructiveHint: true\` (${n} ferramentas): elas sobrescrevem, apagam, liberam ou executam algo, e hosts que condicionam a aprovação pela anotação perguntam antes de cada uma.`, inFocused: n => `**No preset \`focused\` (${n} ferramentas)**`, outside: n => `**Só com \`MCP_TOOLSETS=all\` ou pelo nome do toolset (${n} ferramentas)**` },
+  { file: 'README.de.md', intro: [/stellt \*\*\d+ Tools\*\* bereit/, n => `stellt **${n} Tools** bereit`], focused: [/`focused` = \d+ Entwicklungs-Tools/, n => `\`focused\` = ${n} Entwicklungs-Tools`], setup: [/veröffentlicht die \d+ Entwicklungs-Tools für den Alltag statt aller \d+/, (f, n) => `veröffentlicht die ${f} Entwicklungs-Tools für den Alltag statt aller ${n}`], header: '| Toolset | Tools |', legend: n => `Namen in **Fettschrift** tragen \`destructiveHint: true\` (${n} Tools): sie überschreiben, löschen, geben frei oder führen etwas aus, und Hosts, die Genehmigungen an die Annotation knüpfen, fragen vor jedem davon.`, inFocused: n => `**Im Preset \`focused\` (${n} Tools)**`, outside: n => `**Nur mit \`MCP_TOOLSETS=all\` oder über den Toolset-Namen (${n} Tools)**` },
 ];
-const escapeRe = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const BEGIN = '<!-- toolsets:begin -->';
+const END = '<!-- toolsets:end -->';
+const focusedSets = order.filter(ts => TOOLSET_PRESETS.focused.includes(ts));
+const otherSets = order.filter(ts => !TOOLSET_PRESETS.focused.includes(ts));
+const countOf = (sets) => sets.reduce((n, ts) => n + (byToolset[ts] || []).length, 0);
+// Destructive tools (destructiveHint) are bold, so the README never needs a hand-written list of them.
+const nameOf = (t) => t.annotations?.destructiveHint ? '**`' + t.name + '`**' : '`' + t.name + '`';
+const rowsOf = (sets) => sets.map(ts => `| \`${ts}\` (${(byToolset[ts] || []).length})<br>${TOOLSETS[ts].title} | ${(byToolset[ts] || []).map(nameOf).join(', ')} |`).join('\n');
+const destructiveCount = catalog.filter(t => t.annotations?.destructiveHint).length;
 for (const v of README_VARIANTS) {
   if (!fs.existsSync(path.join(rootDir, v.file))) continue;
   rewrite(v.file, (s) => {
     s = s.replace(v.intro[0], v.intro[1](catalog.length));
-    s = s.replace(v.heading[0], v.heading[1](catalog.length));
     s = s.replace(v.focused[0], v.focused[1](focusedCount));
-    const rows = order.map(ts => `| \`${ts}\` · ${TOOLSETS[ts].title} (${(byToolset[ts] || []).length}) | ${TOOLSET_PRESETS.focused.includes(ts) ? v.yes : v.no} | ${(byToolset[ts] || []).map(t => '`' + t.name + '`').join(', ')} |`).join('\n');
-    const table = new RegExp(`(${escapeRe(v.header)}\\n\\|---\\|---\\|---\\|\\n)(?:\\|[^\\n]*\\n)+`);
-    if (!table.test(s)) throw new Error(`${v.file}: toolset table header not found: ${v.header}`);
-    return s.replace(table, `$1${rows}\n`);
+    s = s.replace(v.setup[0], v.setup[1](focusedCount, catalog.length));
+    const b = s.indexOf(BEGIN), e = s.indexOf(END);
+    if (b < 0 || e < 0 || e < b) throw new Error(`${v.file}: toolset markers ${BEGIN} / ${END} not found`);
+    const block = [
+      BEGIN,
+      v.legend(destructiveCount),
+      '',
+      v.inFocused(countOf(focusedSets)),
+      '',
+      v.header,
+      '|---|---|',
+      rowsOf(focusedSets),
+      '',
+      v.outside(countOf(otherSets)),
+      '',
+      v.header,
+      '|---|---|',
+      rowsOf(otherSets),
+      '',
+    ].join('\n');
+    return s.slice(0, b) + block + s.slice(e);
   });
 }
 rewrite('skills/abap-adt-mcp-setup/SKILL.md', (s) => s.replace(/`MCP_TOOLSETS=focused` \(\d+ development tools instead of \d+\)/, `\`MCP_TOOLSETS=focused\` (${focusedCount} development tools instead of ${catalog.length})`));
