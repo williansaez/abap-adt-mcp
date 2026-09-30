@@ -1,0 +1,48 @@
+WEBVTT
+
+NOTE Captions for the abap-adt-mcp brag film 'film'. On-screen text, English.
+
+00:00.400 --> 00:03.900
+ABAP is 43 years old.
+
+00:01.640 --> 00:05.140
+It just met Claude.
+
+00:03.500 --> 00:07.000
+abap-adt-mcp
+
+00:04.390 --> 00:07.890
+Let Claude read, write, test and check ABAP code on your SAP systems.
+
+00:04.900 --> 00:08.400
+MCP server · 173 tools S/4HANA Cloud + on-prem
+
+00:07.450 --> 00:10.950
+CLAUDE DESKTOP · NEW CHAT Add a null check at the top of GET_DATA, activate and run the unit tests.
+
+00:11.460 --> 00:14.960
+activated · lock released · transport recorded
+
+00:13.110 --> 00:16.610
+ABAP Unit 3 passed · 0 failed Transport DEVK900123 + IF io_data IS INITIAL. + RETURN. + ENDIF.
+
+00:15.100 --> 00:18.600
+Now do the same on PRD.
+
+00:15.840 --> 00:19.340
+editObjectSource GET_DATA · destination=PRD
+
+00:16.380 --> 00:19.880
+kind "policyDenied" gate readOnly destination PRD PRD is readOnly: the write was refused in the server before any SAP call, whatever the host approved.
+
+00:16.930 --> 00:20.430
+Guard rails live in the server, not in the host.
+
+00:18.500 --> 00:21.400
+173 tools.
+
+00:18.900 --> 00:21.400
+Any SAP system you name.
+
+00:19.660 --> 00:21.400
+npx -y abap-adt-mcp github.com/williansaez/abap-adt-mcp

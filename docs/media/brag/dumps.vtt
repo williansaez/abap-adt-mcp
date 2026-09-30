@@ -1,0 +1,63 @@
+WEBVTT
+
+NOTE Captions for the abap-adt-mcp brag film 'dumps'. On-screen text, English.
+
+00:00.250 --> 00:03.750
+TOOL SHORT · DUMPS A short dump at 03:12.
+
+00:01.590 --> 00:05.090
+Nobody wants to open ST22.
+
+00:05.800 --> 00:09.300
+dumps user=DEVELOPER · today
+
+00:06.340 --> 00:09.840
+dumpDetails CX_SY_REF_IS_INITIAL
+
+00:06.860 --> 00:10.360
+getObjectSource zcl_order_service · line 142
+
+00:07.920 --> 00:11.420
+terminatedAt · GET_DATA line 142 · stack read
+
+00:09.500 --> 00:13.000
+Runtime error CX_SY_REF_IS_INITIAL Cause mo_config not bound at ->get( ) " line 141 + IF mo_config IS NOT BOUND. + mo_config = zcl_config=>get_instance( ). + ENDIF.
+
+00:10.100 --> 00:13.600
+Cause, line and fix in one answer.
+
+00:15.280 --> 00:18.780
+resolveTransport ZORDERS → DEVK900123
+
+00:15.810 --> 00:19.310
+editObjectSource line 141 · activate=true
+
+00:16.340 --> 00:19.840
+unitTestRun ZCL_ORDER_SERVICE
+
+00:16.860 --> 00:20.360
+objectDiff active vs. previous
+
+00:17.910 --> 00:21.410
+locked · written · activated · unlocked
+
+00:18.960 --> 00:22.460
+ABAP Unit 3 passed · 0 failed Transport DEVK900123 Diff +3 lines · 0 removed
+
+00:19.560 --> 00:23.060
+Fixed before the standup.
+
+00:23.170 --> 00:26.600
+Dumps, read.
+
+00:23.570 --> 00:26.600
+Cause, line, fix, activation and tests in one chat.
+
+00:24.190 --> 00:26.600
+dumps dumpDetails editObjectSource
+
+00:24.550 --> 00:26.600
+unitTestRun
+
+00:25.150 --> 00:26.600
+github.com/williansaez/abap-adt-mcp

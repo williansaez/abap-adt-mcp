@@ -1,0 +1,66 @@
+WEBVTT
+
+NOTE Captions for the abap-adt-mcp brag film 'atc'. On-screen text, English.
+
+00:00.250 --> 00:03.750
+TOOL SHORT · ATC 27 ATC findings in ZFIN.
+
+00:01.600 --> 00:05.100
+Friday, 17:40.
+
+00:05.800 --> 00:09.300
+createAtcRun ZFIN · variant DEFAULT
+
+00:06.340 --> 00:09.840
+atcWorklists 27 findings
+
+00:06.860 --> 00:10.360
+atcQuickfixProposals 19 deterministic
+
+00:07.380 --> 00:10.880
+atcApplyQuickfix ×19 · activate=true
+
+00:07.910 --> 00:11.410
+atcSummary rerun
+
+00:08.960 --> 00:12.460
+8 findings need a human · listed with atcDocumentation
+
+00:10.010 --> 00:13.510
+ATC 27 → 8 findings Applied 19 quickfixes · 0 new errors Left for you 8 · priority 2, no safe fix
+
+00:10.610 --> 00:14.110
+The safe ones are done. The rest are listed.
+
+00:16.340 --> 00:19.840
+atcExemptProposal finding 4 · finding 11
+
+00:16.860 --> 00:20.360
+atcRequestExemption ×2 · reason: false positive
+
+00:17.390 --> 00:20.890
+atcUsers TEAMLEAD
+
+00:18.440 --> 00:21.940
+exemptions wait for a human in SAP · nothing auto-approved
+
+00:19.490 --> 00:22.990
+Requested 2 exemptions Approver TEAMLEAD Remaining 6 findings · yours
+
+00:20.090 --> 00:23.590
+Approval stays a human call.
+
+00:23.700 --> 00:27.100
+ATC, handled.
+
+00:24.100 --> 00:27.100
+Run, propose, apply, rerun, request. Exemptions stay a human call.
+
+00:24.720 --> 00:27.100
+createAtcRun atcWorklists atcApplyQuickfix
+
+00:25.080 --> 00:27.100
+atcRequestExemption
+
+00:25.680 --> 00:27.100
+github.com/williansaez/abap-adt-mcp
