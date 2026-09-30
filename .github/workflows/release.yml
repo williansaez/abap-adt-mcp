@@ -126,6 +126,21 @@ jobs:
           echo "$SHA256  mcp-publisher.tar.gz" | sha256sum -c -
           tar xzf mcp-publisher.tar.gz mcp-publisher
           ./mcp-publisher --version
+      - name: Wait until npm serves this version
+        # The registry checks that the npm package carries the version before it
+        # accepts the entry, and npm takes a few minutes to serve a fresh publish
+        # (2.7.0 failed here 30 seconds after the npm job). Up to 15 minutes.
+        run: |
+          VERSION="$(node -p "require('./server.json').version")"
+          for i in $(seq 1 45); do
+            if curl -sS "https://registry.npmjs.org/abap-adt-mcp/$VERSION" | grep -q "\"version\":\"$VERSION\""; then
+              echo "npm serves abap-adt-mcp@$VERSION"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "npm does not serve abap-adt-mcp@$VERSION after 15 minutes" >&2
+          exit 1
       - name: Publish server.json unless this version is already in the registry
         # A re-run must not fail on a version the registry already holds.
         run: |
