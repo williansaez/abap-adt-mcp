@@ -139,3 +139,42 @@ Same tenant, 2026-09-03: `getMethodSource` / `setMethodSource(activate=true)` / 
 
 Same tenant, 2026-09-03 (items 23-25): progress notifications observed over stdio with a `progressToken` (runSnippet 1/4…3/4 steps, SSO login message, heartbeat after 10 s during `atcSummary`); `atcSummary(mainUrl=/sap/bc/adt/packages/zsandbox)` ran ATC (14 s, 2 objects, no findings); `exportPackageSources` wrote `zsandbox/zcube_cds.ddls.asddls` plus `EXPORT.json`.
 
+
+## Layer 5, GitHub Copilot in VS Code (2026-09-28)
+
+Phase 1 of #17 (#18). Windows 11 ARM64 VM, VS Code with Copilot agent mode (auto model routing), Node 24.19.0 installed with winget. Destination: on-prem S/4HANA (PCE 2023) reached over VPN, `sso`, client 100, `policy.allowedPackages: ["$TMP"]`. Server: 2.1.1 from npm, then 2.1.1 plus the #56 fix from a local tarball, then from a git install of a branch (#57).
+
+| # | Test | Result |
+|---|---|---|
+| 1.1 | User `mcp.json` with `servers`, `npx -y abap-adt-mcp`, `focused` | **passed**: Running, 114 tools, 6 prompts; startup about 16 s on the first `npx` download; no errors in the output channel |
+| 1.2 | Tool count, then `MCP_TOOLSETS=all` | **passed**: 173 tools, 225 selected in the picker counting VS Code's own; no 128-tool warning, requests worked |
+| 1.3 | `${input:...}` into `${env:...}` in `systems.json` | **passed**: asked once, masked, resolved (the destination URL was the test value), not asked again on Restart |
+| 1.4 | Read path | **passed**: `searchObject` and `getObjectSource` on `CL_ABAP_CHAR_UTILITIES` (278 lines) |
+| 1.5 | `sso` login from VS Code | **passed with workaround**: failed first with "No Chrome/Edge/Brave found", then on `mkdir` of a profile directory whose name kept the port's colon (#58, fixed by #59); with `SAP_BROWSER_PATH` and `SAP_BROWSER_PROFILE_DIR` Edge opened and the login succeeded |
+| 1.6 | Approval UX | **passed**: read tools run without asking; writes ask per tool with ⚠ "changes workspace source", `deleteObject` with ❌ "permanently removes source" |
+| 1.7 | Prompts | **passed**: `/mcp.abap-adt-mcp.clean-core-check` asked for `destination` and `target` and filled the prompt text |
+| 1.8 | Policy guard rail | **passed**: `createObject` in a package outside `allowedPackages` was refused, the model explained it and did not retry |
+| 1.9 | Write cycle in `$TMP` (short form, the full cycle is Layer 3) | **passed**: `ZCL_MCP_COPILOT` created, written, activated, one method changed with `getMethodSource`/`setMethodSource`, deleted, search empty. `runSnippet` returned the runner's "does not implement if_oo_adt_classrun~main" as success output (#60, fixed by #61) |
+| 1.10 | Output cap | **passed**: VS Code did not truncate 200,000 or 1,000,000 characters (the whole 14,429-line `CL_GUI_ALV_GRID`); the server's 40,000 default is the binding limit |
+| 1.11 | `chat.mcp.discovery.enabled` with a Claude Desktop config | **passed**: off by default; ticked, the second entry is listed `Disabled` with no tools loaded |
+
+Bugs found: #54 (array schemas without `items`, every chat request refused; fixed by #56), #58 (browser SSO on Windows; fixed by #59), #60 (`runSnippet` race on on-prem; fixed by #61). Documentation: #55 (`${env:HOME}` on Windows, "MCP: Show Output", the 128-tool claim, discovery behaviour; this section and the VS Code section of HOSTS.md). The `createObject` description and the server instructions named `loadTypes`, which `focused` does not publish; both now point at `creatableTypeDetails`.
+
+### Phase 3, GitHub Copilot CLI (#20), 2026-09-28
+
+Same VM. Copilot CLI 1.0.89 from `npm install -g @github/copilot`, server from `npx -y github:williansaez/abap-adt-mcp#milestone/2.5.0` (integration branch of this milestone's PRs).
+
+| # | Test | Result |
+|---|---|---|
+| 3.1 | `~/.copilot/mcp-config.json` stdio entry | **passed**: `/mcp show` enabled, 114 tools; `listSystems` returned the destination |
+| 3.2 | SSO login from the terminal | **passed**: the browser opened from the CLI's server process, `getObjectSource` returned the source after the login |
+| 3.3 | Tool cap | **passed**: `all` loaded 173 tools, requests worked, no warning |
+| 3.4 | Secret handling | **passed, documented**: no secret store; `${VAR}` in `env` is expanded from the CLI's environment (undocumented by GitHub); unset, the literal is passed and the server stops with a clear fatal naming the variable; a Windows user variable only reaches processes started after it was set |
+
+### Phase 4, Copilot in JetBrains, Eclipse and Xcode (#21), 2026-09-28
+
+| # | Test | Result |
+|---|---|---|
+| 4.1 | Config location, map key and secrets from GitHub's docs | **done**: all three use `mcp.json` with `servers`; no documented `${input:...}` or env expansion; recorded in HOSTS.md |
+| 4.2 | Live run where an IDE is available | **not run**: no JetBrains IDE, Eclipse or Copilot for Xcode installed |
+| 4.3 | Eclipse coexistence with ADT | **documented, not observed**: separate ADT sessions, so editor locks and server locks block each other |
