@@ -526,7 +526,7 @@ All variables declared in [server.json](../server.json), plus the two the server
 
 | Variable | Default | Effect |
 |---|---|---|
-| `SAP_BROWSER_PATH` | auto-detected | Path to a Chromium-based browser executable. Auto-detection only knows the macOS locations of Chrome, Edge and Brave under `/Applications`; on Windows and Linux the variable is required, otherwise the login fails with `No Chrome/Edge/Brave found for SSO login`. |
+| `SAP_BROWSER_PATH` | auto-detected | Path to a Chromium-based browser executable. Auto-detection covers the default install locations of Chrome, Edge and Brave on macOS (`/Applications`), Windows (`Program Files`, `Program Files (x86)`, where Windows 11 puts Edge, and per-user `LOCALAPPDATA`) and Linux (`/usr/bin`); before 2.5.0 it only knew macOS. Set the variable for a browser installed elsewhere, otherwise the login fails with `No Chrome/Edge/Brave found for SSO login`. |
 | `SAP_BROWSER_PROFILE_DIR` | `~/.abap-adt-mcp/sso/<host>` | Directory of the persistent browser profile that keeps the identity-provider session. Created if missing. Chrome's default profile on macOS (`~/Library/Application Support/Google/Chrome`) is rejected explicitly; do not point it at any browser's live profile on other platforms either, Chrome refuses automation on it and the login window would expose every site's cookies. |
 
 **Headless SSO2 provider**
