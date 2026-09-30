@@ -7,12 +7,15 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/node/v/abap-adt-mcp)](https://nodejs.org)
 [![MCP Registry](https://img.shields.io/badge/MCP%20registry-io.github.williansaez%2Fabap--adt--mcp-informational)](https://registry.modelcontextprotocol.io/?search=abap-adt-mcp)
+[![Site do projeto](https://img.shields.io/badge/site%20do%20projeto-williansaez.github.io-4db1ff)](https://williansaez.github.io/abap-adt-mcp/pt-BR/)
 
 [English](README.md) · Português (Brasil) · [Deutsch](README.de.md) · [Site do projeto](https://williansaez.github.io/abap-adt-mcp/pt-BR/)
 
-abap-adt-mcp é um servidor [Model Context Protocol](https://modelcontextprotocol.io). Execute-o ao lado do Claude Desktop, do Claude Code ou de qualquer outro host MCP, aponte-o para um ou mais sistemas SAP, e o modelo passa a ter os mesmos endpoints REST do ADT que o Eclipse usa: pesquisar objetos, ler e editar código-fonte, criar ordens de transporte, ativar, executar ABAP Unit e ATC, ler dumps, consultar tabelas. Um único servidor expõe **173 ferramentas** sobre quantos sistemas SAP você configurar, S/4HANA Cloud e on-premise igualmente.
+Você escreve uma frase no Claude. Recebe de volta uma classe ativada, testes unitários verdes e um número de ordem de transporte. O abap-adt-mcp é o servidor no meio: um servidor [Model Context Protocol](https://modelcontextprotocol.io) que dá ao Claude Desktop, ao Claude Code, ao VS Code ou a qualquer outro host MCP os mesmos serviços ADT que o Eclipse usa, em todos os sistemas SAP que você configurar, S/4HANA Cloud e on-premise igualmente. **173 ferramentas**, um processo, e salvaguardas que o próprio servidor aplica: um destino marcado como somente leitura recusa toda escrita antes de chegar ao SAP, independentemente do que o host aprova.
 
-> Use com critério e prefira sistemas de desenvolvimento. Um destino sem bloco `policy` é totalmente gravável dentro das suas autorizações SAP; a única coisa que ele não faz é ler dados de tabelas, que fica desligado até você permitir. As salvaguardas por destino (somente leitura, pacotes permitidos, tabelas negadas) são aplicadas pelo próprio servidor, independentemente do que o host aprova, de modo que um prompt descuidado não alcança o sistema errado.
+**Veja em movimento.** O [site do projeto](https://williansaez.github.io/abap-adt-mcp/pt-BR/) tem sete filmes curtos, a instalação em três passos e o que pedir ao modelo.
+
+> Use com critério e prefira sistemas de desenvolvimento. O modelo age como o seu usuário SAP: um destino sem bloco `policy` é gravável dentro das suas autorizações SAP, e os dados de tabelas ficam fechados até você abrir.
 
 ## Veja funcionar
 
@@ -72,7 +75,7 @@ Lançada em 2026-09-08. A lista completa está no [CHANGELOG.md](CHANGELOG.md#20
 - **Node.js 22.12 ou mais novo passa a ser obrigatório** (mudança incompatível). Node 18 e 20 chegaram ao fim da vida útil e não recebem correções de segurança; um servidor que guarda credenciais SAP não deve rodar neles. Em um Node mais antigo o `npm` imprime `EBADENGINE` e o servidor não é testado; instale o LTS atual e reinicie o host. A imagem de contêiner já estava em `node:22-alpine`.
 - **`tls.servername` por destino.** Para um sistema acessado por endereço IP ou nome curto cujo certificado carrega o nome totalmente qualificado: o nome é verificado e enviado como SNI, a verificação continua ligada, e `insecureTls` deixa de ser o único caminho nesse cenário. `listSystems` mostra `servername NOME`.
 - **Erros de certificado ensinam a correção.** Um handshake que falha chega ao modelo como `kind: "tlsCertificate"` com uma dica que nomeia o destino: emissor desconhecido devolve a linha `openssl s_client` daquele host e aponta para `tls.ca`, nome divergente cita os nomes que o Node reportou e aponta para `tls.servername`, certificado expirado avisa que só a renovação resolve. `insecureTls` é mencionado por último.
-- **`insecureTls` permanece**, por destino, desligado por padrão, anunciado na inicialização; o [SECURITY.md](SECURITY.md#tls) registra o porquê.
+- **`insecureTls` permanece**, por destino, desligado por padrão, anunciado na inicialização; o [SECURITY.md](.github/SECURITY.md#tls) registra o porquê.
 - **Cadeia de suprimentos.** `puppeteer-core` 25 remove da árvore de dependências o último alerta aberto do Dependabot (`npm audit` reporta zero vulnerabilidades); o Dependabot agora aguarda um período de carência antes de propor atualizações e agrupa as de segurança em um único pull request; `dotenv` é carregado em modo silencioso para que stdout continue um canal JSON-RPC limpo.
 
 Atualizar a partir da 1.x não exige mudança de configuração: `systems.json`, as políticas, os nomes das ferramentas e as variáveis de ambiente não mudaram.
@@ -100,7 +103,7 @@ Crie uma pasta `.abap-adt-mcp` na sua pasta pessoal e, dentro dela, um arquivo `
 }
 ```
 
-`url` é obrigatório; `client` é o mandante em que a sua sessão SSO aterrissa (nos tenants testados o sistema de desenvolvimento logava em `080` e os sistemas de customizing e teste em `100`; a entrada Sobre no menu de usuário do launchpad mostra o valor); `authType` assume `sso` por padrão e `"default": true` permite omitir o nome do destino em toda chamada. A chave (`DEV`) é escolha sua e é o nome que você usará nas conversas. Vários sistemas, com salvaguardas, ficam assim (ou copie [systems.example.json](systems.example.json)):
+`url` é obrigatório; `client` é o mandante em que a sua sessão SSO aterrissa (nos tenants testados o sistema de desenvolvimento logava em `080` e os sistemas de customizing e teste em `100`; a entrada Sobre no menu de usuário do launchpad mostra o valor); `authType` assume `sso` por padrão e `"default": true` permite omitir o nome do destino em toda chamada. A chave (`DEV`) é escolha sua e é o nome que você usará nas conversas. Vários sistemas, com salvaguardas, ficam assim (ou copie [systems.example.json](docs/systems.example.json)):
 
 ```json
 {
@@ -535,7 +538,7 @@ Este servidor cresce com quem o roda em paisagens reais e devolve o que encontro
 - [Alexandre Leite](https://github.com/Dregus) relatou o cenário do Secure Login Client que abriu o marco 2.1.0 e testou os caminhos de autenticação on-prem.
 - O servidor original `mcp-abap-abap-adt-api` de [mario-andreschak](https://github.com/mario-andreschak) é onde este projeto começou.
 
-Achou algo, corrigiu algo ou rodou um modo em uma paisagem que ninguém aqui tem? Abra uma issue ou um pull request, e veja [CONTRIBUTING.md](CONTRIBUTING.md).
+Achou algo, corrigiu algo ou rodou um modo em uma paisagem que ninguém aqui tem? Abra uma issue ou um pull request, e veja [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ## Licença
 

@@ -7,12 +7,15 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/node/v/abap-adt-mcp)](https://nodejs.org)
 [![MCP Registry](https://img.shields.io/badge/MCP%20registry-io.github.williansaez%2Fabap--adt--mcp-informational)](https://registry.modelcontextprotocol.io/?search=abap-adt-mcp)
+[![Project site](https://img.shields.io/badge/project%20site-williansaez.github.io-4db1ff)](https://williansaez.github.io/abap-adt-mcp/)
 
 English · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md) · [Project site](https://williansaez.github.io/abap-adt-mcp/)
 
-abap-adt-mcp is a [Model Context Protocol](https://modelcontextprotocol.io) server. Run it next to Claude Desktop, Claude Code or any other MCP host, point it at one or more SAP systems, and the model gets the same ADT REST endpoints Eclipse uses: search objects, read and edit source, create transports, activate, run ABAP Unit and ATC, read short dumps, query tables. One server exposes **173 tools** over as many SAP systems as you configure, S/4HANA Cloud and on-prem alike.
+You type a sentence in Claude. You get back an activated class, green unit tests and a transport number. abap-adt-mcp is the server in between: a [Model Context Protocol](https://modelcontextprotocol.io) server that gives Claude Desktop, Claude Code, VS Code or any other MCP host the same ADT services Eclipse uses, on every SAP system you configure, S/4HANA Cloud and on-prem alike. **173 tools**, one process, and guard rails the server enforces itself: a destination marked read-only refuses every write before it reaches SAP, whatever the host approves.
 
-> Use it deliberately, and prefer development systems. A destination without a `policy` block is fully writable within your SAP authorizations; the one thing it does not do is read table data, which stays off until you allow it. Per-destination guard rails (read-only, allowed packages, denied tables) are enforced by the server itself, whatever the host approves, so a careless prompt cannot reach the wrong system.
+**See it in motion.** The [project site](https://williansaez.github.io/abap-adt-mcp/) has seven short films, the setup in three steps and what to ask the model.
+
+> Use it deliberately, and prefer development systems. The model acts as your SAP user: a destination without a `policy` block is writable within your SAP authorizations, and table data stays closed until you open it.
 
 ## See it work
 
@@ -72,7 +75,7 @@ Released 2026-09-08. The full list is in [CHANGELOG.md](CHANGELOG.md#200---2026-
 - **Node.js 22.12 or newer is required** (breaking). Node 18 and 20 are past end of life and receive no security fixes; a server holding SAP credentials should not run on them. On an older Node, `npm` prints `EBADENGINE` and the server is untested; install the current LTS and restart the host. The container image was already on `node:22-alpine`.
 - **`tls.servername` on a destination.** For a system reached by IP address or short hostname whose certificate carries the fully qualified name: the name is verified and sent as SNI, verification stays on, and `insecureTls` is no longer the only way through that landscape. `listSystems` shows `servername NAME`.
 - **Certificate errors teach the fix.** A failed handshake reaches the model as `kind: "tlsCertificate"` with a hint that names the destination: unknown issuer gives the `openssl s_client` line for that host and points at `tls.ca`, a name mismatch quotes the names Node reported and points at `tls.servername`, an expired certificate says that only renewal fixes it. `insecureTls` is mentioned last.
-- **`insecureTls` stays**, per destination, off by default, announced at startup; [SECURITY.md](SECURITY.md#tls) records why.
+- **`insecureTls` stays**, per destination, off by default, announced at startup; [SECURITY.md](.github/SECURITY.md#tls) records why.
 - **Supply chain.** `puppeteer-core` 25 removes the last open Dependabot alert from the dependency tree (`npm audit` reports zero vulnerabilities); Dependabot now waits a cooldown before proposing updates and groups security updates into one pull request; `dotenv` is loaded quietly so stdout stays a clean JSON-RPC channel.
 
 Upgrading from 1.x needs no configuration change: `systems.json`, the policies, the tool names and the environment variables are unchanged.
@@ -100,7 +103,7 @@ Create a folder `.abap-adt-mcp` in your home directory and a file `systems.json`
 }
 ```
 
-`url` is mandatory; `client` is the client your SSO session lands on (on the tested tenants the development system logged on to `080` and the customizing and test systems to `100`; the About entry in the launchpad's user menu shows it); `authType` defaults to `sso` and `"default": true` lets you omit the destination name in every call. The key (`DEV`) is your choice and is the name you will use in chats. Several systems, with guard rails, look like this (or copy [systems.example.json](systems.example.json)):
+`url` is mandatory; `client` is the client your SSO session lands on (on the tested tenants the development system logged on to `080` and the customizing and test systems to `100`; the About entry in the launchpad's user menu shows it); `authType` defaults to `sso` and `"default": true` lets you omit the destination name in every call. The key (`DEV`) is your choice and is the name you will use in chats. Several systems, with guard rails, look like this (or copy [systems.example.json](docs/systems.example.json)):
 
 ```json
 {
@@ -535,7 +538,7 @@ This server grows with the people who run it against real landscapes and send ba
 - [Alexandre Leite](https://github.com/Dregus) reported the Secure Login Client scenario that opened milestone 2.1.0 and tested the on-prem authentication paths.
 - The original `mcp-abap-abap-adt-api` server by [mario-andreschak](https://github.com/mario-andreschak) is where this project started.
 
-Found something, fixed something, or ran a mode on a landscape nobody here has? Open an issue or a pull request, and see [CONTRIBUTING.md](CONTRIBUTING.md).
+Found something, fixed something, or ran a mode on a landscape nobody here has? Open an issue or a pull request, and see [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ## License
 
