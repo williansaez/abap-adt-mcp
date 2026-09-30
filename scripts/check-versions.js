@@ -27,7 +27,7 @@ check('server.json packages[0].version', server.packages && server.packages[0] &
 check('.claude-plugin/plugin.json version', plugin.version);
 // The docs pin the npm package and the container tag in their host snippets;
 // a release must move every pin, so each one is checked.
-for (const file of ['docs/CONFIGURATION.md', 'docs/HOSTS.md', 'SECURITY.md']) {
+for (const file of ['docs/CONFIGURATION.md', 'docs/HOSTS.md', '.github/SECURITY.md']) {
   const text = fs.readFileSync(path.join(root, file), 'utf8');
   for (const m of text.matchAll(/abap-adt-mcp[@:]v?(\d+\.\d+\.\d+)/g)) check(`${file} pin "${m[0]}"`, m[1]);
 }
