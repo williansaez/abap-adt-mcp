@@ -2,7 +2,7 @@
 
 **Lassen Sie Claude ABAP-Code auf Ihren SAP-Systemen lesen, schreiben, testen und prüfen.**
 
-[English](README.md) · [Português (Brasil)](README.pt-BR.md) · Deutsch
+[English](README.md) · [Português (Brasil)](README.pt-BR.md) · Deutsch · [Projektseite](https://williansaez.github.io/abap-adt-mcp/de/)
 
 [![npm version](https://img.shields.io/npm/v/abap-adt-mcp)](https://www.npmjs.com/package/abap-adt-mcp)
 [![CI](https://github.com/williansaez/abap-adt-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/williansaez/abap-adt-mcp/actions/workflows/ci.yml)
@@ -18,8 +18,17 @@ abap-adt-mcp ist ein [Model Context Protocol](https://modelcontextprotocol.io)-S
 > - Eine Destination ohne [`policy`](#richtlinienschlüssel)-Block ist in jedem Paket beschreibbar, das Ihr Benutzer bearbeiten darf; Tabellendaten bleiben geschlossen, bis Sie sie öffnen.
 > - Empfohlen: nur Entwicklungs- und Testsysteme. Muss eine Produktiv-Destination existieren, geben Sie ihr die `PRD`-Richtlinie aus [Schritt 4](#4-produktiv--und-on-premise-systeme-hinzufügen): der Server setzt sie vor jedem SAP-Aufruf durch, unabhängig davon, was der Host genehmigt, sodass ein unbedachter Prompt nicht schreiben kann, wo die Richtlinie es verbietet ([Für Administratoren](#für-administratoren)).
 
+## So sieht es aus
+
+![Ein Satz im Chat wird zu searchObject, getObjectSource, editObjectSource und unitTestRun, danach eine Ergebniskarte: 3 Tests bestanden, Transportauftrag DEVK900123](docs/media/brag/film-flow.gif)
+
+Das ist die ganze Idee. Sie schreiben einen Satz. Das Modell wählt die Tools, der Server sperrt das Objekt, schreibt, aktiviert und gibt es frei, und die Unit-Tests kommen grün zurück, mit der Transportnummer daran. Verlangen Sie dieselbe Änderung auf einem Produktivsystem, lautet die Antwort `policyDenied`, bevor ein einziger SAP-Aufruf hinausgeht: Die Leitplanken sitzen im Server, nicht im Chatfenster.
+
+Sieben kurze Filme zeigen das und die einzelnen Aufgaben dahinter, einen Kurzdump bis zur Zeile verfolgt, einen ATC-Lauf mit seinen Quickfixes, eine Transportprüfung, eine Klasse samt Test angelegt, eine Prüfung der ABAP-Cloud-Reife. Sie stehen auf der [Projektseite](https://williansaez.github.io/abap-adt-mcp/de/#watch), mit Untertiteln.
+
 ## Inhalt
 
+- [So sieht es aus](#so-sieht-es-aus)
 - [Einrichtung](#einrichtung)
 - [Was Sie das Modell fragen können](#was-sie-das-modell-fragen-können)
 - [Für Administratoren](#für-administratoren)

@@ -1,0 +1,60 @@
+WEBVTT
+
+NOTE Captions for the abap-adt-mcp brag film 'create'. On-screen text, English.
+
+00:00.250 --> 00:03.750
+TOOL SHORT · CREATE New class. New test.
+
+00:01.640 --> 00:05.140
+One sentence.
+
+00:06.000 --> 00:09.500
+validateNewObject CLAS/OC · ZCL_HELLO · ZDEMO
+
+00:06.560 --> 00:10.060
+resolveTransport ZDEMO → DEVK900124
+
+00:07.090 --> 00:10.590
+createObject ZCL_HELLO
+
+00:07.640 --> 00:11.140
+setObjectSource activate=true
+
+00:08.190 --> 00:11.690
+createTestInclude ltc_hello
+
+00:08.740 --> 00:12.240
+unitTestRun ZCL_HELLO
+
+00:09.830 --> 00:13.330
+created outside the stateful session · readable at once
+
+00:10.930 --> 00:14.430
+ABAP Unit 1 passed · 0 failed Transport DEVK900124 Status ZCL_HELLO active
+
+00:11.530 --> 00:15.030
+Validate, transport, create, test. In order.
+
+00:16.380 --> 00:19.880
+validateNewObject ZCL_HELLO · destination=PRD
+
+00:17.470 --> 00:20.970
+kind "policyDenied" gate readOnly destination PRD hint PRD is readOnly; create refused before any SAP call
+
+00:18.070 --> 00:21.570
+Guard rails live in the server, not in the host.
+
+00:21.500 --> 00:25.000
+Objects, created.
+
+00:21.900 --> 00:25.100
+The server knows the order, and where it must not write.
+
+00:22.520 --> 00:25.100
+validateNewObject resolveTransport createObject
+
+00:22.880 --> 00:25.100
+unitTestRun
+
+00:23.480 --> 00:25.100
+github.com/williansaez/abap-adt-mcp

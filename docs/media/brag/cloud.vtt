@@ -1,0 +1,60 @@
+WEBVTT
+
+NOTE Captions for the abap-adt-mcp brag film 'cloud'. On-screen text, English.
+
+00:00.250 --> 00:03.750
+TOOL SHORT · ABAP CLOUD Will it run on S/4HANA Cloud?
+
+00:05.800 --> 00:09.300
+apiReleaseState source of ZCL_ORDER_SERVICE
+
+00:06.340 --> 00:09.840
+createAtcRun variant ABAP_CLOUD_READINESS
+
+00:06.860 --> 00:10.360
+whereUsed CL_GUI_FRONTEND_SERVICES
+
+00:07.920 --> 00:11.420
+checked against SAP's cloudification repository · cached 24h
+
+00:09.500 --> 00:13.000
+Released CL_ABAP_CHAR_UTILITIES · 11 more Not released CL_GUI_FRONTEND_SERVICES Prohibited IF_HTTP_CLIENT → CL_WEB_HTTP_CLIENT_MANAGER
+
+00:10.100 --> 00:13.600
+Blockers named before the migration starts.
+
+00:16.340 --> 00:19.840
+getMethodSource GET_RATES
+
+00:16.860 --> 00:20.360
+setMethodSource GET_RATES · activate=true
+
+00:17.380 --> 00:20.880
+apiReleaseState rerun
+
+00:17.910 --> 00:21.410
+unitTestRun ZCL_ORDER_SERVICE
+
+00:18.960 --> 00:22.460
+CL_GUI_FRONTEND_SERVICES left for you · no cloud successor
+
+00:20.530 --> 00:24.030
+Prohibited 0 Not released 1 · CL_GUI_FRONTEND_SERVICES ABAP Unit 3 passed · 0 failed
+
+00:21.130 --> 00:24.630
+One blocker down. The other needs a design decision.
+
+00:24.500 --> 00:28.000
+Clean core, checked.
+
+00:24.900 --> 00:28.100
+Released, classic, not released, prohibited. Per object, with the successor.
+
+00:25.520 --> 00:28.100
+apiReleaseState createAtcRun setMethodSource
+
+00:25.880 --> 00:28.100
+whereUsed
+
+00:26.480 --> 00:28.100
+github.com/williansaez/abap-adt-mcp

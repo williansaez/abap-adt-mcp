@@ -2,7 +2,7 @@
 
 **Deixe o Claude ler, escrever, testar e verificar código ABAP nos seus sistemas SAP.**
 
-[English](README.md) · Português (Brasil) · [Deutsch](README.de.md)
+[English](README.md) · Português (Brasil) · [Deutsch](README.de.md) · [Site do projeto](https://williansaez.github.io/abap-adt-mcp/pt-BR/)
 
 [![npm version](https://img.shields.io/npm/v/abap-adt-mcp)](https://www.npmjs.com/package/abap-adt-mcp)
 [![CI](https://github.com/williansaez/abap-adt-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/williansaez/abap-adt-mcp/actions/workflows/ci.yml)
@@ -18,8 +18,17 @@ abap-adt-mcp é um servidor [Model Context Protocol](https://modelcontextprotoco
 > - Um destino sem bloco [`policy`](#chaves-de-política) é gravável em todo pacote que o seu usuário pode editar; os dados de tabelas ficam fechados até você abri-los.
 > - Recomendado: só sistemas de desenvolvimento e teste. Se um destino produtivo precisa existir, dê a ele a política `PRD` do [passo 4](#4-acrescente-sistemas-produtivos-e-on-premise): o servidor a aplica antes de qualquer chamada ao SAP, seja o que for que o host aprove, de modo que um prompt descuidado não grava onde a política proíbe ([Para administradores](#para-administradores)).
 
+## Veja funcionar
+
+![Uma frase no chat vira searchObject, getObjectSource, editObjectSource e unitTestRun, depois um cartão de resultado: 3 testes aprovados, ordem de transporte DEVK900123](docs/media/brag/film-flow.gif)
+
+A ideia é essa. Você escreve uma frase. O modelo escolhe as ferramentas, o servidor bloqueia o objeto, grava, ativa e desbloqueia, e os testes unitários voltam verdes com o número da ordem de transporte. Peça a mesma mudança num sistema produtivo e a resposta é `policyDenied` antes de qualquer chamada ao SAP: as salvaguardas vivem no servidor, não na janela do chat.
+
+Sete filmes curtos mostram isso e os trabalhos por trás, um dump rastreado até a linha, uma execução do ATC com seus quickfixes, uma revisão de transporte, uma classe criada com o seu teste, uma verificação de prontidão para ABAP Cloud. Estão no [site do projeto](https://williansaez.github.io/abap-adt-mcp/pt-BR/#watch), com legendas.
+
 ## Sumário
 
+- [Veja funcionar](#veja-funcionar)
 - [Instalação](#instalação)
 - [O que pedir ao modelo](#o-que-pedir-ao-modelo)
 - [Para administradores](#para-administradores)

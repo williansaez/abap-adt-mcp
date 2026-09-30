@@ -2,7 +2,7 @@
 
 **Let Claude read, write, test and check ABAP code on your SAP systems.**
 
-English · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md)
+English · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md) · [Project site](https://williansaez.github.io/abap-adt-mcp/)
 
 [![npm version](https://img.shields.io/npm/v/abap-adt-mcp)](https://www.npmjs.com/package/abap-adt-mcp)
 [![CI](https://github.com/williansaez/abap-adt-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/williansaez/abap-adt-mcp/actions/workflows/ci.yml)
@@ -18,8 +18,17 @@ abap-adt-mcp is a [Model Context Protocol](https://modelcontextprotocol.io) serv
 > - A destination without a [`policy`](#policy-keys) block is writable in every package your user may edit; table data stays closed until you open it.
 > - Recommended: development and test systems only. If a production destination must exist, give it the `PRD` policy of [step 4](#4-add-production-and-on-prem-systems): the server enforces it before any SAP call, whatever the host approves, so a careless prompt cannot write where the policy forbids it ([For administrators](#for-administrators)).
 
+## See it work
+
+![One sentence in the chat becomes searchObject, getObjectSource, editObjectSource and unitTestRun, then a result card: 3 tests passed, transport DEVK900123](docs/media/brag/film-flow.gif)
+
+That is the whole idea. You type a sentence. The model picks the tools, the server locks the object, writes, activates and unlocks it, and the unit tests come back green with a transport number attached. Ask for the same change on a production system and the answer is `policyDenied` before a single SAP call goes out: the guard rails live in the server, not in the chat window.
+
+Seven short films show this and the single jobs behind it, a short dump traced to its line, an ATC run with its quickfixes, a transport review, a class created with its test, an ABAP Cloud readiness check. They are on the [project site](https://williansaez.github.io/abap-adt-mcp/#watch), with captions.
+
 ## Table of contents
 
+- [See it work](#see-it-work)
 - [Setup](#setup)
 - [What to ask the model](#what-to-ask-the-model)
 - [For administrators](#for-administrators)

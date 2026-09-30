@@ -14,3 +14,6 @@ systems.json
 
 .claude/settings.local.json
 .docs-forbidden-names
+.tokensave/
+.impeccable/
+brag-output/

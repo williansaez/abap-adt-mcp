@@ -1,0 +1,60 @@
+WEBVTT
+
+NOTE Captions for the abap-adt-mcp brag film 'launch'. On-screen text, English.
+
+00:00.250 --> 00:03.750
+SAP · ABAP · MCP Your SAP system takes prompts now.
+
+00:03.400 --> 00:06.900
+abap-adt-mcp
+
+00:04.530 --> 00:08.030
+Let Claude read, write, test and check ABAP code on your SAP systems. MCP server · 173 tools S/4HANA Cloud + on-prem
+
+00:07.300 --> 00:10.800
+One process. Every host. Every system.
+
+00:07.940 --> 00:11.440
+Claude Desktop Claude Code VS Code · Copilot
+
+00:08.360 --> 00:11.860
+Cursor · Cline
+
+00:09.520 --> 00:13.020
+abap-adt-mcp 173 tools policies · audit log
+
+00:10.780 --> 00:14.280
+DEV allowedPackages: Z* QAS readOnly PRD readOnly · deniedTables: PA*, HR*
+
+00:13.800 --> 00:17.300
+What the model can do
+
+00:14.520 --> 00:18.020
+Read, search, write, activate getObjectSource, whereUsed, editObjectSource with activate=true. Locks open and close by themselves.
+
+00:15.520 --> 00:19.020
+Test and check unitTestRun, createAtcRun, atcApplyQuickfix. ABAP Unit and ATC results come back as structured JSON.
+
+00:16.520 --> 00:20.020
+Dumps and transports dumps points at the line, transportUnifiedDiff reviews a request before release.
+
+00:17.520 --> 00:21.020
+Guard rails in the server readOnly, allowedPackages, deniedTables per destination, enforced before any SAP call, whatever the host approves.
+
+00:22.510 --> 00:26.010
+editObjectSource GET_DATA · destination=PRD
+
+00:23.520 --> 00:27.020
+kind "policyDenied" gate readOnly destination PRD hint PRD is readOnly; the write was refused before any SAP call
+
+00:24.120 --> 00:27.620
+Guard rails live in the server, not in the host.
+
+00:27.500 --> 00:31.000
+173 tools. One prompt away.
+
+00:27.900 --> 00:31.300
+npm · Claude Desktop plugin · Docker · MCP registry
+
+00:28.400 --> 00:31.300
+npx -y abap-adt-mcp github.com/williansaez/abap-adt-mcp
