@@ -519,6 +519,7 @@ All variables declared in [server.json](../server.json), plus the two the server
 | `MCP_HTTP_TOKEN` | generated | Bearer token. When unset, 32 random bytes in hex are written to `~/.abap-adt-mcp/http-token` (mode `0600`) and the path is printed on stderr. Secret. |
 | `MCP_HTTP_MAX_SESSIONS` | `16` | Concurrent MCP sessions; further `initialize` requests get `503` with `Retry-After: 30`. Non-positive or non-numeric values fall back to 16. |
 | `MCP_HTTP_SESSION_TTL_MINUTES` | `30` | Idle minutes before a session (with its SAP sessions and locks) is closed. Non-positive or non-numeric values fall back to 30. The sweeper runs every minute at most. |
+| `MCP_HTTP_MAX_BODY_BYTES` | `4194304` | Largest request body accepted, in bytes, on every `POST` (the one that opens a session and every later one): larger bodies get `413` and the connection is closed. Non-positive or non-numeric values fall back to 4 MB. |
 | `MCP_HTTP_ALLOWED_ORIGINS` | unset | Comma list of `Origin` values allowed; `*` allows any. Loopback origins always pass on a loopback bind; requests without `Origin` (every non-browser client) always pass. |
 | `MCP_HTTP_ALLOWED_HOSTS` | unset | Comma list of `Host` header values allowed, with or without port; `*` allows any. Only consulted on a loopback bind, where loopback hosts always pass; on a non-loopback bind every `Host` passes and the variable is never needed. The matrix is in section 6. |
 
@@ -575,7 +576,7 @@ MCP_HTTP_PORT=2236 SAP_SYSTEMS_FILE=$HOME/.abap-adt-mcp/systems.json npx -y abap
 
 4. `Origin` check (`403`): requests without `Origin` (non-browser clients) pass; with one, it must be listed in `MCP_HTTP_ALLOWED_ORIGINS`, be `*`-allowed, or be a loopback origin on a loopback bind.
 5. Bearer check (`401`, `Unauthorized: send Authorization: Bearer <token>`): `Authorization: Bearer <token>`, compared in constant time on the UTF-8 bytes.
-6. Session routing: a request with `mcp-session-id` goes to that session (unknown or expired id: `404`, `send a new initialize request without mcp-session-id`); without the header only a `POST` whose body contains an `initialize` request may open a session (`400` otherwise); that opening body is capped at 4 MB. `DELETE /mcp` with the session id ends the session.
+6. Session routing: a request with `mcp-session-id` goes to that session (unknown or expired id: `404`, `send a new initialize request without mcp-session-id`); without the header only a `POST` whose body contains an `initialize` request may open a session (`400` otherwise); every `POST` body is capped at `MCP_HTTP_MAX_BODY_BYTES` (default 4 MB, `413` beyond it). `DELETE /mcp` with the session id ends the session.
 
 The server reads no `X-Forwarded-For`, `X-Forwarded-Proto` or `X-Forwarded-Host` header: a proxy may send them, they change nothing, and the audit record has no caller field to receive them (section 7).
 
@@ -696,7 +697,7 @@ docker run -d --name abap-adt-mcp \
   -e ECC_PASSWORD \
   -e MCP_HTTP_PORT=2236 -e MCP_HTTP_HOST=0.0.0.0 -e MCP_HTTP_TOKEN="$(openssl rand -hex 32)" \
   -p 127.0.0.1:2236:2236 \
-  ghcr.io/williansaez/abap-adt-mcp:v2.0.0
+  ghcr.io/williansaez/abap-adt-mcp:v2.7.0
 ```
 
 `MCP_HTTP_HOST=0.0.0.0` is needed because the default loopback bind is unreachable through the published port; `-p 127.0.0.1:2236:2236` keeps the port off the network, and the reverse proxy of the previous section points at `127.0.0.1:2236` as before. Without `MCP_HTTP_PORT` the container speaks stdio (`docker run -i`), which is how a desktop host would start it.
@@ -747,7 +748,7 @@ The server key `abap-adt-mcp` is the prefix of every tool name in Claude Code (`
   "mcpServers": {
     "abap-adt-mcp": {
       "command": "npx",
-      "args": ["-y", "abap-adt-mcp@2.0.0"],
+      "args": ["-y", "abap-adt-mcp@2.7.0"],
       "env": {
         "SAP_SYSTEMS_FILE": "/Users/me/.abap-adt-mcp/systems.json",
         "MCP_TOOLSETS": "focused",
@@ -774,7 +775,7 @@ If the host cannot find `npx` (`spawn npx ENOENT` in its log), put the absolute 
 export ECC_PASSWORD="$(security find-generic-password -s abap-adt-mcp-ECC -w)"
 export SAP_SYSTEMS_FILE="$HOME/.abap-adt-mcp/systems.json"
 export MCP_TOOLSETS=focused
-exec npx -y abap-adt-mcp@2.0.0
+exec npx -y abap-adt-mcp@2.7.0
 ```
 
 `sso` entries need none of this, which is one more reason they are the default for S/4HANA Cloud.
@@ -812,7 +813,7 @@ Or a project `.mcp.json` with the same `mcpServers` object as above. The reposit
                "-v", "/Users/me/.abap-adt-mcp/systems.json:/config/systems.json:ro",
                "-e", "SAP_SYSTEMS_FILE=/config/systems.json",
                "-e", "ECC_PASSWORD",
-               "ghcr.io/williansaez/abap-adt-mcp:v2.0.0"],
+               "ghcr.io/williansaez/abap-adt-mcp:v2.7.0"],
       "env": { "ECC_PASSWORD": "..." }
     }
   }

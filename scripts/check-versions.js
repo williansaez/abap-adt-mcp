@@ -25,6 +25,12 @@ check('package-lock.json packages[""].version', lock.packages && lock.packages['
 check('server.json version', server.version);
 check('server.json packages[0].version', server.packages && server.packages[0] && server.packages[0].version);
 check('.claude-plugin/plugin.json version', plugin.version);
+// The docs pin the npm package and the container tag in their host snippets;
+// a release must move every pin, so each one is checked.
+for (const file of ['docs/CONFIGURATION.md', 'docs/HOSTS.md', 'SECURITY.md']) {
+  const text = fs.readFileSync(path.join(root, file), 'utf8');
+  for (const m of text.matchAll(/abap-adt-mcp[@:]v?(\d+\.\d+\.\d+)/g)) check(`${file} pin "${m[0]}"`, m[1]);
+}
 const args = ((plugin.mcpServers || {})[pkg.name] || {}).args || [];
 const pin = args.find((a) => a.startsWith(`${pkg.name}@`));
 if (!pin) problems.push(`.claude-plugin/plugin.json mcpServers.${pkg.name}.args has no ${pkg.name}@<version> pin (found ${JSON.stringify(args)})`);

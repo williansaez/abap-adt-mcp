@@ -112,7 +112,7 @@ Calls to one destination run one after the other, never in parallel. A `429` or 
 
 ### Record
 
-`MCP_AUDIT_FILE` writes one line per call: tool, destination, outcome, the policy gate that refused it. See [README: Audit log](../README.md#audit-log).
+`MCP_AUDIT_FILE` writes one line per call: tool, destination, outcome, the policy gate that refused it. See [README: Audit log](../README.md#for-administrators).
 
 ## What only SAP can answer
 
