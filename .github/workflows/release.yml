@@ -105,3 +105,35 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:${{ github.ref_name }}
             ghcr.io/${{ github.repository }}:latest
+
+  registry:
+    # The MCP registry entry (io.github.williansaez/abap-adt-mcp) used to be
+    # updated by hand with `mcp-publisher publish`, and 2.0.1, 2.1.0 and 2.1.1
+    # never got there. Runs after npm so the registry can see the package.
+    needs: npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # GitHub OIDC login to the registry, no stored secret
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install mcp-publisher (pinned release, checksum verified)
+        env:
+          VERSION: v1.8.1
+          SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+        run: |
+          curl -sSL -o mcp-publisher.tar.gz "https://github.com/modelcontextprotocol/registry/releases/download/$VERSION/mcp-publisher_linux_amd64.tar.gz"
+          echo "$SHA256  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
+          ./mcp-publisher --version
+      - name: Publish server.json unless this version is already in the registry
+        # A re-run must not fail on a version the registry already holds.
+        run: |
+          VERSION="$(node -p "require('./server.json').version")"
+          if curl -sS "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.williansaez/abap-adt-mcp&version=$VERSION" | grep -q "\"version\":\"$VERSION\""; then
+            echo "io.github.williansaez/abap-adt-mcp $VERSION is already in the registry; skipping"
+          else
+            ./mcp-publisher login github-oidc
+            ./mcp-publisher publish
+          fi
+
