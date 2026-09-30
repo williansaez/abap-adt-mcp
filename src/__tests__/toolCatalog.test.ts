@@ -63,6 +63,19 @@ describe('tool catalog contract', () => {
     }
   });
 
+  it('gives every array parameter an items schema (VS Code rejects the whole request otherwise)', () => {
+    const missing: string[] = [];
+    const walk = (s: any, where: string) => {
+      if (!s || typeof s !== 'object') return;
+      if (s.type === 'array' && !s.items) missing.push(where);
+      for (const [k, v] of Object.entries<any>(s.properties || {})) walk(v, `${where}.${k}`);
+      if (s.items) walk(s.items, `${where}[]`);
+      for (const k of ['anyOf', 'oneOf', 'allOf']) (s[k] || []).forEach((v: any, i: number) => walk(v, `${where}|${k}${i}`));
+    };
+    for (const t of tools) walk(t.inputSchema, t.name);
+    expect(missing).toEqual([]);
+  });
+
   it('matches docs/tools.snapshot.json (run npm run tools:docs after changing tools)', () => {
     const snapshot = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'docs', 'tools.snapshot.json'), 'utf8'));
     const snapNames = snapshot.tools.map((t: any) => t.name);

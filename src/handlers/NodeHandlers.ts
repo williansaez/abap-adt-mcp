@@ -39,6 +39,7 @@ export class NodeHandlers extends BaseHandler {
                         },
                         parentnodes: {
                             type: 'array',
+                            items: { type: 'number' },
                             description: 'An array of parent node IDs.',
                             optional: true
                         },

@@ -16,6 +16,8 @@ export interface ToolDefinition {
       description?: string;
       optional?: boolean;
       enum?: string[];
+      /** Required for type 'array': VS Code rejects the whole request on an array without items. */
+      items?: Record<string, unknown>;
     }>;
     required?: string[];
   };
