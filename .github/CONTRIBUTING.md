@@ -1,6 +1,6 @@
 # Contributing to abap-adt-mcp
 
-Thank you for helping. This document is for people who change the code, the tool catalog, the docs or the release. If you only want to use the server, the [README](README.md) and [docs/CONFIGURATION.md](docs/CONFIGURATION.md) are the right place; if you want to report what a real session taught you, jump to [Field reports](#field-reports).
+Thank you for helping. This document is for people who change the code, the tool catalog, the docs or the release. If you only want to use the server, the [README](../README.md) and [docs/CONFIGURATION.md](../docs/CONFIGURATION.md) are the right place; if you want to report what a real session taught you, jump to [Field reports](#field-reports).
 
 The short version: `npm ci`, `npm run build`, `npm test`, make your change, regenerate the tool docs, open a pull request. That fits a bug fix or a docs-only change. Adding, renaming or reshaping a tool pulls in the extra steps in [Adding a tool](#adding-a-tool), manifest, policy, `tool-notes.json`, a changelog line. Only the manifest routing and the regenerated docs are machine-checked, by the catalog contract test and CI's docs-freshness step; the rest is caught in review; everything below explains why each step exists.
 
@@ -21,7 +21,7 @@ The short version: `npm ci`, `npm run build`, `npm test`, make your change, rege
 
 ## Git workflow
 
-The repository carries no pull request template and the README's only line on this is "Fork, branch, open a pull request" ([Testing and contributing](README.md#testing-and-contributing)); this section is the rest of the story.
+The repository carries no pull request template and the README's only line on this is "Fork, branch, open a pull request" ([Testing and contributing](../README.md#testing-and-contributing)); this section is the rest of the story.
 
 1. Fork the repository on GitHub and clone your fork.
 2. Branch from `main`. It is the only long-lived branch: there is no `develop` and no hotfix branch (see [Release process](#release-process)), and releases are cut from `main` by tag.
@@ -29,7 +29,7 @@ The repository carries no pull request template and the README's only line on th
 4. Commit using the [Commit messages](#commit-messages) convention.
 5. Push the branch to your fork and open a pull request against `main`. There is no PR template to fill in; use the [Pull request checklist](#pull-request-checklist) as your description outline.
 
-No CLA or DCO is required: opening a pull request is taken as agreement to license the contribution under the repository's [MIT License](LICENSE). Reviews come from the maintainer named as `author` in [package.json](package.json); there is no team and no posted turnaround time.
+No CLA or DCO is required: opening a pull request is taken as agreement to license the contribution under the repository's [MIT License](../LICENSE). Reviews come from the maintainer named as `author` in [package.json](../package.json); there is no team and no posted turnaround time.
 
 ## Development setup
 
@@ -47,7 +47,7 @@ npm run tools:docs                       # rebuild and regenerate docs/TOOLS.md 
 
 `npm run build` first removes `dist/` (the `prebuild` script), compiles `src/` with `strict: true` and leaves `src/**/__tests__/**` out, so nothing from the test tree reaches the npm package (`files` in `package.json` excludes `dist/**/__tests__` as a second guard). `tsconfig.test.json` extends the main config with `noEmit` and the `jest` and `node` types, and CI runs it separately: a test that no longer compiles fails the build even though `npm run build` ignores it.
 
-`npm test` uses `ts-jest` with `roots: ['<rootDir>/src']` and `testMatch: ['**/__tests__/**/*.test.ts']`. Most sources import siblings with a `.js` suffix (`./lib/cookieHttpClient.js`); `moduleNameMapper` in [jest.config.js](jest.config.js) maps that suffix back to the `.ts` file, which is what makes `../lib/lockLedger.js` resolve; an extensionless import such as `../ObjectSourceHandlers` (what the tests use) resolves through `moduleFileExtensions` and needs no mapper. `collectCoverage` is on by default, but the config sets no `coverageThreshold`, so a change that lowers the printed coverage percentage does not fail the build; treat the numbers as information, not a gate. `npm run test:watch` and `npm run test:coverage` exist for longer sessions; to run one suite instead of the whole tree, `npx jest src/handlers/__tests__/ObjectSourceHandlers.test.ts` (or `npm test -- <path>`, which forwards to the same Jest CLI).
+`npm test` uses `ts-jest` with `roots: ['<rootDir>/src']` and `testMatch: ['**/__tests__/**/*.test.ts']`. Most sources import siblings with a `.js` suffix (`./lib/cookieHttpClient.js`); `moduleNameMapper` in the `jest` block in [package.json](../package.json) maps that suffix back to the `.ts` file, which is what makes `../lib/lockLedger.js` resolve; an extensionless import such as `../ObjectSourceHandlers` (what the tests use) resolves through `moduleFileExtensions` and needs no mapper. `collectCoverage` is on by default, but the config sets no `coverageThreshold`, so a change that lowers the printed coverage percentage does not fail the build; treat the numbers as information, not a gate. `npm run test:watch` and `npm run test:coverage` exist for longer sessions; to run one suite instead of the whole tree, `npx jest src/handlers/__tests__/ObjectSourceHandlers.test.ts` (or `npm test -- <path>`, which forwards to the same Jest CLI).
 
 To exercise the built server without an MCP host, `npm run dev` starts the MCP Inspector on `dist/index.js`. It needs at least one destination; a placeholder such as `SAP_SYSTEMS='{"DEV":{"url":"https://example.invalid","authType":"basic","user":"u","password":"p"}}'` is the shape the CI Docker smoke test uses. `tools/list`, `listSystems`, `healthcheck` and the prompts work without a reachable system; everything else needs a real one (see [Live checks](#live-checks-against-a-real-system)). `npm run tools:docs` needs no environment setup from you either: `scripts/gen-tools-docs.js` sets `SAP_SYSTEMS` to a placeholder of the same shape itself when the variable is unset, so it runs the same way locally and in CI.
 
@@ -251,7 +251,7 @@ The `CHANGELOG.md` entry itself is the maintainer's job, not yours: every existi
 
 Prompts live in `PROMPTS` in `src/prompts.ts` as `{ name, title, description, arguments, render }`. `arguments` lists `{ name, description, required }`; `render(args)` returns the instruction text and every step names a real tool with the real parameter names, in the style of `safe-edit` and `review-transport`. Keep `destination` optional and use the `dest(a)` helper so the text falls back to "the destination from listSystems".
 
-`src/__tests__/prompts.test.ts` checks the exact list of names (six today), that required arguments are enforced by `getPrompt`, and that every `toolName(` mentioned in a rendered prompt exists in `docs/tools.snapshot.json`; extend the expected name list and the sample arguments when you add one. Document the prompt in the README section [Built-in prompts](README.md#built-in-prompts) and in `docs/WORKFLOWS.md`.
+`src/__tests__/prompts.test.ts` checks the exact list of names (six today), that required arguments are enforced by `getPrompt`, and that every `toolName(` mentioned in a rendered prompt exists in `docs/tools.snapshot.json`; extend the expected name list and the sample arguments when you add one. Document the prompt in the README section [Built-in prompts](../README.md#built-in-prompts) and in `docs/WORKFLOWS.md`.
 
 ## Coding conventions
 
@@ -294,27 +294,27 @@ Then confirm:
 - [ ] `package.json` version untouched unless the pull request is the release itself.
 - [ ] The pull request description says what was verified live, if anything, and on which platform (S/4HANA Cloud or on-prem), without identifying the tenant, or says plainly that no development system was available, so a maintainer knows to run that layer before merging (see [Live checks](#live-checks-against-a-real-system)).
 
-Small, focused pull requests merge faster; open an issue first when unsure whether a change fits ([docs/ROADMAP.md](docs/ROADMAP.md) lists what is planned).
+Small, focused pull requests merge faster; open an issue first when unsure whether a change fits ([docs/ROADMAP.md](../docs/ROADMAP.md) lists what is planned).
 
 ## Live checks against a real system
 
-Unit tests prove the server speaks MCP and behaves under stubbed answers; only a real ADT backend proves a tool works. [docs/TESTPLAN.md](docs/TESTPLAN.md) is the live plan, in layers: Layers 0 and 1 are automated (`npm test` plus a scripted stdio or HTTP client against `dist/index.js` with dummy destinations); Layer 2 reads from a development system; Layer 3 writes, confined to a throwaway package and a throwaway object; Layer 4 is the host integration (Claude Desktop). Run the layer your change touches and record the result in the pull request.
+Unit tests prove the server speaks MCP and behaves under stubbed answers; only a real ADT backend proves a tool works. [docs/TESTPLAN.md](../docs/TESTPLAN.md) is the live plan, in layers: Layers 0 and 1 are automated (`npm test` plus a scripted stdio or HTTP client against `dist/index.js` with dummy destinations); Layer 2 reads from a development system; Layer 3 writes, confined to a throwaway package and a throwaway object; Layer 4 is the host integration (Claude Desktop). Run the layer your change touches and record the result in the pull request.
 
 Layers 0 and 1 need no SAP system and CI already runs them on every pull request; if you have no development destination for Layers 2 through 4, say so plainly in the pull request description ("no development system available") rather than guessing what a live run would show. A maintainer runs the layer your change needs before merging.
 
 Rules for live runs:
 
-- **Never a production system, never a customizing or test tenant with real data.** Use a development destination, and give it a policy while you test: `"allowedPackages": ["$*", "ZADT_TEST*"]` and `"deniedTools": ["transportRelease", "transportDelete", "gitPullRepo"]` in `systems.json` make the server itself refuse anything outside the sandbox (see [Keeping it safe](README.md#keeping-it-safe) and [docs/CONFIGURATION.md](docs/CONFIGURATION.md)). `MCP_READ_ONLY=1` for Layer 2.
+- **Never a production system, never a customizing or test tenant with real data.** Use a development destination, and give it a policy while you test: `"allowedPackages": ["$*", "ZADT_TEST*"]` and `"deniedTools": ["transportRelease", "transportDelete", "gitPullRepo"]` in `systems.json` make the server itself refuse anything outside the sandbox (see [Keeping it safe](../README.md#keeping-it-safe) and [docs/CONFIGURATION.md](../docs/CONFIGURATION.md)). `MCP_READ_ONLY=1` for Layer 2.
 - **Throwaway objects only.** Create in `$TMP` or a local test package such as `ZADT_TEST`, name objects so they are obviously disposable (`ZCL_MCP_TESTPLAN`), never touch pre-existing objects, and delete everything at the end (TESTPLAN 3.6). Some S/4HANA Cloud tenants refuse `$TMP` with S_ABPLNGVS; then use a customer test package and a transport you own, and never release it.
 - **Do not call** `rapGenGenerate`, `transportRelease`, `pushRepo` or `forceUnlock` on objects you did not create during the run.
 - **Record the evidence** with `MCP_AUDIT_FILE` set: one JSONL line per call with tool, destination, duration, outcome (`ok`, `error`, `denied`, `unavailable`), policy gate, error kind, whether the call was retried and a redacted argument summary. Attach the relevant lines to the pull request after checking they contain no hostnames.
-- **Prefer stdio** through `npm run dev` or a scripted client over a host, so failures are reproducible; test the host (Layer 4) last. Authentication for the test destination follows [docs/AUTH.md](docs/AUTH.md).
+- **Prefer stdio** through `npm run dev` or a scripted client over a host, so failures are reproducible; test the host (Layer 4) last. Authentication for the test destination follows [docs/AUTH.md](../docs/AUTH.md).
 
 When a live run finds a bug, capture the tool's error JSON verbatim (it carries `kind`, `httpStatus`, `hint` and `nextTools`), fix, and re-run the layer from its start.
 
 ## Field reports
 
-Sessions with real users are the best test the project has; two of them, run on the 0.3.1 build, produced the whole 0.3.3 release. [docs/FIELD-NOTES.md](docs/FIELD-NOTES.md) collects them and its last section, "How to produce a useful report", is the template:
+Sessions with real users are the best test the project has; two of them, run on the 0.3.1 build, produced the whole 0.3.3 release. [docs/FIELD-NOTES.md](../docs/FIELD-NOTES.md) collects them and its last section, "How to produce a useful report", is the template:
 
 1. Run the session with `MCP_AUDIT_FILE` set.
 2. At the end ask the agent for every failed or repeated call with its exact arguments and error text, what it did next and whether the description or schema misled it; wasted calls; truncated answers; steps done by hand that a tool should have done; practical limits found; and a closing table of tools, calls and failures.
@@ -325,7 +325,7 @@ Positive findings are welcome too; they tell us which descriptions work.
 
 ## Release process
 
-Releases are tag-driven and published by `.github/workflows/release.yml`. The maintainer does the following from `main` (the short form is in [docs/ROADMAP.md](docs/ROADMAP.md)):
+Releases are tag-driven and published by `.github/workflows/release.yml`. The maintainer does the following from `main` (the short form is in [docs/ROADMAP.md](../docs/ROADMAP.md)):
 
 1. **Bump the version in four files** to the same value: `package.json`, `package-lock.json` (`npm version --no-git-tag-version X.Y.Z` updates both), `server.json` (both `version` and `packages[0].version`) and `.claude-plugin/plugin.json` (its `version` and the `abap-adt-mcp@X.Y.Z` pin in `mcpServers.abap-adt-mcp.args`). `npm run version:check` (also run by CI) fails on any disagreement, and the release job refuses a tag that differs from them.
 2. **Write the CHANGELOG entry** `## [X.Y.Z] - YYYY-MM-DD - <theme>` with one bullet per user-visible change, tool names in backticks and the new tool count when it changed. This is where the changelog bullets contributors put in their pull request descriptions (see step 7 of [Adding a tool](#7-regenerate-the-docs-and-add-a-usage-note)) get folded in.
@@ -341,4 +341,4 @@ Patch releases follow the same path; there is no hotfix branch.
 
 ## Code of conduct
 
-Be kind and precise. Reviews discuss code and evidence, never people; disagreement about SAP behaviour is settled with a live check or a unit test, not with volume. The project follows the [Contributor Covenant](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) version 2.1; report unacceptable behaviour privately to the maintainer named as `author` in [package.json](package.json), through the GitHub profile behind the repository, and it will be handled confidentially.
+Be kind and precise. Reviews discuss code and evidence, never people; disagreement about SAP behaviour is settled with a live check or a unit test, not with volume. The project follows the [Contributor Covenant](https://www.contributor-covenant.org/version/2/1/code_of_conduct/) version 2.1; report unacceptable behaviour privately to the maintainer named as `author` in [package.json](../package.json), through the GitHub profile behind the repository, and it will be handled confidentially.

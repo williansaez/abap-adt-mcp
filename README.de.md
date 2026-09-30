@@ -7,12 +7,15 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/node/v/abap-adt-mcp)](https://nodejs.org)
 [![MCP Registry](https://img.shields.io/badge/MCP%20registry-io.github.williansaez%2Fabap--adt--mcp-informational)](https://registry.modelcontextprotocol.io/?search=abap-adt-mcp)
+[![Projektseite](https://img.shields.io/badge/Projektseite-williansaez.github.io-4db1ff)](https://williansaez.github.io/abap-adt-mcp/de/)
 
 [English](README.md) · [Português (Brasil)](README.pt-BR.md) · Deutsch · [Projektseite](https://williansaez.github.io/abap-adt-mcp/de/)
 
-abap-adt-mcp ist ein [Model Context Protocol](https://modelcontextprotocol.io)-Server. Starten Sie ihn neben Claude Desktop, Claude Code oder einem anderen MCP-Host, richten Sie ihn auf ein oder mehrere SAP-Systeme, und das Modell erhält dieselben ADT-REST-Endpunkte, die Eclipse verwendet: Objekte suchen, Quelltext lesen und ändern, Transportaufträge anlegen, aktivieren, ABAP Unit und ATC ausführen, Kurzdumps lesen, Tabellen abfragen. Ein einziger Server stellt **173 Tools** bereit, über so viele SAP-Systeme, wie Sie konfigurieren, S/4HANA Cloud wie On-Premise.
+Sie schreiben einen Satz in Claude. Zurück kommen eine aktivierte Klasse, grüne Unit-Tests und eine Transportnummer. abap-adt-mcp ist der Server dazwischen: ein [Model Context Protocol](https://modelcontextprotocol.io)-Server, der Claude Desktop, Claude Code, VS Code oder jedem anderen MCP-Host dieselben ADT-Dienste gibt, die Eclipse verwendet, auf jedem SAP-System, das Sie konfigurieren, S/4HANA Cloud wie On-Premise. **173 Tools**, ein Prozess, und Leitplanken, die der Server selbst durchsetzt: eine als schreibgeschützt markierte Destination lehnt jeden Schreibzugriff ab, bevor er SAP erreicht, unabhängig davon, was der Host genehmigt.
 
-> Setzen Sie ihn mit Bedacht ein und bevorzugen Sie Entwicklungssysteme. Eine Destination ohne `policy`-Block ist im Rahmen Ihrer SAP-Berechtigungen voll beschreibbar; nur Tabellendaten liest sie nicht, das bleibt aus, bis Sie es erlauben. Die Leitplanken je Destination (nur lesen, erlaubte Pakete, gesperrte Tabellen) setzt der Server selbst durch, unabhängig davon, was der Host genehmigt, sodass ein unbedachter Prompt nicht das falsche System erreicht.
+**Sehen Sie es in Bewegung.** Die [Projektseite](https://williansaez.github.io/abap-adt-mcp/de/) zeigt sieben kurze Filme, die Einrichtung in drei Schritten und was Sie das Modell fragen können.
+
+> Setzen Sie ihn mit Bedacht ein und bevorzugen Sie Entwicklungssysteme. Das Modell handelt als Ihr SAP-Benutzer: eine Destination ohne `policy`-Block ist im Rahmen Ihrer SAP-Berechtigungen beschreibbar, und Tabellendaten bleiben geschlossen, bis Sie sie öffnen.
 
 ## So sieht es aus
 
@@ -72,7 +75,7 @@ Veröffentlicht am 2026-09-08. Die vollständige Liste steht im [CHANGELOG.md](C
 - **Node.js 22.12 oder neuer ist Pflicht** (inkompatible Änderung). Node 18 und 20 haben das Ende ihrer Wartung erreicht und erhalten keine Sicherheitskorrekturen mehr; ein Server, der SAP-Zugangsdaten hält, sollte nicht darauf laufen. Auf einem älteren Node gibt `npm` `EBADENGINE` aus und der Server ist dort ungetestet; installieren Sie das aktuelle LTS und starten Sie den Host neu. Das Container-Image lief bereits auf `node:22-alpine`.
 - **`tls.servername` je Destination.** Für ein System, das über IP-Adresse oder Kurznamen erreicht wird und dessen Zertifikat den vollqualifizierten Namen trägt: der Name wird geprüft und als SNI gesendet, die Prüfung bleibt eingeschaltet, und `insecureTls` ist nicht mehr der einzige Weg durch eine solche Landschaft. `listSystems` zeigt `servername NAME`.
 - **Zertifikatsfehler erklären die Lösung.** Ein fehlgeschlagener Handshake erreicht das Modell als `kind: "tlsCertificate"` mit einem Hinweis, der die Destination nennt: bei unbekanntem Aussteller die `openssl s_client`-Zeile für diesen Host und den Verweis auf `tls.ca`, bei Namensabweichung die von Node gemeldeten Namen und den Verweis auf `tls.servername`, bei abgelaufenem Zertifikat den Hinweis, dass nur eine Erneuerung hilft. `insecureTls` wird zuletzt genannt.
-- **`insecureTls` bleibt**, je Destination, standardmäßig aus, beim Start angekündigt; [SECURITY.md](SECURITY.md#tls) hält die Begründung fest.
+- **`insecureTls` bleibt**, je Destination, standardmäßig aus, beim Start angekündigt; [SECURITY.md](.github/SECURITY.md#tls) hält die Begründung fest.
 - **Lieferkette.** `puppeteer-core` 25 entfernt die letzte offene Dependabot-Meldung aus dem Abhängigkeitsbaum (`npm audit` meldet null Schwachstellen); Dependabot wartet jetzt eine Karenzzeit ab, bevor es Aktualisierungen vorschlägt, und bündelt Sicherheitsupdates in einem Pull Request; `dotenv` wird still geladen, damit stdout ein sauberer JSON-RPC-Kanal bleibt.
 
 Die Aktualisierung von 1.x erfordert keine Konfigurationsänderung: `systems.json`, die Richtlinien, die Tool-Namen und die Umgebungsvariablen sind unverändert.
@@ -100,7 +103,7 @@ Legen Sie in Ihrem Benutzerverzeichnis einen Ordner `.abap-adt-mcp` an und darin
 }
 ```
 
-`url` ist Pflicht; `client` ist der Mandant, auf dem Ihre SSO-Sitzung landet (auf den getesteten Tenants meldete sich das Entwicklungssystem auf `080` an, Customizing- und Testsysteme auf `100`; der Eintrag "Über" im Benutzermenü des Launchpads zeigt ihn); `authType` ist standardmäßig `sso`, und `"default": true` erlaubt, den Destinationsnamen in jedem Aufruf wegzulassen. Der Schlüssel (`DEV`) ist Ihre Wahl und der Name, den Sie in Gesprächen verwenden. Mehrere Systeme mit Leitplanken sehen so aus (oder kopieren Sie [systems.example.json](systems.example.json)):
+`url` ist Pflicht; `client` ist der Mandant, auf dem Ihre SSO-Sitzung landet (auf den getesteten Tenants meldete sich das Entwicklungssystem auf `080` an, Customizing- und Testsysteme auf `100`; der Eintrag "Über" im Benutzermenü des Launchpads zeigt ihn); `authType` ist standardmäßig `sso`, und `"default": true` erlaubt, den Destinationsnamen in jedem Aufruf wegzulassen. Der Schlüssel (`DEV`) ist Ihre Wahl und der Name, den Sie in Gesprächen verwenden. Mehrere Systeme mit Leitplanken sehen so aus (oder kopieren Sie [systems.example.json](docs/systems.example.json)):
 
 ```json
 {
@@ -535,7 +538,7 @@ Dieser Server wächst mit den Menschen, die ihn gegen echte Landschaften betreib
 - [Alexandre Leite](https://github.com/Dregus) hat das Secure-Login-Client-Szenario gemeldet, das den Meilenstein 2.1.0 eröffnet hat, und die On-Prem-Authentifizierungswege getestet.
 - Der ursprüngliche Server `mcp-abap-abap-adt-api` von [mario-andreschak](https://github.com/mario-andreschak) ist der Ausgangspunkt dieses Projekts.
 
-Etwas gefunden, etwas behoben oder einen Modus auf einer Landschaft ausprobiert, die hier niemand hat? Öffnen Sie ein Issue oder einen Pull Request, siehe [CONTRIBUTING.md](CONTRIBUTING.md).
+Etwas gefunden, etwas behoben oder einen Modus auf einer Landschaft ausprobiert, die hier niemand hat? Öffnen Sie ein Issue oder einen Pull Request, siehe [CONTRIBUTING.md](.github/CONTRIBUTING.md).
 
 ## Lizenz
 
