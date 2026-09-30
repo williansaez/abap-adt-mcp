@@ -3,6 +3,7 @@ import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
 import { session_types } from 'abap-adt-api';
 import { withLock } from '../lib/lockLedger.js';
+import { creationLanguage } from '../lib/objectLanguage.js';
 import { hardTruncateJson } from '../lib/responseSizing.js';
 import { runClassFresh } from '../lib/runFresh.js';
 import crypto from 'crypto';
@@ -93,7 +94,17 @@ export class SnippetHandlers extends BaseHandler {
         try {
             const { source, wrapped } = buildSnippetClass(className, String(args.code));
             this.adtclient.stateful = session_types.stateful;
-            await this.adtclient.createObject('CLAS/OC', className, packageName, 'abap-adt-mcp temporary snippet', `/sap/bc/adt/packages/${encodeURIComponent(packageName.toLowerCase())}`, args.responsible ? String(args.responsible).toUpperCase() : undefined, args.transport);
+            // The options form: the positional one cannot carry a language and the library then writes EN.
+            await this.adtclient.createObject({
+                objtype: 'CLAS/OC',
+                name: className,
+                parentName: packageName,
+                description: 'abap-adt-mcp temporary snippet',
+                parentPath: `/sap/bc/adt/packages/${encodeURIComponent(packageName.toLowerCase())}`,
+                responsible: args.responsible ? String(args.responsible).toUpperCase() : '',
+                transport: args.transport ?? '',
+                ...creationLanguage(this.adtclient, {})
+            });
             created = true;
             steps.push('created');
             reportProgress(`class ${className} created`, 1, 4);

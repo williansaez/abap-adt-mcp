@@ -2,6 +2,7 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler';
 import type { ToolDefinition } from '../types/tools';
 import { CreatableTypes } from 'abap-adt-api';
+import { creationLanguage, InvalidLanguageError } from '../lib/objectLanguage';
 
 export class ObjectRegistrationHandlers extends BaseHandler {
   getTools(): ToolDefinition[] {
@@ -57,6 +58,8 @@ export class ObjectRegistrationHandlers extends BaseHandler {
             description: { type: 'string' },
             parentPath: { type: 'string', description: 'ADT path of the parent, e.g. /sap/bc/adt/packages/$TMP' },
             responsible: { type: 'string', optional: true },
+            language: { type: 'string', optional: true, description: 'Two-letter SAP language key of the object (EN, DE, PT). Default: the logon language of the destination (language in systems.json), EN when the destination names none. Not used for DEVC/K' },
+            masterLanguage: { type: 'string', optional: true, description: 'Original language of the object, two-letter key. Default: the same as language' },
             transport: { type: 'string', optional: true, description: 'Transport request number; required for objects in transportable (non-$TMP) packages. Create one with createTransport' },
             swcomp: { type: 'string', optional: true, description: 'Software component; required when objtype is DEVC/K (e.g. HOME, ZLOCAL, ZCUSTOM_DEVELOPMENT)' },
             transportLayer: { type: 'string', optional: true, description: 'Transport layer for DEVC/K (e.g. YDEV); omit or empty for local packages' },
@@ -244,15 +247,24 @@ export class ObjectRegistrationHandlers extends BaseHandler {
         }
         result = await this.createPackage(args);
       } else {
-        result = await this.adtclient.createObject(
-          args.objtype,
-          args.name,
-          args.parentName,
-          args.description,
-          args.parentPath,
-          args.responsible,
-          args.transport
-        );
+        const missing = ['name', 'parentName', 'description', 'parentPath'].filter(k => !args[k]);
+        if (missing.length) throw new McpError(ErrorCode.InvalidParams, `createObject requires ${missing.join(', ')}`);
+        let language;
+        try { language = creationLanguage(this.adtclient, args); } catch (e: any) {
+          if (e instanceof InvalidLanguageError) throw new McpError(ErrorCode.InvalidParams, `createObject: ${e.message}`);
+          throw e;
+        }
+        // The options form: the positional one cannot carry a language and the library then writes EN.
+        result = await this.adtclient.createObject({
+          objtype: args.objtype,
+          name: args.name,
+          parentName: args.parentName,
+          description: args.description,
+          parentPath: args.parentPath,
+          responsible: args.responsible ?? '',
+          transport: args.transport ?? '',
+          ...language
+        });
       }
       this.trackRequest(startTime, true);
       return {
