@@ -14,20 +14,17 @@ abap-adt-mcp ist ein [Model Context Protocol](https://modelcontextprotocol.io)-S
 
 > Setzen Sie ihn mit Bedacht ein und bevorzugen Sie Entwicklungssysteme. Eine Destination ohne `policy`-Block ist im Rahmen Ihrer SAP-Berechtigungen voll beschreibbar; nur Tabellendaten liest sie nicht, das bleibt aus, bis Sie es erlauben. Die Leitplanken je Destination (nur lesen, erlaubte Pakete, gesperrte Tabellen) setzt der Server selbst durch, unabhängig davon, was der Host genehmigt, sodass ein unbedachter Prompt nicht das falsche System erreicht.
 
-## Ansehen
+## So sieht es aus
 
-Zwanzig Sekunden des Ablaufs, den dieses README beschreibt: ein Prompt, die ausgelösten Tool-Aufrufe, grüne Unit-Tests, ein Transportauftrag. Sechs weitere Filme zeigen den Launch und einzelne Tools; ein Klick auf ein Poster spielt ab (MP4, 1080p, mit Ton), oder Sie sehen sie mit Playern auf der [Projektseite](https://williansaez.github.io/abap-adt-mcp/de/#watch). Alle Namen im Bild sind fiktiv.
+![Ein Satz im Chat wird zu searchObject, getObjectSource, editObjectSource und unitTestRun, danach eine Ergebniskarte: 3 Tests bestanden, Transportauftrag DEVK900123](docs/media/brag/film-flow.gif)
 
-![Ein getippter Prompt wird zu searchObject, getObjectSource, editObjectSource und unitTestRun, danach eine Ergebniskarte mit 3 bestandenen Tests und einer Transportnummer](docs/media/brag/film-flow.gif)
+Das ist die ganze Idee. Sie schreiben einen Satz. Das Modell wählt die Tools, der Server sperrt das Objekt, schreibt, aktiviert und gibt es frei, und die Unit-Tests kommen grün zurück, mit der Transportnummer daran. Verlangen Sie dieselbe Änderung auf einem Produktivsystem, lautet die Antwort `policyDenied`, bevor ein einziger SAP-Aufruf hinausgeht: Die Leitplanken sitzen im Server, nicht im Chatfenster.
 
-| | | | |
-|---|---|---|---|
-| [![Der erste Film](docs/media/brag/film.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-film.mp4)<br>**Der erste Film** · 21 s | [![Launch-Video](docs/media/brag/launch.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-launch.mp4)<br>**Launch-Video** · 31 s | [![Kurzdumps](docs/media/brag/dumps.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-dumps.mp4)<br>**Kurzdumps** · 27 s | [![ATC-Quickfixes](docs/media/brag/atc.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-atc.mp4)<br>**ATC-Quickfixes** · 27 s |
-| [![Transportprüfung](docs/media/brag/transport.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-transport.mp4)<br>**Transportprüfung** · 26 s | [![Anlegen mit Tests](docs/media/brag/create.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-create.mp4)<br>**Anlegen mit Tests** · 25 s | [![ABAP-Cloud-Reife](docs/media/brag/cloud.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-cloud.mp4)<br>**ABAP-Cloud-Reife** · 28 s |  |
+Sieben kurze Filme zeigen das und die einzelnen Aufgaben dahinter, einen Kurzdump bis zur Zeile verfolgt, einen ATC-Lauf mit seinen Quickfixes, eine Transportprüfung, eine Klasse samt Test angelegt, eine Prüfung der ABAP-Cloud-Reife. Sie stehen auf der [Projektseite](https://williansaez.github.io/abap-adt-mcp/de/#watch), mit Untertiteln.
 
 ## Inhalt
 
-- [Ansehen](#ansehen)
+- [So sieht es aus](#so-sieht-es-aus)
 - [Was ist neu in 2.7.0](#was-ist-neu-in-270)
 - [Was ist neu in 2.6.0](#was-ist-neu-in-260)
 - [Was ist neu in 2.0.0](#was-ist-neu-in-200)
