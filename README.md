@@ -8,14 +8,26 @@
 [![Node.js](https://img.shields.io/node/v/abap-adt-mcp)](https://nodejs.org)
 [![MCP Registry](https://img.shields.io/badge/MCP%20registry-io.github.williansaez%2Fabap--adt--mcp-informational)](https://registry.modelcontextprotocol.io/?search=abap-adt-mcp)
 
-English · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md)
+English · [Português (Brasil)](README.pt-BR.md) · [Deutsch](README.de.md) · [Project site](https://williansaez.github.io/abap-adt-mcp/)
 
 abap-adt-mcp is a [Model Context Protocol](https://modelcontextprotocol.io) server. Run it next to Claude Desktop, Claude Code or any other MCP host, point it at one or more SAP systems, and the model gets the same ADT REST endpoints Eclipse uses: search objects, read and edit source, create transports, activate, run ABAP Unit and ATC, read short dumps, query tables. One server exposes **173 tools** over as many SAP systems as you configure, S/4HANA Cloud and on-prem alike.
 
 > Use it deliberately, and prefer development systems. A destination without a `policy` block is fully writable within your SAP authorizations; the one thing it does not do is read table data, which stays off until you allow it. Per-destination guard rails (read-only, allowed packages, denied tables) are enforced by the server itself, whatever the host approves, so a careless prompt cannot reach the wrong system.
 
+## Watch it
+
+Twenty seconds of the flow this README describes: a prompt, the tool calls it triggers, green unit tests, a transport. Six more films cover the launch and single tools; click a poster to play (MP4, 1080p, with sound), or watch them with players on the [project site](https://williansaez.github.io/abap-adt-mcp/#watch). Every name on screen is a fictional stand-in.
+
+![A typed prompt becomes searchObject, getObjectSource, editObjectSource and unitTestRun, then a result card with 3 passed and a transport number](docs/media/brag/film-flow.gif)
+
+| | | | |
+|---|---|---|---|
+| [![The first film](docs/media/brag/film.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-film.mp4)<br>**The first film** · 21 s | [![Launch video](docs/media/brag/launch.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-launch.mp4)<br>**Launch video** · 31 s | [![Short dumps](docs/media/brag/dumps.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-dumps.mp4)<br>**Short dumps** · 27 s | [![ATC quickfixes](docs/media/brag/atc.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-atc.mp4)<br>**ATC quickfixes** · 27 s |
+| [![Transport review](docs/media/brag/transport.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-transport.mp4)<br>**Transport review** · 26 s | [![Create with tests](docs/media/brag/create.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-create.mp4)<br>**Create with tests** · 25 s | [![ABAP Cloud readiness](docs/media/brag/cloud.jpg)](https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-tool-cloud.mp4)<br>**ABAP Cloud readiness** · 28 s |  |
+
 ## Table of contents
 
+- [Watch it](#watch-it)
 - [What is new in 2.7.0](#what-is-new-in-270)
 - [What is new in 2.6.0](#what-is-new-in-260)
 - [What is new in 2.0.0](#what-is-new-in-200)
