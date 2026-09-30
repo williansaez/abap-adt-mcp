@@ -1040,6 +1040,8 @@
         "description",
         "parentPath",
         "responsible",
+        "language",
+        "masterLanguage",
         "transport",
         "swcomp",
         "transportLayer",

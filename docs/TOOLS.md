@@ -82,7 +82,7 @@ Enable a subset with `MCP_TOOLSETS` (comma list, or a preset: `all`, `focused`) 
 | 📖 [`objectRegistrationInfo`](#objectregistrationinfo) | Get registration information for an ABAP object | `objectUrl`* |
 | 📖 [`creatableTypeDetails`](#creatabletypedetails) | List the object types createObject supports, with per-type required fields, label and max name length (SAP-style get_object_type_details). Filter with typeId. For the system-reported creatable catalog see loadTypes. | `typeId` |
 | 📖 [`validateNewObject`](#validatenewobject) | Validate name, package and type for a new ABAP object BEFORE calling createObject. Returns field-level validation errors. Use loadTypes to discover valid objtype values first. | `objtype`*, `objname`*, `description`*, `packagename`, `fugrname`, `swcomp`, `transportLayer`, `packagetype` |
-| ✏️ [`createObject`](#createobject) | Create a new ABAP object skeleton. Recommended flow: loadTypes to pick objtype (e.g. CLAS/OC) -> validateNewObject to check name/package -> createTransport if the package is not local ($TMP) -> createObject. Afterwards edit source with lock + setObjectSourc... | `objtype`*, `name`*, `parentName`*, `description`*, `parentPath`*, `responsible`, `transport`, `swcomp`, `transportLayer`, `packagetype`, `recordChanges`, `abapLanguageVersion` |
+| ✏️ [`createObject`](#createobject) | Create a new ABAP object skeleton. Recommended flow: loadTypes to pick objtype (e.g. CLAS/OC) -> validateNewObject to check name/package -> createTransport if the package is not local ($TMP) -> createObject. Afterwards edit source with lock + setObjectSourc... | `objtype`*, `name`*, `parentName`*, `description`*, `parentPath`*, `responsible`, `language`, `masterLanguage`, `transport`, `swcomp`, `transportLayer`, `packagetype`, `recordChanges`, `abapLanguageVersion` |
 | 📖 [`nodeContents`](#nodecontents) | Retrieves the contents of a node in the ABAP repository tree. For large packages/namespaces, use startIndex/maxItems to page through the node list instead of retrieving it all at once. | `parent_type`*, `parent_name`, `user_name`, `parent_tech_name`, `rebuild_tree`, `parentnodes`, `startIndex`, `maxItems` |
 | 📖 [`mainPrograms`](#mainprograms) | Retrieves the main programs for a given include. | `includeUrl`* |
 | 📖 [`typeHierarchy`](#typehierarchy) | Type hierarchy (subtypes or supertypes) of the class/interface at a given source position. Pass the source URL (…/source/main) and the 1-based line/column of the type name; the current source is re-read from SAP unless you pass it in "source". superTypes=tr... | `objectSourceUrl`*, `line`*, `offset`*, `superTypes`, `source` |
@@ -1022,6 +1022,8 @@ Create a new ABAP object skeleton. Recommended flow: loadTypes to pick objtype (
 | `description` | string | yes |  |  |
 | `parentPath` | string | yes | ADT path of the parent, e.g. /sap/bc/adt/packages/$TMP | `/sap/bc/adt/packages/$tmp`, `/sap/bc/adt/packages/zfin` |
 | `responsible` | string | no |  |  |
+| `language` | string | no | Two-letter SAP language key of the object (EN, DE, PT). Default: the logon language of the destination (language in systems.json), EN when the destination names none. Not used for DEVC/K |  |
+| `masterLanguage` | string | no | Original language of the object, two-letter key. Default: the same as language |  |
 | `transport` | string | no | Transport request number; required for objects in transportable (non-$TMP) packages. Create one with createTransport | `DEVK900123` |
 | `swcomp` | string | no | Software component; required when objtype is DEVC/K (e.g. HOME, ZLOCAL, ZCUSTOM_DEVELOPMENT) |  |
 | `transportLayer` | string | no | Transport layer for DEVC/K (e.g. YDEV); omit or empty for local packages |  |
@@ -1033,7 +1035,7 @@ Create a new ABAP object skeleton. Recommended flow: loadTypes to pick objtype (
 
 **What comes back.** `{status, result}`; `result` is usually empty because ADT answers the creation with no body (absent for DEVC/K). The new object is inactive with template content until you write and activate it.
 
-**Pitfalls.** `parentPath` is the ADT path of the parent (/sap/bc/adt/packages/ztest), `parentName` the package; non-local packages need `transport` (resolveTransport with createIfMissing). DEVC/K requires `swcomp` and cloud tenants require change recording (recordChanges defaults to true when a transportLayer is given). Some S/4HANA Cloud tenants refuse $TMP; the `allowedPackages` policy checks `parentName` (or the package in `parentPath`).
+**Pitfalls.** `parentPath` is the ADT path of the parent (/sap/bc/adt/packages/ztest), `parentName` the package; non-local packages need `transport` (resolveTransport with createIfMissing). DEVC/K requires `swcomp` and cloud tenants require change recording (recordChanges defaults to true when a transportLayer is given). Some S/4HANA Cloud tenants refuse $TMP; the `allowedPackages` policy checks `parentName` (or the package in `parentPath`). The object is created in the logon language of the destination (`language` in systems.json), EN when the destination names none; `language` and `masterLanguage` override it for one call.
 
 See also: [`validateNewObject`](#validatenewobject), [`resolveTransport`](#resolvetransport), [`setObjectSource`](#setobjectsource), [`deleteObject`](#deleteobject).
 
@@ -2472,7 +2474,7 @@ Retrieves the contents of an ABAP table or CDS entity by name (no SQL). Works on
 |---|---|---|---|---|
 | `ddicEntityName` | string | yes | The name of the DDIC entity (table or view). | `T000`, `I_PRODUCT` |
 | `rowNumber` | number | no | The maximum number of rows to retrieve from SAP. Defaults to 100 if omitted. |  |
-| `decode` | boolean | no | Whether to decode the data. |  |
+| `decode` | boolean | no | Default false: every value is the string SAP sent (NUMC keys keep their leading zeros, amounts keep every digit), with the sign of a negative number in front ("-12.34"). true: numeric values become JSON numbers where the number is exact and stay strings otherwise, dates become YYYY-MM-DD; NUMC stays a string. |  |
 | `sqlQuery` | string | no | An optional SQL query to filter the data. | `SELECT matnr, mtart FROM mara WHERE mtart = 'FERT'` |
 | `startRow` | number | no | 0-based index of the returned row to start from (default 0). Use with maxRows to page through a large result set. |  |
 | `maxRows` | number | no | Maximum number of rows to return from startRow. Omit to return the rest of the retrieved rows. |  |
@@ -2481,7 +2483,7 @@ Retrieves the contents of an ABAP table or CDS entity by name (no SQL). Works on
 
 **What comes back.** {status, result {columns[], values[]}}; paged with totalRows, startRow, returnedRows, hasMore and autoPaged or capped flags when large.
 
-**Pitfalls.** rowNumber (default 100) caps the rows requested from SAP; startRow and maxRows only page what was fetched. sqlQuery on this tool counts as free SQL under allowFreeSql=false, and deniedTables applies. Display authorization S_TABU_DIS or S_TABU_NAM is still required.
+**Pitfalls.** rowNumber (default 100) caps the rows requested from SAP; startRow and maxRows only page what was fetched. Values are the strings SAP sent, with the sign of a negative number in front; decode=true gives JSON numbers where the number is exact. sqlQuery on this tool counts as free SQL under allowFreeSql=false, and deniedTables applies. Display authorization S_TABU_DIS or S_TABU_NAM is still required.
 
 See also: [`runQuery`](#runquery), [`ddicElement`](#ddicelement), [`getDataElementProperties`](#getdataelementproperties), [`runSnippet`](#runsnippet).
 
@@ -2489,13 +2491,13 @@ See also: [`runQuery`](#runquery), [`ddicElement`](#ddicelement), [`getDataEleme
 
 📖 Run Query · toolset `data` · read-only, idempotent
 
-Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, released API views included). Long statements are wrapped automatically to the preview's 255-character line limit, so wide select lists are fine; a single literal longer than 255 characters is not. Tables whose DDIC dataMaintenance is restricted are refused by the preview: use tableContents for those. Key fields keep their internal format (leading zeros, see getDataElementProperties). rowNumber caps how many rows are requested from SAP itself (default 100 if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.
+Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, released API views included). Long statements are wrapped automatically to the preview's 255-character line limit, so wide select lists are fine; a single literal longer than 255 characters is not. Tables whose DDIC dataMaintenance is restricted are refused by the preview: use tableContents for those. Values come back as SAP sent them, as strings: keys keep their internal format (leading zeros, see getDataElementProperties), negative numbers carry the sign in front; decode=true turns exact numbers into JSON numbers. rowNumber caps how many rows are requested from SAP itself (default 100 if omitted). For large results, use startRow/maxRows to page through the returned rows instead of retrieving them all at once.
 
 | Parameter | Type | Required | Description | Example |
 |---|---|---|---|---|
 | `sqlQuery` | string | yes | The SQL query to execute. | `SELECT matnr, mtart FROM mara WHERE mtart = 'FERT'` |
 | `rowNumber` | number | no | The maximum number of rows to retrieve from SAP. Defaults to 100 if omitted. |  |
-| `decode` | boolean | no | Whether to decode the data. |  |
+| `decode` | boolean | no | Default false: every value is the string SAP sent (NUMC keys keep their leading zeros, amounts keep every digit), with the sign of a negative number in front ("-12.34"). true: numeric values become JSON numbers where the number is exact and stay strings otherwise, dates become YYYY-MM-DD; NUMC stays a string. |  |
 | `startRow` | number | no | 0-based index of the returned row to start from (default 0). Use with maxRows to page through a large result set. |  |
 | `maxRows` | number | no | Maximum number of rows to return from startRow. Omit to return the rest of the retrieved rows. |  |
 
@@ -2503,7 +2505,7 @@ Runs an ABAP SQL SELECT through the ADT data preview (tables and CDS views, rele
 
 **What comes back.** {status, result {columns[] with name and type, values[]}, note?}; paged with totalRows, startRow, returnedRows, hasMore; note says when the statement was re-wrapped.
 
-**Pitfalls.** The preview reads 255-character lines; the server re-flows long statements, but a single literal over 255 characters is an error. Keys keep their internal format (leading zeros). Errors carry hints for restricted tables and missing authorization. Refused when the policy sets allowFreeSql=false or lists the table in deniedTables.
+**Pitfalls.** The preview reads 255-character lines; the server re-flows long statements, but a single literal over 255 characters is an error. Values are the strings SAP sent: keys keep their leading zeros, amounts every digit, negative numbers carry the sign in front (-12.34). decode=true gives JSON numbers where the number is exact. Errors carry hints for restricted tables and missing authorization. Refused when the policy sets allowFreeSql=false or lists the table in deniedTables.
 
 See also: [`tableContents`](#tablecontents), [`ddicElement`](#ddicelement), [`getDataElementProperties`](#getdataelementproperties), [`runSnippet`](#runsnippet).
 
