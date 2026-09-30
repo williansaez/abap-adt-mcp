@@ -1,0 +1,57 @@
+WEBVTT
+
+NOTE Captions for the abap-adt-mcp brag film 'transport'. On-screen text, English.
+
+00:00.250 --> 00:03.750
+TOOL SHORT · TRANSPORTS Is DEVK900123 safe to release?
+
+00:06.280 --> 00:09.780
+transportDetails DEVK900123 · 3 objects
+
+00:06.820 --> 00:10.320
+transportUnifiedDiff +42 −7
+
+00:07.350 --> 00:10.850
+getObjectSource zcl_order_service · line 88
+
+00:08.220 --> 00:11.720
+read-only review · nothing written
+
+00:09.290 --> 00:12.790
+Verdict Not yet Concern hard-coded client '100' at line 88 - WHERE mandt = '100' + WHERE mandt = sy-mandt
+
+00:09.890 --> 00:13.390
+A reviewer that reads the whole diff.
+
+00:15.280 --> 00:18.780
+editObjectSource line 88 · activate=true
+
+00:15.820 --> 00:19.320
+unitTestRun ZCL_ORDER_SERVICE
+
+00:16.380 --> 00:19.880
+transportRelease DEVK900123 · host asked first
+
+00:17.470 --> 00:20.970
+transportRelease carries destructiveHint · the host asked before running it
+
+00:18.550 --> 00:22.050
+ABAP Unit 5 passed · 0 failed Released DEVK900123 · 3 objects
+
+00:19.150 --> 00:22.650
+Released when you said so.
+
+00:22.920 --> 00:26.200
+Transports, reviewed.
+
+00:23.320 --> 00:26.200
+Details, unified diff, verdict, fix, release.
+
+00:23.940 --> 00:26.200
+transportDetails transportUnifiedDiff editObjectSource
+
+00:24.300 --> 00:26.200
+transportRelease
+
+00:24.900 --> 00:26.200
+github.com/williansaez/abap-adt-mcp
