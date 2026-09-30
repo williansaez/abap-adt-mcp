@@ -20,7 +20,7 @@ abap-adt-mcp is a [Model Context Protocol](https://modelcontextprotocol.io) serv
 
 That is the whole idea. You type a sentence. The model picks the tools, the server locks the object, writes, activates and unlocks it, and the unit tests come back green with a transport number attached. Ask for the same change on a production system and the answer is `policyDenied` before a single SAP call goes out: the guard rails live in the server, not in the chat window.
 
-Seven short films show this and the single jobs behind it, a short dump traced to its line, an ATC run with its quickfixes, a transport review, a class created with its test, an ABAP Cloud readiness check. They are on the [project site](https://williansaez.github.io/abap-adt-mcp/#watch), with captions.
+Seven short films show this and the single jobs behind it, a short dump traced to its line, an ATC run with its quickfixes, a transport review, a class created with its test, an ABAP Cloud readiness check. They are on the [project site](https://williansaez.github.io/abap-adt-mcp/#watch).
 
 ## Table of contents
 
