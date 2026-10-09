@@ -22,7 +22,7 @@ export class TextElementHandlers extends BaseHandler {
             },
             {
                 name: 'setTextElements',
-                description: 'Write text elements (text symbols, selection texts or list headings) of a locked object. Pass the full list for the category: elements missing from the list are removed. Requires lock (lockHandle) and, for transportable packages, a transport. Not available on SAP_BASIS 7.40 and older (no text element resources in ADT).',
+                description: 'Write text elements (text symbols, selection texts or list headings) of a locked object. Pass the full list for the category: elements missing from the list are removed. Requires lock (lockHandle) and, for transportable packages, a transport. Not available where ADT has no text element resources (SAP_BASIS 7.40 and 7.53, for example): the tool reports it and writes nothing.',
                 inputSchema: {
                     type: 'object',
                     properties: {
@@ -61,7 +61,7 @@ export class TextElementHandlers extends BaseHandler {
             } catch (probe: any) {
                 if (httpStatusOf(probe) !== 404) throw probe;
                 this.trackRequest(startTime, true);
-                return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', category, textElements: [], url, note: `SAP answered 404 for ${url}/source/${category}: the object has no ${category} yet, or this system has no text element resources in ADT (SAP_BASIS 7.40 and older: maintain them in SAP GUI, Goto > Text Elements).` }) }] };
+                return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', category, textElements: [], url, note: `SAP answered 404 for ${url}/source/${category}: the object has no ${category} yet, or this system has no text element resources in ADT (none on SAP_BASIS 7.40 and 7.53, where the object links them to SAP GUI: maintain them there, Goto > Text Elements).` }) }] };
             }
             const result = await this.adtclient.getTextElements(url, category);
             this.trackRequest(startTime, true);
@@ -95,7 +95,7 @@ export class TextElementHandlers extends BaseHandler {
                 await this.adtclient.setTextElements(url, args.category as TextElementCategory, elements, args.lockHandle, args.transport);
             } catch (error: any) {
                 if (httpStatusOf(error) === 404) {
-                    throw new McpError(ErrorCode.InvalidRequest, `Text elements are not available here: SAP answered 404 for ${url}/source/${args.category}. SAP_BASIS 7.40 and older have no text element resources in ADT; maintain them in SAP GUI (Goto > Text Elements). Nothing was written.`);
+                    throw new McpError(ErrorCode.InvalidRequest, `Text elements are not available here: SAP answered 404 for ${url}/source/${args.category}. SAP_BASIS 7.40 and 7.53 have no text element resources in ADT; maintain them in SAP GUI (Goto > Text Elements). Nothing was written.`);
                 }
                 throw error;
             }
@@ -120,7 +120,8 @@ const OBJECT_TYPES: Array<[RegExp, string]> = [
  * not under the object. abap-adt-api appends /source/<category> to whatever it is
  * given, so the object URL itself must never reach it: on SAP_BASIS 7.40 the
  * program resource serves .../source/symbols as the main source, and a write
- * there replaced the program code (live test on P03).
+ * there replaced the program code (live test on P03). 7.53 (S4D) serves that path
+ * as the main source as well.
  */
 export function textElementsBaseUrl(objectUrl: string): string {
     const url = String(objectUrl || '').trim();
