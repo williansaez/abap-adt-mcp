@@ -36,6 +36,7 @@ Entries are parsed and validated eagerly so that a broken destination fails the 
 | `authType: "sso2"` without an absolute `sso2.command`, with non-array `args`, or with a timeout outside 1–300 seconds | A `System "NAME": sso2...` error naming the invalid field; provider output and tickets are never included |
 | `authType: "oauth"` without `oauth.tokenUrl`, `oauth.clientId` and `oauth.clientSecret` | `System "NAME" authType=oauth requires oauth.tokenUrl/clientId/clientSecret` |
 | `tls.cert` without `tls.key` (and no `pfx`), or `tls.key` without `tls.cert` | `System "NAME": tls.cert requires tls.key` / `tls.key requires tls.cert` |
+| `transport: "rfc"` without `rfc.ashost` and `rfc.sysnr`, or `rfc.mshost` and `rfc.sysid`; `rfc.sysnr` not two digits; no `client`; `authType: "oauth"`; `rfc.sessions` other than `split` or `single`; an unknown key or a non-string value in `rfc` | A `System "NAME" (transport rfc): ...` or `System "NAME": rfc....` error naming the field |
 | Map with no entries after skipping `_` keys | `No ABAP systems configured: the systems map is empty` |
 
 Keys that start with `_` (`_comment`, `_notes`) are skipped, which is how [systems.example.json](systems.example.json) carries its explanation. `auth` is accepted as an alias of `authType`, `browser` as an alias of `sso`, and `ticket` as an alias of `sso2`. The legacy single-system variables validate the SSO2 provider eagerly; some older URL/basic checks still surface only on the first call.
@@ -52,6 +53,8 @@ Values are coerced leniently; the table says what each key accepts, so a file wr
 | `insecureTls`, `default`, `policy.readOnly`, `policy.allowDataPreview`, `policy.allowFreeSql` | JSON `true`; the strings `"1"`, `"true"`, `"yes"` (case-insensitive); the number `1` | Any other present value (`false`, `0`, `"no"`, `"off"`, `null`) counts as `false`. Only an absent key is "unset", which matters for `allowDataPreview` and `allowFreeSql`: an absent key takes the server default (`MCP_ALLOW_DATA_PREVIEW`, `MCP_ALLOW_FREE_SQL`, both off), a present key with any non-true value closes the gate whatever the default. |
 | `policy.deniedTools`, `deniedTables`, `allowedPackages`, `allowedTransports` | JSON array of strings, or one comma-separated string | `"toolset:git,transportRelease"` and `["toolset:git", "transportRelease"]` are equivalent. |
 | `tls.*` | string | A file path, or inline PEM text recognised by a `-----BEGIN ...-----` header. Empty or whitespace-only strings are treated as absent. |
+| `transport` | string | Trimmed and compared without regard to case (`"RFC"` is `rfc`). |
+| `rfc.*` | string only | Trimmed; empty strings are treated as absent. A number is refused, so write the instance number as `"00"`. |
 | Everything else | string | |
 
 TLS material named in a `tls` block is read when the destination's HTTPS agent is built: at startup for the first entry of the map (its handlers are used to enumerate the tool schemas) and on the first call for the others. An unreadable file then fails with `tls.ca: cannot read /path: ...`.
@@ -91,9 +94,11 @@ One object per destination; the key is the name you will use in `destination` an
 | `tls` | object | no | `ca`, `cert`, `key`, `pfx`, `passphrase`, `servername`. `servername` is the name the certificate is verified against (and sent as SNI) when `url` names an IP address or a short hostname; verification stays on (next section). `cert` and `key` go together; `pfx` (PKCS#12) is the alternative, with `passphrase`. The resulting `https.Agent` (keep-alive) is used for basic, OAuth, SSO and SSO2 API calls; the browser window of an SSO login uses its own trust store. |
 | `gitUser`, `gitPassword` | string | no | abapGit remote credentials. Backfilled into `gitExternalRepoInfo`, `gitCreateRepo`, `gitPullRepo`, `stageRepo`, `pushRepo`, `checkRepo`, `remoteRepoInfo` and `switchRepoBranch` when the call omits `user`/`password`, so the token never has to pass through the model. Explicit arguments win. |
 | `default` | boolean | no | Marks the entry used when `destination` is omitted. `SAP_DEFAULT_DESTINATION` overrides it. |
+| `transport` | `http`, `rfc` | no | How ADT requests reach the system. `http` (the default) is everything above. `rfc` carries them over an RFC connection instead, for on-premise systems below SAP_BASIS 7.51; it needs the `rfc` block and the SAP NetWeaver RFC SDK, see [RFC transport](#rfc-transport-on-premise-sap_basis-below-751). Any other value is ignored with a warning on stderr, and the destination uses HTTP. |
+| `rfc` | object | with `transport: "rfc"` | RFC connection settings: `ashost`, `sysnr`, `mshost`, `sysid`, `group`, `msserv`, `saprouter`, `gwhost`, `gwserv`, `sdkPath`, `sessions`. All values are strings. With `transport: "rfc"` an unknown key or a non-string value stops the server at startup; without it the whole block is ignored with a warning on stderr. Described in [RFC transport](#rfc-transport-on-premise-sap_basis-below-751). |
 | `policy` | object | no | Server-side guard rails, see [section 3](#3-policy-in-depth). A destination without `policy` is fully writable within the SAP user's authorizations and reads no table data (`tableContents` and `runQuery` are refused until `allowDataPreview` or `allowFreeSql` opens them). |
 
-`listSystems` reports each entry as `destination`, `url`, `client`, `authType`, the policy summary, a short `tls` description (`custom CA`, `client certificate`, `servername NAME`, `verification disabled`) and, once a profile has been built, `platform` and `unavailableToolsets`. Credentials and certificate material are never reported.
+`listSystems` reports each entry as `destination`, `url`, `client`, `authType`, the policy summary, a short `tls` description (`custom CA`, `client certificate`, `servername NAME`, `verification disabled`), for an RFC destination `transport: "rfc"` with an `rfc` summary (`ashost` and `sysnr`, or `mshost` and `sysid`, plus `sessions`) and, once a profile has been built, `platform` and `unavailableToolsets`. Credentials and certificate material are never reported.
 
 ### `tls.ca`: corporate CA or the server's own self-signed certificate
 
@@ -276,6 +281,101 @@ When both `basic` and `oauth` are possible for a Communication User, prefer `oau
 ```
 
 Or `"pfx": "/home/me/.abap-adt-mcp/dev.p12"` with `passphrase` instead of `cert`/`key`. The certificate authenticates the TLS connection to the proxy or gateway; SAP still needs its own credentials (`basic` here), unless the gateway maps the certificate to a user and the ABAP side accepts the request without a password, which is a gateway question, not a server option.
+
+### RFC transport (on-premise SAP_BASIS below 7.51)
+
+Writing through ADT needs a stateful session: the lock taken by one request must still hold when the next request writes the source. Over HTTP the server asks for that session with the `X-sap-adt-sessiontype` header, and ICF honours it from SAP_BASIS 7.51 on. Older releases (NetWeaver 7.40 and 7.50, so ECC 6.0 EHP7 and EHP8 among others) ignore the header: every HTTP request runs in a session of its own, a lock dies with the request that took it, and the following write fails with an invalid lock handle. Reading works over HTTP on those releases; writing does not.
+
+Eclipse avoids the problem on these systems by talking RFC. Each ADT request becomes one call of the function module `SADT_REST_RFC_ENDPOINT` on a persistent RFC connection, and the ABAP session of that connection keeps the enqueue locks for as long as it stays open. `"transport": "rfc"` does the same thing: the tools, the policy and the error hints are unchanged, only the way the requests travel is different.
+
+#### What to install
+
+The SAP NetWeaver RFC SDK 7.50, latest patch level, from the [SAP Software Download Center](https://me.sap.com/softwarecenter/search/SAP%20NW%20RFC%20SDK%207.50), downloaded with your own S-user (it needs the Software Download authorization). It is not bundled with this package and the server never downloads it: SAP's licence terms for its connectors forbid redistribution, so every user brings their own copy. Unpack it and set `rfc.sdkPath` on the destination to the `nwrfcsdk` folder that contains `lib/`, or point `SAPNWRFC_HOME` at it (`rfc.sdkPath` wins). Without either, the server looks in `/usr/local/sap/nwrfcsdk` on macOS and Linux and in `C:\nwrfcsdk` on Windows. Destinations without `transport: "rfc"` never load the SDK, and an RFC destination loads it on its first request, not at startup.
+
+[RFC.md](RFC.md) walks through it step by step: which archive to pick for your platform, where to unpack it, and what each error means. In short:
+
+- macOS: unpack it, for example to `~/sap/nwrfcsdk` (`/usr/local` needs `sudo` on Apple silicon). The libraries are signed by SAP and notarized, so the quarantine mark of the download does not stop them; only if loading fails with "developer cannot be verified", clear it with `xattr -dr com.apple.quarantine <sdk>`.
+- Windows: the server adds `<sdk>\lib` to its own `PATH`; the SDK needs the Microsoft Visual C++ 2015-2022 runtime, which most machines have; install the x64 Redistributable only if loading fails with `VCRUNTIME140.dll`, `VCRUNTIME140_1.dll` or `MSVCP140.dll` missing.
+- Linux: install `libuuid` (`libuuid1` on Debian, Ubuntu and SUSE, `libuuid` on RHEL). If a companion library is still not found, list `<sdk>/lib` in a file under `/etc/ld.so.conf.d/` and run `ldconfig`, or set `LD_LIBRARY_PATH`.
+
+When the SDK is not found or cannot be loaded, the failing call reports kind `rfcSdkMissing` with these instructions and the path it looked at; when koffi itself is missing (npm skipped optional dependencies), the same kind carries a hint about that instead. The SDK's own log (`dev_rfc.log`) and trace files go to `~/.abap-adt-mcp/rfc`, and a `sapnwrfc.ini` is read from there only, never from the folder the host started in.
+
+#### What the system needs
+
+- The SAP gateway of the instance reachable from this machine on port `33<sysnr>` (3300 for instance 00), or through a SAProuter (port 3299 by default). A logon through the message server also needs the message server port (`sapms<SID>` in the services file, or `rfc.msserv`).
+- Authorization object `S_RFC` for the function module: `RFC_TYPE` `FUNC`, `RFC_NAME` `SADT_REST_RFC_ENDPOINT`, `ACTVT` `16`. A user who already works with Eclipse ADT on that system has it, since Eclipse calls the same module.
+- For `authType` `sso` or `sso2`: the system must issue and accept logon tickets (`login/create_sso2_ticket` set to `1` or `2`, and `login/accept_sso2_ticket` set to `1`).
+
+#### Keys
+
+| Key | Meaning |
+|---|---|
+| `transport` | `"rfc"`. |
+| `rfc.ashost`, `rfc.sysnr` | Logon to one application server: its host and its two-digit instance number (`"00"`, written as a string). |
+| `rfc.mshost`, `rfc.sysid`, `rfc.group` | Logon through the message server instead: its host, the system ID and the logon group (`PUBLIC` when omitted). One of the two pairs, `ashost` with `sysnr` or `mshost` with `sysid`, is required. |
+| `rfc.msserv` | Message server service name or port, when `sapms<SID>` is not in the services file of this machine. |
+| `rfc.saprouter` | SAProuter string, for example `/H/saprouter.example.com/S/3299`. |
+| `rfc.gwhost`, `rfc.gwserv` | Gateway host and service, when they differ from the application server. |
+| `rfc.sdkPath` | Folder of the NW RFC SDK (the one that contains `lib/`); falls back to `SAPNWRFC_HOME`. |
+| `rfc.sessions` | `split` (default) or `single`, see below. |
+
+The other keys keep their meaning. `client` is required, because an RFC logon always names its client; `language` becomes the logon language (`EN` when omitted). `url` stays required: it is shown by `listSystems`, and with `authType: "sso"` the browser login still runs against it. `authType` decides how the RFC connection logs on:
+
+- `basic`: `user` and `password` are the RFC logon.
+- `sso`: the browser login runs as for an HTTP destination, and the `MYSAPSSO2` logon ticket it obtains becomes the RFC logon. If the system does not issue a ticket (the login only yields a session cookie), the server says so: set `login/create_sso2_ticket`, or use `basic` for that destination.
+- `sso2`: the ticket of the configured provider is the RFC logon.
+- `oauth` is refused at startup: an OAuth token cannot log on to an RFC connection.
+
+A rejected ticket logon (`sso`, `sso2`: the ticket expired) is handled like an expired HTTP session: the server logs on again once, with a fresh browser login for `sso`, and retries the call. A rejected password logon (`basic`) is reported as `RFC logon to ... was refused` with kind `authorization`; the server then makes no further password logon for that destination until `login` is called or the server restarts, so failed attempts cannot add up to a locked SAP user (`login/fails_to_user_lock`).
+
+#### Sessions
+
+With `split`, as in Eclipse, each destination keeps two RFC connections, each one an ABAP session. The first carries only LOCK and UNLOCK and holds the locks. The second carries everything else, and its ABAP context is reset after every write, so a session buffer cannot leak into the next request (a second save failing with message PAK 058, a read right after a create failing with SADT_RESOURCE 007). `single` uses one connection for everything and never resets it after writes; it is a fallback for a system on which `split` misbehaves.
+
+Connections open on first use. `dropSession` ends the session that holds the locks, which releases them; `logout` and the end of the server close both connections. A connection the network or the gateway dropped is reopened on the next call, and a read that hit a dropped idle connection is repeated once by itself. An ABAP message or a short dump in `SADT_REST_RFC_ENDPOINT` also ends the session of its connection, because the SDK closes the connection after them; the call reports the SAP error and the next call opens a new connection. When the connection that held the locks ends, for any of these reasons, its locks are gone with it: the server forgets them, writes one line on stderr, and the failing call reports kind `rfcSessionLost` (or names the lost locks in the SAP error); lock the object again before writing. The loss of the other connection is reported as kind `network`, and the locks are still held then.
+
+#### Examples
+
+An ECC 6.0 EHP7 system (SAP_BASIS 7.40) with browser SSO, the SDK in `~/sap/nwrfcsdk` (the home folder on every platform):
+
+```json
+{
+  "ECC": {
+    "url": "https://ecc.example.com:44300",
+    "client": "100",
+    "language": "EN",
+    "authType": "sso",
+    "transport": "rfc",
+    "rfc": {
+      "ashost": "ecc-app1.example.com",
+      "sysnr": "00",
+      "sdkPath": "~/sap/nwrfcsdk"
+    },
+    "policy": { "allowedPackages": ["Z*", "$*"] }
+  }
+}
+```
+
+The same kind of system with a password from the environment, a logon through the message server and a SAProuter, the SDK found through `SAPNWRFC_HOME`:
+
+```json
+{
+  "ECC-QAS": {
+    "url": "https://eccqas.example.com:44300",
+    "client": "200",
+    "authType": "basic",
+    "user": "DEVELOPER",
+    "password": "${env:ECC_QAS_PASSWORD}",
+    "transport": "rfc",
+    "rfc": {
+      "mshost": "eccqas-ms.example.com",
+      "sysid": "QAS",
+      "group": "PUBLIC",
+      "saprouter": "/H/saprouter.example.com/S/3299"
+    }
+  }
+}
+```
 
 ## 3. Policy in depth
 
@@ -465,7 +565,7 @@ If building the profile fails (network, authorization) the server logs `could no
 
 ## 5. Environment variables
 
-All variables declared in [server.json](../server.json), plus the two the server reads without declaring. Values `1`, `true`, `yes` are equivalent for switches.
+All variables declared in [server.json](../server.json), plus a few the server reads without declaring. Values `1`, `true`, `yes` are equivalent for switches.
 
 **Connection and destinations**
 
@@ -474,6 +574,7 @@ All variables declared in [server.json](../server.json), plus the two the server
 | `SAP_SYSTEMS_FILE` | unset | Path to the destinations file. Recommended; mode `0600`. |
 | `SAP_SYSTEMS` | unset | The same map inline. Takes precedence over the file. Secret. |
 | `SAP_DEFAULT_DESTINATION` | unset | Name used when a call omits `destination`; must be a configured entry, otherwise ignored. In legacy mode it names the implicit destination. |
+| `SAPNWRFC_HOME` | unset | Folder of the SAP NetWeaver RFC SDK (the one that contains `lib/`) for destinations with `transport: "rfc"`; `rfc.sdkPath` on a destination wins. Not in `server.json`; see [RFC transport](#rfc-transport-on-premise-sap_basis-below-751). |
 | `SAP_AUTH_TYPE` | `sso` | Default `authType` for entries without one (and for unknown values), and the mode of the legacy single-system setup. Accepted values are `sso`, `sso2`, `basic` and `oauth`. In legacy mode an unset value is inferred from the credentials present (`basic` from `SAP_USER` and `SAP_PASSWORD`, `oauth` from the three `SAP_OAUTH_*` variables), with a stderr line saying so. |
 
 **Policy and safety**
@@ -509,6 +610,7 @@ All variables declared in [server.json](../server.json), plus the two the server
 | Variable | Default | Effect |
 |---|---|---|
 | `MCP_AUDIT_FILE` | unset (off) | Path of the JSONL audit trail, one record per tool call ([section 7](#7-audit-log-record-format)). The parent directory must be creatable or writable by the user running the server; in a container that user is `node` (section 6). |
+| `MCP_ADT_TRACE_FILE` | unset (off) | Diagnostics only: path of a JSONL file with one line per ADT request of every destination (method, URI, query, status, request and response headers, duration), for a backend that behaves differently from the others. Cookie, Set-Cookie, Authorization, CSRF token and `sap-contextid` values are reduced to their name and length. No response body is kept; for a status of 400 and above the line carries the first 300 characters of the error text (the SAP message), after the same redaction as error messages. A status of 501 marks a failure that got no SAP answer at all (a connection or RFC error). The file is created readable by its owner only. Turn it off again when done: it records every URI the server calls. |
 
 **HTTP transport**
 
