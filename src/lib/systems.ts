@@ -18,8 +18,15 @@ import path from 'path';
 import { readOAuthConfig, OAuthConfig } from './oauth.js';
 import { parsePolicy, SystemPolicy } from './policy.js';
 import { parseTlsConfig, TlsConfig } from './tls.js';
+import type { RfcDestinationConfig } from './rfc/types.js';
 
 export type AuthType = 'sso' | 'sso2' | 'basic' | 'oauth';
+
+/** How ADT requests reach the system: HTTP(S) (default) or RFC (on-premise SAP_BASIS below 7.51, see lib/rfc). */
+export type Transport = 'http' | 'rfc';
+
+/** Keys of the systems.json "rfc" block; every value is a string. */
+const RFC_KEYS: ReadonlyArray<keyof RfcDestinationConfig> = ['ashost', 'sysnr', 'mshost', 'sysid', 'group', 'msserv', 'saprouter', 'gwhost', 'gwserv', 'sdkPath', 'sessions'];
 
 /**
  * Trusted local program that obtains a short-lived SAP logon/assertion ticket.
@@ -56,6 +63,10 @@ export interface SystemConfig {
   policy?: SystemPolicy;
   /** CA bundle, client certificate/key or PFX for this destination (see lib/tls.ts). */
   tls?: TlsConfig;
+  /** 'rfc' carries ADT over SADT_REST_RFC_ENDPOINT; omitted means 'http'. */
+  transport?: Transport;
+  /** RFC connection settings, used when transport is 'rfc'. */
+  rfc?: RfcDestinationConfig;
 }
 
 /**
@@ -108,6 +119,64 @@ export function validateSystem(cfg: SystemConfig): void {
   if (cfg.authType === 'sso2' && cfg.insecureTls) {
     throw new Error(`System "${cfg.name}": authType=sso2 cannot be combined with insecureTls; the ticket would be handed to an unverified server. Give the destination its CA bundle with tls.ca instead`);
   }
+  if (cfg.transport !== undefined && cfg.transport !== 'http' && cfg.transport !== 'rfc') {
+    throw new Error(`System "${cfg.name}": transport must be "http" or "rfc", got "${cfg.transport}"`);
+  }
+  if (cfg.transport === 'rfc') validateRfc(cfg);
+}
+
+/** Rules of transport "rfc"; url stays required (browser SSO ticket, display). */
+function validateRfc(cfg: SystemConfig): void {
+  const rfc = cfg.rfc || {};
+  const where = `System "${cfg.name}" (transport rfc)`;
+  if (!(rfc.ashost && rfc.sysnr) && !(rfc.mshost && rfc.sysid)) {
+    throw new Error(`${where}: needs rfc.ashost and rfc.sysnr (direct logon to an application server) or rfc.mshost and rfc.sysid (logon through the message server)`);
+  }
+  if (rfc.sysnr !== undefined && !/^\d{2}$/.test(rfc.sysnr)) {
+    throw new Error(`${where}: rfc.sysnr must be the two-digit instance number, e.g. "00", got "${rfc.sysnr}"`);
+  }
+  if (!cfg.client) {
+    throw new Error(`${where}: client is required; an RFC logon always names its client`);
+  }
+  if (cfg.authType !== 'basic' && cfg.authType !== 'sso' && cfg.authType !== 'sso2') {
+    throw new Error(`${where}: authType ${cfg.authType} is not supported over RFC; use basic, sso or sso2 (OAuth tokens cannot log on to an RFC connection)`);
+  }
+  if (rfc.sessions !== undefined && rfc.sessions !== 'split' && rfc.sessions !== 'single') {
+    throw new Error(`${where}: rfc.sessions must be "split" or "single", got "${rfc.sessions}"`);
+  }
+}
+
+/** Configuration warnings, printed once per process (Streamable HTTP mode reads the file per session). */
+const warned = new Set<string>();
+function warnOnce(message: string): void {
+  if (warned.has(message)) return;
+  warned.add(message);
+  console.error(message);
+}
+
+function parseTransport(raw: unknown): Transport | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  return String(raw).trim().toLowerCase() as Transport;
+}
+
+/** The "rfc" block: known keys only, string values, trimmed; empty strings count as absent. */
+function parseRfcConfig(raw: unknown, name: string): RfcDestinationConfig | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== 'object' || Array.isArray(raw)) throw new Error(`System "${name}": rfc must be an object`);
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (key.startsWith('_')) continue;
+    if (!(RFC_KEYS as readonly string[]).includes(key)) {
+      throw new Error(`System "${name}": rfc.${key} is not a known key (${RFC_KEYS.join(', ')})`);
+    }
+    if (value === undefined || value === null) continue;
+    if (typeof value !== 'string') {
+      throw new Error(`System "${name}": rfc.${key} must be a string${key === 'sysnr' ? ' such as "00"' : ''}`);
+    }
+    const v = value.trim();
+    if (v) out[key] = v;
+  }
+  return out as RfcDestinationConfig;
 }
 
 /** True when the raw config carries inline secrets (not env references). */
@@ -184,6 +253,21 @@ function fromRawEntry(name: string, raw: any, defaultAuth: AuthType): SystemConf
     policy: parsePolicy(raw.policy),
     tls: (() => { try { return parseTlsConfig(raw.tls); } catch (e: any) { throw new Error(`System "${name}": ${e.message}`); } })(),
   };
+  // "transport" and "rfc" were ignored before the RFC transport existed, so an
+  // entry that happens to carry them must keep loading as an HTTP destination:
+  // only "rfc" switches the transport, and the rfc block is read only then.
+  const transport = parseTransport(raw.transport);
+  if (transport === 'rfc' || transport === 'http') {
+    cfg.transport = transport;
+  } else if (transport !== undefined) {
+    warnOnce(`[abap-adt-mcp] System "${name}": transport ${JSON.stringify(raw.transport)} is neither "http" nor "rfc"; ignored, the destination uses HTTP.`);
+  }
+  if (cfg.transport === 'rfc') {
+    const rfc = parseRfcConfig(raw.rfc, name);
+    if (rfc !== undefined) cfg.rfc = rfc;
+  } else if (raw.rfc !== undefined && raw.rfc !== null) {
+    warnOnce(`[abap-adt-mcp] System "${name}": the "rfc" block is ignored because "transport" is not "rfc".`);
+  }
   if (authType === 'basic') {
     cfg.user = raw.user;
     cfg.password = raw.password;

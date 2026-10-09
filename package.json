@@ -113,5 +113,8 @@
       "/__tests__/"
     ],
     "verbose": true
+  },
+  "optionalDependencies": {
+    "koffi": "^3.3.2"
   }
 }

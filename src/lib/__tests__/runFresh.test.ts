@@ -27,6 +27,28 @@ describe('runClassFresh', () => {
     expect(listLocks(client)).toHaveLength(0);
     expect(client.stateful).toBe('stateful');
   });
+
+  it('runs on an RFC destination with split sessions without touching its locks', async () => {
+    const rfc = { sessions: 'split', endStatefulSession: jest.fn(async () => undefined) };
+    const client: any = { stateful: 'stateful', runClass: jest.fn(async () => 'fresh'), unLock: jest.fn(), httpClient: { httpclient: rfc } };
+    recordLock(client, '/sap/bc/adt/oo/classes/zcl_c', 'H3');
+    const r = await runClassFresh(client, 'ZCL_C');
+    expect(r).toEqual({ output: 'fresh', mode: 'rfc', locksInvalidated: [] });
+    expect(rfc.endStatefulSession).not.toHaveBeenCalled();
+    expect(client.unLock).not.toHaveBeenCalled();
+    expect(listLocks(client)).toHaveLength(1);
+  });
+
+  it('ends the single RFC session for a fresh load, releasing and reporting its locks', async () => {
+    const rfc = { sessions: 'single', endStatefulSession: jest.fn(async () => undefined) };
+    const client: any = { stateful: 'stateful', runClass: jest.fn(async () => 'fresh'), unLock: jest.fn(async () => undefined), httpClient: { httpclient: rfc } };
+    recordLock(client, '/sap/bc/adt/oo/classes/zcl_d', 'H4');
+    const r = await runClassFresh(client, 'ZCL_D');
+    expect(r).toEqual({ output: 'fresh', mode: 'rfc', locksInvalidated: ['/sap/bc/adt/oo/classes/zcl_d'] });
+    expect(client.unLock).toHaveBeenCalledWith('/sap/bc/adt/oo/classes/zcl_d', 'H4');
+    expect(rfc.endStatefulSession).toHaveBeenCalledTimes(1);
+    expect(listLocks(client)).toHaveLength(0);
+  });
 });
 
 describe('runClassWhenReady', () => {

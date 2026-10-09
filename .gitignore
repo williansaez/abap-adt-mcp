@@ -17,3 +17,8 @@ systems.json
 .tokensave/
 .impeccable/
 brag-output/
+
+# SAP NW RFC SDK log and traces (the server writes them to ~/.abap-adt-mcp/rfc; these catch a manual run)
+dev_rfc.log
+dev_rfc.trc
+rfc*.trc

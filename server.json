@@ -90,6 +90,11 @@
           "isRequired": false
         },
         {
+          "name": "MCP_ADT_TRACE_FILE",
+          "description": "Diagnostics: path of a JSONL trace with one line per ADT request (method, URI, status, headers). Cookie, Set-Cookie, Authorization and CSRF values are reduced to name and length; no response body is kept, error lines carry the first 300 characters of the redacted error text. Off when unset.",
+          "isRequired": false
+        },
+        {
           "name": "MCP_READ_ONLY",
           "description": "Set to 1 to make every destination read-only (server-side; only read-only annotated tools plus login/logout run). Per-destination policies live in systems.json",
           "isRequired": false

@@ -124,6 +124,76 @@ describe('systems configuration', () => {
     warn.mockRestore();
   });
 
+  describe('transport rfc', () => {
+    const rfcBase = { url: 'https://old.example.com:44300', client: '100', authType: 'basic', user: 'DEV', password: 'pw', transport: 'rfc', rfc: { ashost: 'old.example.com', sysnr: '00' } };
+    const read = (entry: Record<string, unknown>) => readSystems({ SAP_SYSTEMS: JSON.stringify({ OLD: entry }) } as any).get('OLD')!;
+
+    it('defaults to http and leaves HTTP destinations untouched', () => {
+      const cfg = read({ ...base });
+      expect(cfg.transport).toBeUndefined();
+      expect(cfg.rfc).toBeUndefined();
+      expect(read({ ...base, transport: 'http' }).transport).toBe('http');
+    });
+
+    it('parses the rfc block: known keys, trimmed strings, env references', () => {
+      const cfg = readSystems({ SAP_SYSTEMS: JSON.stringify({ OLD: {
+        ...rfcBase, transport: ' RFC ',
+        rfc: { ashost: ' old.example.com ', sysnr: '00', saprouter: '/H/router/S/3299', sdkPath: '${env:SDK}', sessions: 'single', gwhost: '', _comment: 'x' },
+      } }), SDK: '/usr/local/sap/nwrfcsdk' } as any).get('OLD')!;
+      expect(cfg.transport).toBe('rfc');
+      expect(cfg.rfc).toEqual({ ashost: 'old.example.com', sysnr: '00', saprouter: '/H/router/S/3299', sdkPath: '/usr/local/sap/nwrfcsdk', sessions: 'single' });
+      expect(read({ ...rfcBase, authType: 'sso', user: undefined, password: undefined, rfc: { mshost: 'ms', sysid: 'OLD', group: 'DEV' } }).rfc)
+        .toEqual({ mshost: 'ms', sysid: 'OLD', group: 'DEV' });
+      expect(() => read({ ...rfcBase, rfc: { ashost: 'h', sysnr: 0 } })).toThrow(/rfc\.sysnr must be a string such as "00"/);
+      expect(() => read({ ...rfcBase, rfc: { ashots: 'h', sysnr: '00' } })).toThrow(/rfc\.ashots is not a known key/);
+      expect(() => read({ ...rfcBase, rfc: 'old.example.com' })).toThrow(/rfc must be an object/);
+    });
+
+    it('requires a logon target, a two-digit sysnr, a client and an auth mode RFC can log on with', () => {
+      expect(() => read({ ...rfcBase, rfc: undefined })).toThrow(/needs rfc\.ashost and rfc\.sysnr .* or rfc\.mshost and rfc\.sysid/);
+      expect(() => read({ ...rfcBase, rfc: { ashost: 'h' } })).toThrow(/needs rfc\.ashost and rfc\.sysnr/);
+      expect(() => read({ ...rfcBase, rfc: { mshost: 'ms' } })).toThrow(/rfc\.mshost and rfc\.sysid/);
+      expect(() => read({ ...rfcBase, rfc: { ashost: 'h', sysnr: '0' } })).toThrow(/two-digit instance number/);
+      expect(() => read({ ...rfcBase, rfc: { ashost: 'h', sysnr: '100' } })).toThrow(/two-digit instance number/);
+      expect(() => read({ ...rfcBase, client: undefined })).toThrow(/client is required/);
+      expect(() => read({ ...rfcBase, client: '1' })).toThrow(/3-digit/);
+      expect(() => read({
+        ...rfcBase, authType: 'oauth', user: undefined, password: undefined,
+        oauth: { tokenUrl: 'https://idp/token', clientId: 'id', clientSecret: 's' },
+      })).toThrow(/authType oauth is not supported over RFC/);
+      expect(() => read({ ...rfcBase, rfc: { ashost: 'h', sysnr: '00', sessions: 'double' } })).toThrow(/rfc\.sessions must be "split" or "single"/);
+      // url stays required, and basic still needs its credentials
+      expect(() => read({ ...rfcBase, url: undefined })).toThrow(/missing "url"/);
+      expect(() => read({ ...rfcBase, password: undefined })).toThrow(/requires user and password/);
+      // sso and sso2 log on with a MYSAPSSO2 ticket
+      expect(read({ ...rfcBase, authType: 'sso', user: undefined, password: undefined }).authType).toBe('sso');
+      expect(read({ ...rfcBase, rfc: { mshost: 'ms', sysid: 'OLD' } }).rfc).toEqual({ mshost: 'ms', sysid: 'OLD' });
+    });
+
+    it('keeps loading entries whose transport or rfc keys mean nothing to it, as HTTP destinations', () => {
+      const err = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+      try {
+        const http = { url: 'https://h:44300', client: '100', authType: 'basic', user: 'U', password: 'test-only' };
+        const unknown = read({ ...http, transport: 'JCo' });
+        expect(unknown.transport).toBeUndefined();
+        expect(unknown.rfc).toBeUndefined();
+        const stray = read({ ...http, rfc: { sysnr: 0, dest: 'X' } });
+        expect(stray.transport).toBeUndefined();
+        expect(stray.rfc).toBeUndefined();
+        expect(read({ ...http, transport: ' HTTP ' }).transport).toBe('http');
+        const lines = err.mock.calls.map(c => String(c[0]));
+        expect(lines.some(l => /transport "JCo" is neither "http" nor "rfc"; ignored/.test(l))).toBe(true);
+        expect(lines.some(l => /the "rfc" block is ignored because "transport" is not "rfc"/.test(l))).toBe(true);
+      } finally {
+        err.mockRestore();
+      }
+    });
+
+    it('does not count the rfc block as an inline secret', () => {
+      expect(hasInlineSecrets({ OLD: { ...rfcBase, password: '${env:PW}' } })).toBe(false);
+    });
+  });
+
   it('detects inline secrets and file permissions', () => {
     expect(hasInlineSecrets({ DEV: { ...base } })).toBe(true);
     expect(hasInlineSecrets({ DEV: { ...base, password: '${env:PW}' } })).toBe(false);

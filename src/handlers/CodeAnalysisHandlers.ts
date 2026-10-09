@@ -485,7 +485,9 @@ export class CodeAnalysisHandlers extends BaseHandler {
             const payload: any = { status: 'success', result: run.output, runMode: run.mode };
             if (run.locksInvalidated.length) {
                 payload.locksInvalidated = run.locksInvalidated;
-                payload.note = 'Running with a fresh program load on an SSO destination resets the stateful ADT session; the explicit locks listed were released first. Re-lock before writing again.';
+                payload.note = run.mode === 'rfc'
+                    ? 'Running with a fresh program load on an RFC destination with a single session ends that session; the explicit locks listed were released first. Re-lock before writing again.'
+                    : 'Running with a fresh program load on an SSO destination resets the stateful ADT session; the explicit locks listed were released first. Re-lock before writing again.';
             }
             return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
         } catch (error: any) {

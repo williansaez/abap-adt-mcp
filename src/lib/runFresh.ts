@@ -20,14 +20,38 @@ import { listLocks, releaseAll, clearLedger } from './lockLedger.js';
  */
 export interface FreshRunResult {
   output: string;
-  mode: 'clone' | 'stateless';
+  mode: 'clone' | 'stateless' | 'rfc';
   /** Object URLs whose explicit locks were released because the stateful session had to be reset. */
   locksInvalidated: string[];
 }
 
 type FreshClient = { stateful: any; runClass(name: string): Promise<string>; statelessClone?: { runClass(name: string): Promise<string> } } & Record<string, any>;
 
+/** The RFC transport behind an ADTClient, when the destination uses one (lib/rfc/rfcHttpClient.ts). */
+function rfcTransportOf(client: FreshClient): { sessions: 'split' | 'single'; endStatefulSession(): Promise<void> } | undefined {
+  const t = (client as any)?.httpClient?.httpclient;
+  return t && typeof t.endStatefulSession === 'function' && (t.sessions === 'split' || t.sessions === 'single') ? t : undefined;
+}
+
 export async function runClassFresh(client: FreshClient, className: string): Promise<FreshRunResult> {
+  // Over RFC the session header never reaches SAP, so the stateless trick below
+  // would release the locks for nothing. With split sessions the work
+  // connection was reset after the activation write and loads the new code by
+  // itself; with a single session, ending it is what gives a fresh load.
+  const rfc = rfcTransportOf(client);
+  if (rfc) {
+    let held: string[] = [];
+    if (rfc.sessions === 'single') {
+      held = listLocks(client).map(l => l.objectUrl);
+      if (held.length) {
+        await releaseAll(client as any);
+        clearLedger(client);
+      }
+      await rfc.endStatefulSession();
+    }
+    return { output: await client.runClass(className), mode: 'rfc', locksInvalidated: held };
+  }
+
   let clone: { runClass(name: string): Promise<string> } | undefined;
   try { clone = client.statelessClone; } catch { clone = undefined; }
   if (clone && clone !== (client as any)) {
