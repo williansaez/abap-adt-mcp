@@ -4,6 +4,7 @@ import type { ToolDefinition } from '../types/tools.js';
 import { ADTClient } from "abap-adt-api";
 import { createTwoFilesPatch } from 'diff';
 import { SAFE_OUTPUT_CHARS, shrinkToFit } from '../lib/responseSizing.js';
+import { findInUserTree, isEmptyTransportsOfUser, parseUserTreeWithoutTargets } from '../lib/transportTree740.js';
 
 export class TransportHandlers extends BaseHandler {
     getTools(): ToolDefinition[] {
@@ -394,7 +395,7 @@ export class TransportHandlers extends BaseHandler {
     async handleTransportDetails(args: any): Promise<any> {
         const startTime = performance.now();
         try {
-            const details = await this.adtclient.transportDetails(args.transportNumber);
+            const details = await this.transportDetailsAnyRelease(args.transportNumber);
             this.trackRequest(startTime, true);
             return {
                 content: [{
@@ -404,6 +405,7 @@ export class TransportHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
             throw this.adtFailure(`Failed to get transport details`, error);
         }
     }
@@ -466,7 +468,7 @@ export class TransportHandlers extends BaseHandler {
         try {
             const transportNumber: string = args.transportNumber;
             const maxObjects: number = args.maxObjects || 20;
-            const details = await this.adtclient.transportDetails(transportNumber);
+            const details = await this.transportDetailsAnyRelease(transportNumber);
 
             // Collect objects from the request itself and all of its tasks.
             const seen = new Set<string>();
@@ -529,6 +531,7 @@ export class TransportHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
             throw this.adtFailure(`Failed to build transport diff`, error);
         }
     }
@@ -749,10 +752,33 @@ export class TransportHandlers extends BaseHandler {
         }
     }
 
+    /**
+     * transportDetails that also reads SAP_BASIS 7.40, which ignores the number in
+     * /transportrequests/<number> and sends the user's whole tree: the library then
+     * finds no tm:request under tm:root and returns an empty object.
+     */
+    private async transportDetailsAnyRelease(transportNumber: string): Promise<any> {
+        const details: any = await this.adtclient.transportDetails(transportNumber);
+        if (details?.['tm:number']) return details;
+        const raw = await this.adtclient.httpClient.request(`/sap/bc/adt/cts/transportrequests/${encodeURIComponent(transportNumber)}`, { headers: { Accept: 'application/vnd.sap.adt.transportorganizer.v1+xml' } });
+        const found = findInUserTree(raw.body, transportNumber);
+        if (found) return found;
+        if (/<tm:(workbench|customizing)\b/.test(String(raw.body ?? ''))) {
+            throw new McpError(ErrorCode.InvalidRequest, `${transportNumber} is not among the requests of the logged-on user. This system (SAP_BASIS 7.40 or older) answers only with the user's own request tree; read other users' requests in SE09/SE10.`);
+        }
+        return details;
+    }
+
     async handleUserTransports(args: any): Promise<any> {
         const startTime = performance.now();
         try {
-            const transports = await this.adtclient.userTransports(args.user, args.targets);
+            let transports: any = await this.adtclient.userTransports(args.user, args.targets);
+            if (isEmptyTransportsOfUser(transports)) {
+                // SAP_BASIS 7.40 sends the tree without tm:target levels, which the library reads as empty.
+                const raw = await this.adtclient.httpClient.request('/sap/bc/adt/cts/transportrequests', { qs: { user: args.user, targets: args.targets ?? true } });
+                const tree = parseUserTreeWithoutTargets(raw.body);
+                if (!isEmptyTransportsOfUser(tree)) transports = tree;
+            }
             this.trackRequest(startTime, true);
             return this.buildTransportsOfUserResponse(transports, args);
         } catch (error: any) {

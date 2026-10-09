@@ -126,8 +126,11 @@ const matchesAny = (patterns: string[] | undefined, value: string) => !!patterns
 
 /** Object URL (without /source/main, includes, fragments) from any object-ish URL. */
 export function objectUrlOf(url: string): string {
-  return String(url || '')
-    .replace(/[#?].*$/, '')
+  const clean = String(url || '').replace(/[#?].*$/, '').replace(/\/$/, '');
+  // A program include is an object of its own (/programs/includes/<name>);
+  // only class includes (/oo/classes/<name>/includes/<part>) are cut back.
+  if (/^\/sap\/bc\/adt\/programs\/includes\/[^/]+$/i.test(clean)) return clean;
+  return clean
     .replace(/\/(source\/main|includes\/[^/]+|source\/[^/]+)$/i, '')
     .replace(/\/$/, '');
 }

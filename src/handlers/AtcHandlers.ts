@@ -6,6 +6,7 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { shrinkToFit, SAFE_OUTPUT_CHARS } from '../lib/responseSizing.js';
 import { reportProgress } from '../lib/progress.js';
 import { htmlToText } from '../lib/htmlText.js';
+import { httpStatusOf } from '../lib/adtErrorHints.js';
 
 export class AtcHandlers extends BaseHandler {
     getTools(): ToolDefinition[] {
@@ -399,7 +400,7 @@ export class AtcHandlers extends BaseHandler {
     async handleAtcCheckVariant(args: { variant: string }): Promise<any> {
         const startTime = performance.now();
         try {
-            const result = await this.adtclient.atcCheckVariant(args.variant);
+            const result = await this.checkVariantWorklist(args.variant);
             this.trackRequest(startTime, true);
             return {
                 content: [
@@ -414,6 +415,7 @@ export class AtcHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
             throw this.adtFailure(`Failed to get ATC check variant`, error);
         }
     }
@@ -426,7 +428,7 @@ export class AtcHandlers extends BaseHandler {
             let worklistId = args.variant;
             if (!/^[0-9A-Fa-f]{32}$/.test(worklistId)) {
                 reportProgress(`resolving check variant ${args.variant}`);
-                worklistId = await this.adtclient.atcCheckVariant(args.variant);
+                worklistId = await this.checkVariantWorklist(args.variant);
             }
             reportProgress(`ATC run started on ${args.mainUrl}`);
             const result = await this.adtclient.createAtcRun(worklistId, args.mainUrl, args.maxResults);
@@ -444,7 +446,24 @@ export class AtcHandlers extends BaseHandler {
             };
         } catch (error: any) {
             this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
             throw this.adtFailure(`Failed to create ATC run`, error);
+        }
+    }
+
+    /**
+     * Worklist id of a check variant. SAP_BASIS 7.40 has no /sap/bc/adt/atc/worklists
+     * (its discovery lists only atc/customizing and atc/runs), so the 404 there
+     * means the ADT ATC flow is missing on the release, not that the variant is.
+     */
+    private async checkVariantWorklist(variant: string): Promise<string> {
+        try {
+            return await this.adtclient.atcCheckVariant(variant);
+        } catch (error: any) {
+            if (httpStatusOf(error) === 404) {
+                throw new McpError(ErrorCode.InvalidRequest, `ATC check variant worklists are not available on this system (POST /sap/bc/adt/atc/worklists answers 404; SAP_BASIS 7.40 and older have no such resource). Run the ATC in SAP GUI (transaction ATC or SCI) for this release.`);
+            }
+            throw error;
         }
     }
 
@@ -654,7 +673,7 @@ export class AtcHandlers extends BaseHandler {
             if (!runResultId) {
                 if (!args.mainUrl) throw new McpError(ErrorCode.InvalidParams, 'Pass runResultId (from createAtcRun) or mainUrl to run ATC first');
                 let worklistId = String(args.variant || 'ABAP_CLOUD_DEVELOPMENT_DEFAULT');
-                if (!/^[0-9A-Fa-f]{32}$/.test(worklistId)) worklistId = await this.adtclient.atcCheckVariant(worklistId);
+                if (!/^[0-9A-Fa-f]{32}$/.test(worklistId)) worklistId = await this.checkVariantWorklist(worklistId);
                 reportProgress(`ATC run started on ${args.mainUrl}`);
                 run = await this.adtclient.createAtcRun(worklistId, String(args.mainUrl), args.maxResults);
                 runResultId = run.id;

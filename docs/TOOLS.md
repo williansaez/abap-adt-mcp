@@ -61,7 +61,7 @@ Enable a subset with `MCP_TOOLSETS` (comma list, or a preset: `all`, `focused`) 
 | 📖 [`revisions`](#revisions) | Retrieves revisions for an object. | `objectUrl`*, `clsInclude` |
 | 📖 [`objectDiff`](#objectdiff) | Unified diff between two revisions of an object (default: latest against the previous one). Revisions are selected by index in the list returned by revisions (0 = newest), by version string, or by revision URI. Use it to review what a transport or a colleag... | `objectUrl`*, `fromRevision`, `toRevision`, `clsInclude`, `contextLines` |
 | 📖 [`getTextElements`](#gettextelements) | Read the text elements of an object: text symbols (TEXT-001), selection texts or list headings. Pass the object URL (e.g. /sap/bc/adt/programs/programs/zreport or /sap/bc/adt/oo/classes/zcl_demo). | `objectUrl`*, `category` |
-| ⚠️ [`setTextElements`](#settextelements) | Write text elements (text symbols, selection texts or list headings) of a locked object. Pass the full list for the category: elements missing from the list are removed. Requires lock (lockHandle) and, for transportable packages, a transport. Not supported... | `objectUrl`*, `category`*, `elements`*, `lockHandle`*, `transport` |
+| ⚠️ [`setTextElements`](#settextelements) | Write text elements (text symbols, selection texts or list headings) of a locked object. Pass the full list for the category: elements missing from the list are removed. Requires lock (lockHandle) and, for transportable packages, a transport. Not available... | `objectUrl`*, `category`*, `elements`*, `lockHandle`*, `transport` |
 
 ### Objects & navigation (27) · toolset `objects`
 
@@ -697,7 +697,7 @@ See also: [`setTextElements`](#settextelements), [`lock`](#lock), [`getObjectSou
 
 ⚠️ Set Text Elements · toolset `source` · destructive
 
-Write text elements (text symbols, selection texts or list headings) of a locked object. Pass the full list for the category: elements missing from the list are removed. Requires lock (lockHandle) and, for transportable packages, a transport. Not supported on very old releases.
+Write text elements (text symbols, selection texts or list headings) of a locked object. Pass the full list for the category: elements missing from the list are removed. Requires lock (lockHandle) and, for transportable packages, a transport. Not available where ADT has no text element resources (SAP_BASIS 7.40 and 7.53, for example): the tool reports it and writes nothing.
 
 | Parameter | Type | Required | Description | Example |
 |---|---|---|---|---|

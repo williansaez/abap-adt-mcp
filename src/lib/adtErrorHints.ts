@@ -7,7 +7,8 @@
 
 export type AdtErrorKind =
   | 'policyDenied' | 'tlsCertificate' | 'network' | 'sessionExpired' | 'csrf' | 'locked' | 'staleLockHandle' | 'transportRequired'
-  | 'authorization' | 'notFound' | 'rateLimited' | 'wrongInputData' | 'ambiguous400' | 'serverError' | 'unknown';
+  | 'authorization' | 'notFound' | 'rateLimited' | 'wrongInputData' | 'ambiguous400' | 'serverError'
+  | 'rfcSdkMissing' | 'rfcSessionLost' | 'unknown';
 
 export interface AdtErrorClassification {
   kind: AdtErrorKind;
@@ -20,6 +21,8 @@ export interface AdtErrorClassification {
 export interface AdtErrorContext {
   destination?: string;
   url?: string;
+  /** "rfc" when the destination uses the RFC transport; the RFC text rules apply only then. */
+  transport?: 'http' | 'rfc';
 }
 
 const HINTS: Record<Exclude<AdtErrorKind, 'unknown' | 'tlsCertificate' | 'network'>, { hint: string; nextTools: string[] }> = {
@@ -70,6 +73,14 @@ const HINTS: Record<Exclude<AdtErrorKind, 'unknown' | 'tlsCertificate' | 'networ
   serverError: {
     hint: 'SAP-side failure (5xx), often a short dump. Check dumps for the root cause before retrying; do not blindly retry writes.',
     nextTools: ['dumps'],
+  },
+  rfcSdkMissing: {
+    hint: 'This destination uses transport "rfc", which needs the SAP NetWeaver RFC SDK on this machine, and it could not be loaded. Download the NW RFC SDK 7.50 (latest patch level) from the SAP Software Download Center (https://me.sap.com/softwarecenter/search/SAP%20NW%20RFC%20SDK%207.50) with your own S-user, unpack it, and point SAPNWRFC_HOME (or rfc.sdkPath in systems.json) at the folder that contains lib/, then call again (restart the server if SAPNWRFC_HOME changed). It is never bundled with this package because SAP\'s connector licence forbids redistribution. The error text names the library it looked for; docs/RFC.md walks through download, install and configuration. Retrying will not help until the SDK is in place.',
+    nextTools: ['listSystems'],
+  },
+  rfcSessionLost: {
+    hint: 'The RFC connection to the system ended (network or gateway cut, timeout, system restart). The server reconnects on the next call, but in a new ABAP session: locks held in the RFC session are gone. Call lock again before writing (listLocks shows what the server still holds). If the failed call was a write, read the object before repeating it.',
+    nextTools: ['lock', 'listLocks'],
   },
 };
 
@@ -138,6 +149,51 @@ function isNetworkFailure(err: any, text: string): boolean {
   return codes.some(c => typeof c === 'string' && NETWORK_CODES.has(c)) || NETWORK_TEXT.test(text);
 }
 
+/**
+ * Failures of the RFC transport (lib/rfc): the SDK binding could not be
+ * loaded, the RFC session ended, or the gateway was not reached. By the
+ * RfcError the transport attaches (parent or cause), else by its message text.
+ */
+type RfcFailure = 'sdk' | 'koffi' | 'sessionLost' | 'workLost' | 'unreachable' | 'logonRefused';
+
+function rfcErrorIn(err: any): { rfcCode: number; rfcCodeName: string } | undefined {
+  const candidates = [err, err?.parent, err?.cause, err?.parent?.parent, err?.parent?.cause];
+  return candidates.find(c => c && typeof c === 'object' && typeof c.rfcCode === 'number' && typeof c.rfcCodeName === 'string');
+}
+
+function detectRfcFailure(err: any, text: string): RfcFailure | undefined {
+  const rfc = rfcErrorIn(err);
+  const code = [err?.code, err?.parent?.code, rfc?.rfcCodeName].find(c => typeof c === 'string');
+  if (code === 'KOFFI_MISSING' || /needs the optional dependency koffi|koffi module does not expose/i.test(text)) return 'koffi';
+  if (code === 'SDK_NOT_FOUND' || code === 'SDK_LOAD_FAILED'
+    || /\bSDK_NOT_FOUND\b|\bSDK_LOAD_FAILED\b|NetWeaver RFC SDK (?:not found|found at .* could not be loaded|could not be loaded)|SAPNWRFC_HOME/i.test(text)) return 'sdk';
+  if (/\bRFC logon to \S+ was refused\b/i.test(text)) return 'logonRefused';
+  // An ABAP message or a short dump is SAP's own error: classify it by status
+  // and text like any SAP error (a dump points at dumps), even when it also
+  // ended the session that held the locks; the message says so.
+  if (rfc?.rfcCode === 3 || rfc?.rfcCode === 4 || /\bRFC_ABAP_(?:RUNTIME_FAILURE|MESSAGE)\b/.test(text)) return undefined;
+  if (/locks held in the RFC session are gone/i.test(text)) return 'sessionLost';
+  if (/\bRFC connection to \S+ lost\b/i.test(text)) return 'workLost';
+  if (/\bRFC connection to \S+ could not be opened\b/i.test(text) && (code === 'RFC_COMMUNICATION_FAILURE' || /COMMUNICATION_FAILURE|not reached|gateway|connection refused|timed? ?out/i.test(text))) return 'unreachable';
+  return undefined;
+}
+
+const RFC_KOFFI_HINT = 'This destination uses transport "rfc", which loads the SAP NetWeaver RFC SDK through the optional dependency koffi, and koffi is not installed: npm skipped optional dependencies. '
+  + 'Check npm config get omit (a company .npmrc often sets omit=optional), remove that setting, delete the npx cache and restart the host, so the package is installed again. The SDK itself is not the problem. Retrying will not help until then.';
+
+const RFC_LOGON_REFUSED_HINT = 'SAP refused the RFC logon: wrong user or password, a locked user, or the system requires SNC for RFC. '
+  + 'The server makes no further password logon for this destination until login is called or the server restarts, so failed attempts cannot add up to a locked SAP user. '
+  + 'Do not call this destination again until the password is fixed: correct it in systems.json or its environment variable and restart the host (SU01 shows whether the user is locked).';
+
+const RFC_WORK_LOST_HINT = 'The RFC connection that carries the requests (not the one holding the locks) was dropped; the server reconnects on the next call and the locks are still held. '
+  + 'If the failed call was a write, read the object (getObjectSource, inactiveObjects) before repeating it.';
+
+function rfcNetworkHint(ctx: AdtErrorContext | undefined): string {
+  const where = ctx?.destination ? `destination ${ctx.destination}` : 'the SAP system';
+  return `The RFC connection to ${where} could not be opened: the SAP gateway was not reached. This is not an ABAP error. ` +
+    'Check rfc.ashost and rfc.sysnr in systems.json (the gateway listens on port 33<sysnr>, e.g. 3300) or rfc.mshost, rfc.sysid and rfc.group for a message server logon, rfc.saprouter when the system sits behind a SAProuter, and that VPN and firewall let this machine reach that port.';
+}
+
 function networkHint(ctx: AdtErrorContext | undefined): string {
   const hp = hostPort(ctx?.url);
   const where = ctx?.destination ? `destination ${ctx.destination}${hp ? ` (${hp.host}:${hp.port})` : ''}` : 'the SAP system';
@@ -157,6 +213,12 @@ function isSynthetic500(err: any): boolean {
   if (Number(err?.err) !== 500) return false;
   if (err.type === 'Unknown error') return true;
   return err.type === '' && !err.namespace && !err.response && !/^Error 500:/.test(String(err.message || ''));
+}
+
+/** HTTP status of an error from abap-adt-api or the HTTP/RFC clients, wherever the library put it (status, err, response.status). */
+export function httpStatusOf(err: unknown): number | undefined {
+  const e: any = err;
+  return extractStatus(e, String(e?.message ?? ''));
 }
 
 function extractStatus(err: any, text: string): number | undefined {
@@ -188,6 +250,20 @@ export function classifyAdtError(input: unknown, context?: AdtErrorContext): Adt
   const lower = text.toLowerCase();
   const has = (re: RegExp) => re.test(text);
 
+  // RFC transport failures carry no HTTP status of their own (a logon failure
+  // carries 401 and is handled below as an expired session).
+  // RFC transport failures. Their text rules apply only to destinations that use
+  // the RFC transport, or to an error that still carries the RFC error object,
+  // so an HTTP error whose SAP text merely mentions RFC is never reclassified.
+  const rfcScope = context?.transport === 'rfc' || !!rfcErrorIn(err);
+  const rfcFailure = rfcScope ? detectRfcFailure(err, text) : undefined;
+  if (rfcFailure === 'sdk') return { kind: 'rfcSdkMissing', status: undefined, ...HINTS.rfcSdkMissing };
+  if (rfcFailure === 'koffi') return { kind: 'rfcSdkMissing', status: undefined, hint: RFC_KOFFI_HINT, nextTools: ['listSystems'] };
+  if (rfcFailure === 'logonRefused') return { kind: 'authorization', status: undefined, hint: RFC_LOGON_REFUSED_HINT, nextTools: ['listSystems'] };
+  if (rfcFailure === 'sessionLost') return { kind: 'rfcSessionLost', status: undefined, ...HINTS.rfcSessionLost };
+  if (rfcFailure === 'workLost') return { kind: 'network', status: undefined, hint: RFC_WORK_LOST_HINT, nextTools: ['getObjectSource', 'inactiveObjects'] };
+  if (rfcFailure === 'unreachable') return { kind: 'network', status: undefined, hint: rfcNetworkHint(context), nextTools: ['listSystems'] };
+
   // Before anything status-based: a handshake failure never has an HTTP status,
   // and the code may sit on the error or on the axios error it wraps.
   const tlsFailure = detectTlsFailure(err.code ?? err.parent?.code ?? err.cause?.code, text);
@@ -202,7 +278,7 @@ export function classifyAdtError(input: unknown, context?: AdtErrorContext): Adt
   let kind: AdtErrorKind = 'unknown';
   if (err.code === 'POLICY_DENIED' || /^(?:MCP error -?\d+: )?Policy:/i.test(text) || has(/blocked by the destination policy/i)) {
     kind = 'policyDenied';
-  } else if (err.code === 'SESSION_EXPIRED' || status === 401 || has(/session (timed out|expired)|login page|identity provider|\bSAMLRequest\b|\bsaml (login|response|assertion|authentication)\b|logon ticket (expired|invalid|missing)/i)) {
+  } else if (err.code === 'SESSION_EXPIRED' || status === 401 || has(/session (timed out|expired)|login page|identity provider|\bSAMLRequest\b|\bsaml (login|response|assertion|authentication)\b|logon ticket (expired|invalid|missing)/i) || (rfcScope && has(/\bRFC logon to \S+ failed\b/i))) {
     kind = 'sessionExpired';
   } else if (has(/csrf/i) && (status === 403 || has(/token/i))) {
     kind = 'csrf';
@@ -214,7 +290,7 @@ export function classifyAdtError(input: unknown, context?: AdtErrorContext): Adt
     kind = 'transportRequired';
   } else if (err.type === 'ExceptionResourceWrongData' || has(/ExceptionResourceWrongData|wrong input data for processing/i)) {
     kind = 'wrongInputData';
-  } else if (status === 403 || has(/not authorized|no authorization|missing authorization|authorization check|su53/i)) {
+  } else if (status === 403 || has(/not authorized|no authorization|missing authorization|authorization check|su53/i) || (rfcScope && has(/no RFC authori[sz]ation/i))) {
     kind = 'authorization';
   } else if (status === 404 || has(/not found|does not exist|could not be found|resource .* unknown/i)) {
     kind = 'notFound';

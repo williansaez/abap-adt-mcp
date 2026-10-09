@@ -15,11 +15,12 @@ import {
   McpError,
   ErrorCode
 } from "@modelcontextprotocol/sdk/types.js";
-import { ADTClient, session_types } from "abap-adt-api";
+import { ADTClient, session_types, isAdtException } from "abap-adt-api";
 import path from 'path';
 import { makeBearerFetcher, BearerFetcher } from './lib/oauth.js';
 import https from 'https';
 import { CookieHttpClient } from './lib/cookieHttpClient.js';
+import { RfcHttpClient, nwRfcConnector, rfcLogonParams, logonTicketOf } from './lib/rfc/rfcHttpClient.js';
 import { browserLogin } from './lib/browserLogin.js';
 import { getSso2Cookies } from './lib/sso2TicketProvider.js';
 import { readSystems, defaultDestination, SystemConfig, NoSystemsConfiguredError } from './lib/systems.js';
@@ -35,6 +36,7 @@ import { normalizeArgs } from './lib/argAliases.js';
 import { TOOLSET_FEATURE } from './lib/systemProfile.js';
 import { AuditLog, summarizeArgs } from './lib/audit.js';
 import { buildHttpsAgent, describeTls, enforceTlsVerification } from './lib/tls.js';
+import { adtTraceCallback } from './lib/adtTrace.js';
 import { listPrompts, getPrompt } from './prompts.js';
 import { runSelfCheck } from './lib/selfCheck.js';
 import { createReporter, withProgress, withHeartbeat, reportProgress, ProgressReporter } from './lib/progress.js';
@@ -139,6 +141,8 @@ interface Destination {
   system: SystemConfig;
   adtClient: ADTClient;
   cookieClient?: CookieHttpClient;
+  /** Set when the destination uses transport "rfc" (lib/rfc). */
+  rfcClient?: RfcHttpClient;
   bearerFetcher?: BearerFetcher;
   httpsAgent: https.Agent;
   handlers: HandlerSet;
@@ -263,7 +267,7 @@ export class AbapAdtServer extends Server {
 
   // --- connection / destination management -------------------------------
 
-  private makeClient(sys: SystemConfig): { adtClient: ADTClient; cookieClient?: CookieHttpClient; bearerFetcher?: BearerFetcher; httpsAgent: https.Agent } {
+  private makeClient(sys: SystemConfig): { adtClient: ADTClient; cookieClient?: CookieHttpClient; rfcClient?: RfcHttpClient; bearerFetcher?: BearerFetcher; httpsAgent: https.Agent } {
     const client = sys.client || '';
     const language = sys.language || '';
     let adtClient: ADTClient;
@@ -271,10 +275,30 @@ export class AbapAdtServer extends Server {
     let bearerFetcher: BearerFetcher | undefined;
 
     const agent = buildHttpsAgent(sys.tls, sys.insecureTls);
-    const options = { httpsAgent: agent };
+    const debugCallback = adtTraceCallback(sys.name);
+    const options = { httpsAgent: agent, debugCallback };
+    if (sys.transport === 'rfc') {
+      // ADT over SADT_REST_RFC_ENDPOINT (SAP_BASIS below 7.51). The SDK binding
+      // loads on the first request only; the agent is unused but kept so
+      // close() treats every destination alike. For sso/sso2 the MYSAPSSO2
+      // ticket is handed over by ensureLogin.
+      const rfcClient = new RfcHttpClient({
+        destination: sys.name,
+        connector: nwRfcConnector(sys.rfc?.sdkPath),
+        logonParams: async () => rfcLogonParams(sys),
+        sessions: sys.rfc?.sessions ?? 'split',
+        onSessionLost: (reason) => {
+          clearLedger(adtClient);
+          console.error(`[abap-adt-mcp] ${reason}`);
+        },
+      });
+      adtClient = new ADTClient(rfcClient, sys.user || 'rfc', '', client, language, { debugCallback });
+      adtClient.stateful = session_types.stateful;
+      return { adtClient, rfcClient, httpsAgent: agent };
+    }
     if (sys.authType === 'sso' || sys.authType === 'sso2') {
       cookieClient = new CookieHttpClient(sys.url, [], !!sys.insecureTls, client || undefined, agent);
-      adtClient = new ADTClient(cookieClient as any, sys.user || sys.authType, '', client, language);
+      adtClient = new ADTClient(cookieClient as any, sys.user || sys.authType, '', client, language, { debugCallback });
     } else if (sys.authType === 'oauth') {
       bearerFetcher = makeBearerFetcher(sys.oauth!);
       adtClient = new ADTClient(sys.url, sys.oauth!.clientId || 'oauth', bearerFetcher, client, language, options);
@@ -325,15 +349,16 @@ export class AbapAdtServer extends Server {
     let dest = this.pool.get(name);
     if (!dest) {
       const system = this.systems.get(name)!;
-      const { adtClient, cookieClient, bearerFetcher, httpsAgent } = this.makeClient(system);
-      dest = { system, adtClient, cookieClient, bearerFetcher, httpsAgent, handlers: this.buildHandlers(adtClient, system), loggedIn: false, packageCache: new Map(), queue: Promise.resolve() };
+      const { adtClient, cookieClient, rfcClient, bearerFetcher, httpsAgent } = this.makeClient(system);
+      dest = { system, adtClient, cookieClient, rfcClient, bearerFetcher, httpsAgent, handlers: this.buildHandlers(adtClient, system), loggedIn: false, packageCache: new Map(), queue: Promise.resolve() };
       this.pool.set(name, dest);
     }
     return dest;
   }
 
   /** Ensure a cookie-authenticated destination has a session. Browser SSO opens
-   *  Chromium; SSO2 calls the configured local ticket provider. */
+   *  Chromium; SSO2 calls the configured local ticket provider. Over RFC the
+   *  MYSAPSSO2 cookie becomes the logon ticket of the RFC connections. */
   private async ensureLogin(name: string, force: boolean): Promise<void> {
     const dest = this.getDestination(name);
     if (dest.system.authType !== 'sso' && dest.system.authType !== 'sso2') return;
@@ -349,7 +374,22 @@ export class AbapAdtServer extends Server {
           reportProgress(`obtaining a short-lived SSO2 ticket for ${name} from the configured local provider`);
           return getSso2Cookies(dest.system.sso2!);
         })();
-      dest.cookieClient!.setCookies(cookies);
+      if (dest.rfcClient) {
+        const ticket = logonTicketOf(cookies);
+        if (!ticket) {
+          const byAddress = /^https?:\/\/(\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:]+\]|[^./:]+)(:\d+)?(\/|$)/i.test(dest.system.url);
+          throw new Error(`Destination ${name} (transport rfc): the browser login yielded no logon ticket (no MYSAPSSO2 cookie after the ${dest.system.authType} login), so the RFC connection cannot log on with it. `
+            + (byAddress
+              ? `url names the system by IP address or short host name: SAP issues the ticket for its DNS domain (profile parameter login/ticket_only_to_host = 0, the default), and the browser refuses a cookie for that domain on an address. Put the full host name in url (an /etc/hosts entry if DNS does not resolve it), restart the host and log in again. `
+              : '')
+            + `Otherwise check login/create_sso2_ticket (1 or 2) and login/accept_sso2_ticket = 1 on the system, or use authType basic for this RFC destination.`);
+        }
+        // Reconnects with the new ticket; locks of the old connections are released with them.
+        await dest.rfcClient.setLogonOverride({ MYSAPSSO2: ticket });
+        clearLedger(dest.adtClient);
+      } else {
+        dest.cookieClient!.setCookies(cookies);
+      }
       await dest.adtClient.login();
       dest.loggedIn = true;
     })().finally(() => { dest.loginInFlight = undefined; });
@@ -372,6 +412,9 @@ export class AbapAdtServer extends Server {
         try { await dest.adtClient.dropSession(); } catch { /* best effort */ }
       }
       dest.httpsAgent.destroy();
+      if (dest.rfcClient) {
+        try { await dest.rfcClient.close(); } catch { /* best effort */ }
+      }
       dest.loggedIn = false;
     }
     this.pool.clear();
@@ -403,7 +446,7 @@ export class AbapAdtServer extends Server {
       error = new Error(String(error));
     }
     const sys = destination ? this.systems.get(destination) : undefined;
-    const cls = classifyAdtError(error, { destination, url: sys?.url });
+    const cls = classifyAdtError(error, { destination, url: sys?.url, transport: sys?.transport === 'rfc' ? 'rfc' : 'http' });
     const extra = cls.kind === 'unknown' ? {} : { kind: cls.kind, httpStatus: cls.status, hint: cls.hint, nextTools: cls.nextTools };
     if (error instanceof McpError) {
       return {
@@ -432,7 +475,11 @@ export class AbapAdtServer extends Server {
       dest.loggedIn = false;
       await this.ensureLogin(name, true);
     } else {
-      try { await dest.adtClient.dropSession(); } catch { /* best effort */ }
+      // Over RFC a dropSession would open a connection just to end it; the
+      // failed logon is what brought us here.
+      if (!dest.rfcClient) {
+        try { await dest.adtClient.dropSession(); } catch { /* best effort */ }
+      }
       if (dest.system.authType === 'oauth') {
         dest.bearerFetcher?.invalidate();
         (dest.adtClient.httpClient as any).bearer = undefined;
@@ -535,15 +582,41 @@ export class AbapAdtServer extends Server {
     if (!key) return undefined;
     const cached = dest.packageCache.get(key);
     if (cached) return cached;
+    try { await this.ensureLogin(name, false); } catch { return undefined; }
+    let pkg: string | undefined;
+    // The node path is asked only when the transport check answered without a
+    // package or with a body the parser cannot read (SAP_BASIS 7.40 answers it
+    // with HTML). An HTTP error (401, 403, 404, ...) means the same as before:
+    // the package is unknown.
+    let askNodePath = false;
     try {
-      await this.ensureLogin(name, false);
       const info: any = await dest.adtClient.transportInfo(key);
-      const pkg = info?.DEVCLASS ? String(info.DEVCLASS).toUpperCase() : undefined;
-      if (pkg) dest.packageCache.set(key, pkg);
-      return pkg;
-    } catch {
-      return undefined;
+      pkg = info?.DEVCLASS ? String(info.DEVCLASS).toUpperCase() : undefined;
+      askNodePath = !pkg;
+    } catch (e: any) {
+      pkg = undefined;
+      // Only a body the parser could not read (a raw TypeError, as on 7.40)
+      // warrants the node path; every error abap-adt-api raised itself (an
+      // HTTP status, a CTS message, a lost connection, a refused logon) means
+      // the package is unknown, exactly as before.
+      // On an RFC destination (SAP_BASIS below 7.51) a 404 of the transport
+      // check means the check itself does not exist on that release, not that
+      // the object is missing; HTTP destinations keep the 2.7 behaviour.
+      const status = typeof e?.err === 'number' ? e.err : undefined;
+      askNodePath = !isAdtException(e) || (!!dest.rfcClient && status === 404);
     }
+    if (!pkg && askNodePath) {
+      // Older releases (7.40) answer the transport check with a body the
+      // parser does not know; the repository node path still names the
+      // package, so the policy is not left guessing.
+      try {
+        const path: any[] = await dest.adtClient.findObjectPath(key);
+        const devc = [...path].reverse().find(n => String(n?.['adtcore:type'] || '').toUpperCase() === 'DEVC/K');
+        pkg = devc?.['adtcore:name'] ? String(devc['adtcore:name']).toUpperCase() : undefined;
+      } catch { pkg = undefined; }
+    }
+    if (pkg) dest.packageCache.set(key, pkg);
+    return pkg;
   }
 
   /** Build (once) the capability profile of a destination from ADT discovery. */
@@ -604,7 +677,8 @@ export class AbapAdtServer extends Server {
         audited('ok');
         return response;
       } catch (error) {
-        const cls = classifyAdtError(error);
+        const errDest = rawArgs.destination || this.defaultDest;
+        const cls = classifyAdtError(error, { destination: errDest, transport: this.systems.get(errDest)?.transport === 'rfc' ? 'rfc' : 'http' });
         const message = redactSecrets(String((error as any)?.message || error)).slice(0, 300);
         const gate = message.match(/^(?:MCP error -?\d+: )?Policy: \w+ blocked on destination [^ ]+ \((\w+)\)/)?.[1];
         audited(cls.kind === 'policyDenied' ? 'denied' : (/is not available on destination/.test(message) ? 'unavailable' : 'error'),
@@ -623,6 +697,13 @@ export class AbapAdtServer extends Server {
         const profile = dest?.profile ? await dest.profile.catch(() => undefined) : undefined;
         return {
           destination: s.name, url: s.url, client: s.client, authType: s.authType,
+          ...(s.transport === 'rfc' ? {
+            transport: 'rfc',
+            rfc: {
+              ...(s.rfc?.ashost ? { ashost: s.rfc.ashost, sysnr: s.rfc.sysnr } : { mshost: s.rfc?.mshost, sysid: s.rfc?.sysid }),
+              sessions: s.rfc?.sessions ?? 'split',
+            },
+          } : {}),
           ...(s.policy ? { policy: summarizePolicy(s.policy) } : {}),
           dataAccess: dataAccess(s.policy),
           ...(describeTls(s.tls, s.insecureTls) ? { tls: describeTls(s.tls, s.insecureTls) } : {}),
@@ -691,6 +772,8 @@ export class AbapAdtServer extends Server {
           `Policy: ${name} blocked on destination ${destination} (${decision.gate}): ${decision.reason}. Configured in systems.json policy; retrying will not help.`);
       }
 
+      // An explicit login over RFC may try a refused password once more.
+      if (name === 'login' && dest.rfcClient) dest.rfcClient.allowLogonAgain();
       // Explicit login for cookie-authenticated destinations.
       if (name === 'login' && (dest.system.authType === 'sso' || dest.system.authType === 'sso2')) {
         await this.ensureLogin(destination, true);
@@ -734,7 +817,7 @@ export class AbapAdtServer extends Server {
         // request: re-authenticate and retry exactly once. Any lockHandle from
         // the old session is gone; the retry then fails with a staleLockHandle
         // hint, which is the honest outcome.
-        const cls = classifyAdtError(error);
+        const cls = classifyAdtError(error, { destination, transport: dest.system.transport === 'rfc' ? 'rfc' : 'http' });
         if (name === 'logout' || (cls.kind !== 'sessionExpired' && cls.kind !== 'csrf')) throw error;
         console.error(`[abap-adt-mcp] session for ${destination} expired during ${name} (${cls.kind}); re-authenticating and retrying once`);
         onRetry();

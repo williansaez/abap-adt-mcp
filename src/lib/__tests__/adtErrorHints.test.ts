@@ -181,6 +181,91 @@ describe('classifyAdtError', () => {
     });
   });
 
+  describe('RFC transport', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { HttpClientException } = require('abap-adt-api/build/AdtHTTP');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { fromException } = require('abap-adt-api/build/AdtException');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { RfcError, RFC_RC } = require('../rfc/types');
+    // As the transport throws it and as a handler wraps it after abap-adt-api mapped it.
+    const viaLibrary = (message: string, rfc: any, status?: number) => {
+      const e = new HttpClientException(message, rfc.rfcCodeName, status, undefined, { url: '/x' }, undefined, rfc);
+      e.cause = rfc;
+      const wrapped: any = new Error(`Failed to get object source: ${message}`);
+      wrapped.cause = fromException(e);
+      return wrapped;
+    };
+
+    it('points a missing or unloadable NW RFC SDK at the download, never a generic unknown', () => {
+      const sdk = new RfcError('SAP NW RFC SDK not found: looked for /usr/local/sap/nwrfcsdk/lib/libsapnwrfc.dylib; set SAPNWRFC_HOME', -1, 'SDK_NOT_FOUND');
+      const c = classifyAdtError(viaLibrary(sdk.message, sdk));
+      expect(c.kind).toBe('rfcSdkMissing');
+      expect(c.hint).toMatch(/SAP Software Download Center/);
+      expect(c.hint).toMatch(/S-user/);
+      expect(c.hint).toMatch(/SAPNWRFC_HOME .*rfc\.sdkPath/);
+      expect(c.hint).toMatch(/licence forbids redistribution/);
+      // by code alone, and by text alone
+      expect(classifyAdtError(viaLibrary('dlopen failed', new RfcError('dlopen failed', -1, 'SDK_LOAD_FAILED'))).kind).toBe('rfcSdkMissing');
+      expect(classifyAdtError({ message: 'Failed to read: SAP NetWeaver RFC SDK could not be loaded' }, { transport: 'rfc' }).kind).toBe('rfcSdkMissing');
+      // koffi missing is not a missing SDK: its own hint, no download
+      const koffi = classifyAdtError({ message: 'The RFC transport needs the optional dependency koffi (a native FFI module), which is not installed' }, { transport: 'rfc' });
+      expect(koffi.kind).toBe('rfcSdkMissing');
+      expect(koffi.hint).toMatch(/npm config get omit/);
+      expect(koffi.hint).not.toMatch(/Download/);
+      // a binding error that is neither falls through with its own message
+      expect(classifyAdtError(viaLibrary('SADT_REST_RFC_ENDPOINT has another interface', new RfcError('SADT_REST_RFC_ENDPOINT has another interface', -1, 'SADT_INTERFACE_MISMATCH'))).kind).not.toBe('rfcSdkMissing');
+    });
+
+    it('says that locks are gone when the RFC session ended', () => {
+      const lost = new RfcError('partner not reached', RFC_RC.RFC_COMMUNICATION_FAILURE, 'RFC_COMMUNICATION_FAILURE');
+      const c = classifyAdtError(viaLibrary('RFC connection to OLD lost (RFC_COMMUNICATION_FAILURE): partner not reached. The RFC session ended: locks held in the RFC session are gone; lock the objects again before writing.', lost));
+      expect(c).toMatchObject({ kind: 'rfcSessionLost', nextTools: ['lock', 'listLocks'] });
+      expect(c.hint).toMatch(/locks held in the RFC session are gone/);
+      expect(c.hint).toMatch(/lock again/);
+      // the work connection dropped: the locks are still held
+      const work = classifyAdtError({ message: 'RFC connection to OLD lost (RFC_TIMEOUT): timeout. The server reconnects on the next call.' }, { transport: 'rfc' });
+      expect(work.kind).toBe('network');
+      expect(work.hint).toMatch(/locks are still held/);
+    });
+
+    it('sends an unreachable gateway to the RFC settings, not to url', () => {
+      const down = new RfcError('partner old.example.com:3300 not reached', RFC_RC.RFC_COMMUNICATION_FAILURE, 'RFC_COMMUNICATION_FAILURE');
+      const c = classifyAdtError(viaLibrary('RFC connection to OLD could not be opened (RFC_COMMUNICATION_FAILURE): partner old.example.com:3300 not reached', down), { destination: 'OLD', url: 'https://old.example.com:44300' });
+      expect(c.kind).toBe('network');
+      expect(c.hint).toMatch(/rfc\.ashost and rfc\.sysnr/);
+      expect(c.hint).toMatch(/33<sysnr>/);
+    });
+
+    it('treats a refused ticket as an expired session, a refused password as final, and a short dump as a server error', () => {
+      const logon = new RfcError('Name or password is incorrect', RFC_RC.RFC_LOGON_FAILURE, 'RFC_LOGON_FAILURE');
+      expect(classifyAdtError(viaLibrary('RFC logon to OLD failed: Name or password is incorrect', logon, 401))).toMatchObject({ kind: 'sessionExpired', status: 401 });
+      expect(classifyAdtError({ message: 'Failed: RFC logon to OLD failed: ticket expired' }, { transport: 'rfc' }).kind).toBe('sessionExpired');
+      // a refused password is not retried: retries could lock the SAP user
+      const refused = classifyAdtError({ message: 'RFC logon to OLD was refused: Name or password is incorrect. The server makes no further logon attempt' }, { transport: 'rfc' });
+      expect(refused.kind).toBe('authorization');
+      expect(refused.hint).toMatch(/no further password logon/);
+      expect(refused.hint).toMatch(/Do not call this destination again until the password is fixed/);
+      // a short dump that also ended the lock session is still SAP's error: dumps first
+      const dumpLost = classifyAdtError({ message: 'RFC call to OLD failed (RFC_ABAP_RUNTIME_FAILURE): SYSTEM_FAILURE. The RFC session ended with this error: locks held in the RFC session are gone', status: 500 }, { transport: 'rfc' });
+      expect(dumpLost).toMatchObject({ kind: 'serverError', nextTools: ['dumps'] });
+      // "No RFC authorization" is an authorization problem over RFC only
+      expect(classifyAdtError({ message: 'No RFC authorization for function module SADT_REST_RFC_ENDPOINT' }, { transport: 'rfc' }).kind).toBe('authorization');
+      expect(classifyAdtError({ message: 'No RFC authorization for function module Z_REMOTE_CHECK', status: 500 }, { transport: 'http' }).kind).toBe('serverError');
+      const dump = new RfcError('SYSTEM_FAILURE', RFC_RC.RFC_ABAP_RUNTIME_FAILURE, 'RFC_ABAP_RUNTIME_FAILURE');
+      expect(classifyAdtError(viaLibrary('RFC call to OLD failed (RFC_ABAP_RUNTIME_FAILURE): SYSTEM_FAILURE', dump, 500))).toMatchObject({ kind: 'serverError', nextTools: ['dumps'] });
+    });
+
+    it('leaves HTTP classifications alone', () => {
+      expect(classifyAdtError({ message: 'Object ZCL_RFC_HELPER does not exist' }).kind).toBe('notFound');
+      expect(classifyAdtError({ message: 'Function module RFC_READ_TABLE is locked by user X' }).kind).toBe('locked');
+      // RFC wording in an HTTP destination's SAP error text never triggers the RFC rules
+      expect(classifyAdtError({ message: 'Error 403: RFC logon to Q01 failed', status: 403 }, { transport: 'http' }).kind).toBe('authorization');
+      expect(classifyAdtError({ message: 'Error 400: invalid entry in sapnwrfc.ini', status: 400 }, { transport: 'http' }).kind).toBe('ambiguous400');
+      expect(classifyAdtError({ message: 'Error 404: RFC connection to ZDEST could not be opened: gateway timeout', status: 404 }, { transport: 'http' }).kind).toBe('notFound');
+    });
+  });
+
   it('explains "wrong input data" on an object created earlier in the same session', () => {
     const e: any = new Error('Resource  ZCL_NEW: wrong input data for processing'); e.err = 400; e.type = 'ExceptionResourceWrongData'; e.namespace = 'com.sap.adt';
     const c = classifyAdtError(e);

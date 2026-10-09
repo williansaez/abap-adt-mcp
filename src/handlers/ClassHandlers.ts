@@ -1,8 +1,36 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { BaseHandler } from './BaseHandler.js';
 import type { ToolDefinition } from '../types/tools.js';
-import { ADTClient, isClassStructure } from 'abap-adt-api';
+import { isClassStructure, type AbapClassStructure } from 'abap-adt-api';
 import { SAFE_OUTPUT_CHARS, shrinkToFit } from '../lib/responseSizing.js';
+
+/**
+ * Include URLs of a class, keyed by include type. ADTClient.classIncludes()
+ * takes the link typed text/plain and fails when there is none; SAP_BASIS 7.40
+ * types none of them and marks the source link by its rel only, so this falls
+ * back to that link and then to abapsource:sourceUri.
+ */
+export function classIncludeUrls(clas: AbapClassStructure): Map<string, string> {
+    const includes = new Map<string, string>();
+    for (const i of clas.includes) {
+        const link = i.links.find(x => x.type === 'text/plain')
+            ?? i.links.find(x => x.rel === 'http://www.sap.com/adt/relations/source');
+        const href = link?.href ?? (i as any)['abapsource:sourceUri'];
+        if (href) includes.set(i['class:includeType'], followUrl(clas.objectUrl, href));
+    }
+    return includes;
+}
+
+/** Same resolution as abap-adt-api's internal followUrl, which it does not export. */
+function followUrl(base: string, extra: string): string {
+    if (/^\.\//.test(extra)) {
+        base = base.replace(/[^/]*$/, '');
+        extra = extra.replace(/^\.\//, '');
+    } else {
+        extra = extra.replace(/^\//, '');
+    }
+    return base.replace(/\/$/, '') + '/' + extra;
+}
 
 // SAP link/xml:base metadata is verbose and rarely needed for a structural
 // overview of a class - strip it before sizing/serializing the response.
@@ -75,16 +103,14 @@ export class ClassHandlers extends BaseHandler {
     async handleClassIncludes(args: any): Promise<any> {
         const startTime = performance.now();
         try {
-            // ADTClient.classIncludes() is a static helper that derives include
-            // URLs from an already-fetched class structure - it does not accept
-            // a class name and does not itself call SAP. Fetch the structure
-            // first, then hand it to the helper.
+            // The include URLs come from the class structure, so fetch it
+            // first and derive them with classIncludeUrls.
             const classUrl = `/sap/bc/adt/oo/classes/${encodeURIComponent(String(args.clas).toLowerCase())}`;
             const structure = await this.adtclient.objectStructure(classUrl);
             if (!isClassStructure(structure)) {
                 throw new McpError(ErrorCode.InvalidParams, `${args.clas} does not resolve to a class with an includes structure`);
             }
-            const includesMap = ADTClient.classIncludes(structure);
+            const includesMap = classIncludeUrls(structure);
             this.trackRequest(startTime, true);
             return {
                 content: [

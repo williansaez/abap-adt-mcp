@@ -150,6 +150,50 @@ describe('dispatch', () => {
     process.env.MCP_TOOLSETS = 'source,objects,data';
   });
 
+  it('resolves the package from the repository node path when the transport check cannot be parsed', async () => {
+    const dest = server.getDestination('DEV');
+    dest.loggedIn = true;
+    dest.adtClient.transportInfo = jest.fn(async () => { throw new TypeError("Cannot read properties of undefined (reading 'asx:values')"); });
+    dest.adtClient.findObjectPath = jest.fn(async () => [
+      { 'adtcore:type': 'DEVC/K', 'adtcore:name': '$TMP' },
+      { 'adtcore:type': 'PROG/P', 'adtcore:name': 'ZMCP_TEST_HELLO' },
+    ]);
+    expect(await server.resolvePackage('DEV', '/sap/bc/adt/programs/programs/zmcp_test_hello/source/main')).toBe('$TMP');
+    expect(dest.adtClient.findObjectPath).toHaveBeenCalledWith('/sap/bc/adt/programs/programs/zmcp_test_hello');
+    expect(dest.packageCache.get('/sap/bc/adt/programs/programs/zmcp_test_hello')).toBe('$TMP');
+
+    dest.packageCache.clear();
+    dest.adtClient.findObjectPath = jest.fn(async () => { throw new Error('404'); });
+    expect(await server.resolvePackage('DEV', '/sap/bc/adt/programs/programs/zmcp_test_hello')).toBeUndefined();
+
+    // Every error abap-adt-api raises itself keeps the 2.7 behaviour: no second request.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { adtException } = require('abap-adt-api');
+    for (const make of [
+      () => adtException('Not authorized', 403),
+      () => adtException('Object ZX is locked in request DEVK900001 of user OTHER', 0),
+    ]) {
+      dest.packageCache.clear();
+      dest.adtClient.transportInfo = jest.fn(async () => { throw make(); });
+      dest.adtClient.findObjectPath = jest.fn(async () => [{ 'adtcore:type': 'DEVC/K', 'adtcore:name': 'ZPKG' }]);
+      expect(await server.resolvePackage('DEV', '/sap/bc/adt/programs/programs/zmcp_test_hello')).toBeUndefined();
+      expect(dest.adtClient.findObjectPath).not.toHaveBeenCalled();
+    }
+
+    // Over HTTP a 404 of the transport check still means "package unknown" ...
+    dest.packageCache.clear();
+    dest.adtClient.transportInfo = jest.fn(async () => { throw adtException('Not Found', 404); });
+    dest.adtClient.findObjectPath = jest.fn(async () => [{ 'adtcore:type': 'DEVC/K', 'adtcore:name': '$TMP' }]);
+    expect(await server.resolvePackage('DEV', '/sap/bc/adt/programs/programs/zmcp_test_hello')).toBeUndefined();
+    expect(dest.adtClient.findObjectPath).not.toHaveBeenCalled();
+    // ... while on an RFC destination it means the check does not exist on that release (7.40)
+    dest.packageCache.clear();
+    dest.rfcClient = {} as any;
+    expect(await server.resolvePackage('DEV', '/sap/bc/adt/programs/programs/zmcp_test_hello')).toBe('$TMP');
+    expect(dest.adtClient.findObjectPath).toHaveBeenCalledTimes(1);
+    delete dest.rfcClient;
+  });
+
   it('forgets the package memo after objects are created, deleted, renamed or moved', async () => {
     const dest = stub(server, 'DEV', 'objectDeletion', async () => ({ deleted: true }));
     dest.packageCache.set('/sap/bc/adt/oo/classes/zcl_x', 'ZOLD');

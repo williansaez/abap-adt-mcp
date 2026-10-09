@@ -76,3 +76,38 @@ describe('transportUnifiedDiff targets', () => {
     expect(resolve('LIMU', 'CINC', 'ZCL_A==XXXX').skip).toMatch(/not a diffable include/);
   });
 });
+
+describe('userTransports and transportDetails on SAP_BASIS 7.40', () => {
+  const TREE = `<tm:root xmlns:tm="http://www.sap.com/cts/adt/tm"><tm:workbench tm:category="Workbench"><tm:modifiable tm:status="D">` +
+    `<tm:request tm:number="P03K901865" tm:owner="MLS_BC" tm:desc="TESTE" tm:status="D"><tm:task tm:number="P03K901866" tm:owner="MLS_BC" tm:desc="TESTE" tm:status="D"/></tm:request>` +
+    `</tm:modifiable></tm:workbench></tm:root>`;
+  function make740() {
+    const client: any = {
+      // What abap-adt-api returns for that tree: nothing.
+      userTransports: jest.fn(async () => ({ workbench: [], customizing: [] })),
+      transportDetails: jest.fn(async () => ({ links: [], objects: [], tasks: [] })),
+      httpClient: { request: jest.fn(async () => ({ body: TREE, status: 200, headers: {} })) }
+    };
+    return { client, handler: new TransportHandlers(client) };
+  }
+
+  it('lists the requests from the tree without tm:target', async () => {
+    const { client, handler } = make740();
+    const text = JSON.stringify(parse(await handler.handle('userTransports', { user: 'MLS_BC' })));
+    expect(text).toContain('P03K901865');
+    expect(client.httpClient.request).toHaveBeenCalledWith('/sap/bc/adt/cts/transportrequests', { qs: { user: 'MLS_BC', targets: true } });
+  });
+
+  it('finds the request in the tree, and says so when it is not the user\'s', async () => {
+    const { handler } = make740();
+    expect(parse(await handler.handle('transportDetails', { transportNumber: 'P03K901865' })).details).toMatchObject({ 'tm:number': 'P03K901865', tasks: [{ 'tm:number': 'P03K901866' }] });
+    await expect(handler.handle('transportDetails', { transportNumber: 'P03K000001' })).rejects.toThrow(/not among the requests of the logged-on user/);
+  });
+
+  it('keeps the library answer on newer releases', async () => {
+    const client: any = { transportDetails: jest.fn(async () => ({ 'tm:number': 'DEVK900001', links: [], objects: [], tasks: [] })), httpClient: { request: jest.fn() } };
+    const handler = new TransportHandlers(client);
+    expect(parse(await handler.handle('transportDetails', { transportNumber: 'DEVK900001' })).details['tm:number']).toBe('DEVK900001');
+    expect(client.httpClient.request).not.toHaveBeenCalled();
+  });
+});
