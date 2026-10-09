@@ -4,6 +4,7 @@ import type { ToolDefinition } from '../types/tools';
 import { shrinkToFit, SAFE_OUTPUT_CHARS } from '../lib/responseSizing';
 import { walkPackage } from '../lib/packageWalk';
 import { parseFlatInactiveObjects } from '../lib/inactiveObjects740.js';
+import { activateReferences } from '../lib/activation.js';
 
 interface InactiveObject {
   "adtcore:uri": string;
@@ -153,14 +154,11 @@ export class ObjectManagementHandlers extends BaseHandler {
           throw new Error("Parsed objects must be an array");
         }
         
-        // Main objects (programs, classes) have no parent: parentUri is
-        // optional, and abap-adt-api writes it as is, so default it to ''
-        // instead of sending the text "undefined".
-        objects = objects.map((obj, index) => {
+        // Main objects (programs, classes) have no parent: parentUri is optional.
+        objects.forEach((obj, index) => {
           if (!obj["adtcore:uri"] || !obj["adtcore:type"] || !obj["adtcore:name"]) {
             throw new Error(`Object at index ${index} needs adtcore:uri, adtcore:type and adtcore:name`);
           }
-          return { ...obj, "adtcore:parentUri": obj["adtcore:parentUri"] ?? "" };
         });
       } catch (parseError: any) {
         throw new McpError(
@@ -169,7 +167,7 @@ export class ObjectManagementHandlers extends BaseHandler {
         );
       }
 
-      const result = await this.adtclient.activate(objects, args.preauditRequested);
+      const result = await activateReferences(this.adtclient.httpClient as any, objects, args.preauditRequested ?? true);
       this.trackRequest(startTime, true);
       return {
         content: [{

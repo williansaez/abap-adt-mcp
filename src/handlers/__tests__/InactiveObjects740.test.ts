@@ -26,11 +26,28 @@ describe('inactive objects on SAP_BASIS 7.40', () => {
 });
 
 describe('activateObjects', () => {
-  it('accepts main objects without parentUri and sends an empty one', async () => {
-    const client: any = { activate: jest.fn(async () => ({ success: true, messages: [], inactive: [] })) };
-    const objects = [{ 'adtcore:uri': '/sap/bc/adt/programs/programs/zmcp_rfc_x', 'adtcore:type': 'PROG/P', 'adtcore:name': 'ZMCP_RFC_X' }];
-    await new ObjectManagementHandlers(client).handle('activateObjects', { objects: JSON.stringify(objects) });
-    expect(client.activate.mock.calls[0][0][0]['adtcore:parentUri']).toBe('');
+  it('omits adtcore:parentUri for main objects and keeps it for children', async () => {
+    // An empty parentUri made P03 (7.40) answer "Verificação da condição fracassou".
+    const sent: any[] = [];
+    const client: any = { httpClient: { request: jest.fn(async (_url: string, opts: any) => { sent.push(opts); return { body: '' }; }) } };
+    const objects = [
+      { 'adtcore:uri': '/sap/bc/adt/programs/programs/zmcp_rfc_x', 'adtcore:type': 'PROG/P', 'adtcore:name': 'ZMCP_RFC_X' },
+      { 'adtcore:uri': '/sap/bc/adt/functions/groups/zfg/fmodules/zfm', 'adtcore:type': 'FUGR/FF', 'adtcore:name': 'ZFM', 'adtcore:parentUri': '/sap/bc/adt/functions/groups/zfg' }
+    ];
+    const r = JSON.parse((await new ObjectManagementHandlers(client).handle('activateObjects', { objects: JSON.stringify(objects) })).content[0].text);
+    expect(r).toMatchObject({ success: true, messages: [], inactive: [] });
+    expect(sent[0].qs).toEqual({ method: 'activate', preauditRequested: true });
+    expect(sent[0].body).toContain('<adtcore:objectReference adtcore:uri="/sap/bc/adt/programs/programs/zmcp_rfc_x" adtcore:type="PROG/P" adtcore:name="ZMCP_RFC_X"/>');
+    expect(sent[0].body).toContain('adtcore:parentUri="/sap/bc/adt/functions/groups/zfg"');
+    expect(sent[0].body).not.toMatch(/parentUri="(undefined)?"/);
     await expect(new ObjectManagementHandlers(client).handle('activateObjects', { objects: '[{"adtcore:uri":"/x"}]' })).rejects.toThrow(/needs adtcore:uri, adtcore:type and adtcore:name/);
+  });
+
+  it('reports syntax errors as a failed activation', async () => {
+    const body = '<?xml version="1.0"?><chkl:messages xmlns:chkl="http://www.sap.com/abapxml/checklist"><msg objDescr="Programa ZX" type="E" line="1"><shortText><txt>FORM X não existe.</txt></shortText></msg></chkl:messages>';
+    const client: any = { httpClient: { request: jest.fn(async () => ({ body })) } };
+    const r = JSON.parse((await new ObjectManagementHandlers(client).handle('activateObjects', { objects: '[{"adtcore:uri":"/sap/bc/adt/programs/programs/zx","adtcore:type":"PROG/P","adtcore:name":"ZX"}]' })).content[0].text);
+    expect(r.success).toBe(false);
+    expect(r.messages[0]).toMatchObject({ type: 'E', shortText: 'FORM X não existe.' });
   });
 });
