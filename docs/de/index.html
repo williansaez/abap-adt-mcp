@@ -206,7 +206,7 @@
 
   <nav class="top" aria-label="Seite">
     <div class="wrap">
-      <a class="wordmark" href="#top"><span class="rule"></span>abap-adt-mcp <span class="v">2.7.0</span></a>
+      <a class="wordmark" href="#top"><span class="rule"></span>abap-adt-mcp <span class="v">2.7.1</span></a>
       <ul>
         <li><a href="#setup">Einrichtung</a></li>
         <li class="opt"><a href="#ask">Was fragen</a></li>
@@ -404,7 +404,7 @@
   -v "$PWD/systems.json:/config/systems.json:ro" \
   -e SAP_SYSTEMS_FILE=/config/systems.json \
   ghcr.io/williansaez/abap-adt-mcp:latest</code></pre></div></div>
-        <div><h3>Angeheftete Version</h3><p><code>npx -y abap-adt-mcp</code> holt bei jedem Start das neueste Release. Für einen kontrollierten Rollout heften Sie es an und prüfen die Provenance-Bescheinigung, die Trusted Publishing anhängt.</p><div class="code"><button type="button" class="copy" data-state="idle" data-done="Kopiert" data-fail="Markieren und kopieren">Kopieren</button><pre class="sh"><code>npx -y abap-adt-mcp@2.7.0
+        <div><h3>Angeheftete Version</h3><p><code>npx -y abap-adt-mcp</code> holt bei jedem Start das neueste Release. Für einen kontrollierten Rollout heften Sie es an und prüfen die Provenance-Bescheinigung, die Trusted Publishing anhängt.</p><div class="code"><button type="button" class="copy" data-state="idle" data-done="Kopiert" data-fail="Markieren und kopieren">Kopieren</button><pre class="sh"><code>npx -y abap-adt-mcp@2.7.1
 npm audit signatures</code></pre></div></div>
         <div><h3>Aus dem Quelltext</h3><p>Eine <code>systems.json</code> neben dem Checkout wird automatisch gelesen. Richten Sie den Host auf <code>dist/index.js</code>.</p><div class="code"><button type="button" class="copy" data-state="idle" data-done="Kopiert" data-fail="Markieren und kopieren">Kopieren</button><pre class="sh"><code>git clone https://github.com/williansaez/abap-adt-mcp.git
 cd abap-adt-mcp &amp;&amp; npm ci &amp;&amp; npm run build</code></pre></div></div>
