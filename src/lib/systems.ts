@@ -297,9 +297,25 @@ function readSystemsRaw(env: NodeJS.ProcessEnv): Map<string, SystemConfig> {
     return map;
   }
 
-  throw new Error(
-    'No ABAP systems configured. Provide systems.json, SAP_SYSTEMS, SAP_SYSTEMS_FILE, or SAP_URL.'
-  );
+  throw new NoSystemsConfiguredError(filePath);
+}
+
+/**
+ * Nothing describes a system yet: no SAP_SYSTEMS, no systems file, no SAP_URL.
+ * The server catches it and starts in setup mode (only listSystems and
+ * healthcheck, both saying what to do) instead of exiting, so a fresh plugin
+ * install shows as connected rather than failed.
+ */
+export class NoSystemsConfiguredError extends Error {
+  constructor(public readonly systemsFile: string) {
+    super(
+      `No ABAP systems configured: ${systemsFile} does not exist. ` +
+      'Ask the agent to set up abap-adt-mcp (skill abap-adt-mcp-setup) or write the file by hand ' +
+      '(docs/CONFIGURATION.md; SAP_SYSTEMS or SAP_URL work too), then restart the MCP server ' +
+      '(/reload-plugins in Claude Code).'
+    );
+    this.name = 'NoSystemsConfiguredError';
+  }
 }
 
 /**

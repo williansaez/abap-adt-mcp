@@ -115,6 +115,11 @@
     .step { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: clamp(20px, 3vw, 48px); align-items: start; }
     .step h3 { font-size: 1.5rem; font-weight: 900; }
     .step p { margin-top: 12px; color: var(--soft); font-size: 16px; }
+    .step .or { margin-top: 20px; font-size: 15px; color: var(--soft); }
+    .step .paths { margin: 10px 0 0; padding-left: 1.2em; color: var(--soft); font-size: 15.5px; display: grid; gap: 8px; }
+    .step .paths + .code, .step .or + .code { margin-top: 14px; }
+    .step .say .said { margin: 0; color: inherit; font-size: inherit; }
+    .step .say .copy { display: block; margin-top: 16px; }
     .step .say { font-size: 20px; line-height: 1.45; color: var(--prompt); background: rgba(217,119,87,0.16); border: 2px solid rgba(217,119,87,0.5); border-radius: 18px 18px 18px 6px; padding: 22px 26px; max-width: none; }
 
     table { width: 100%; border-collapse: collapse; margin-top: 28px; font-size: 15.5px; table-layout: fixed; }
@@ -172,7 +177,6 @@
       body { font-size: 16px; }
       .hero { padding-top: 28px; }
       .hero > div:first-child .lede { order: 3; margin-top: 22px; }
-      .hero > div:first-child .install { order: 2; margin-top: 22px; }
       .hero > div:first-child .facts { order: 4; margin-top: 22px; }
       .wordmark .v { display: none; }
       nav.top ul a { font-size: 13px; }
@@ -220,10 +224,6 @@
     <div>
       <h1>Let Claude read, write, test and check ABAP code on <em>your SAP systems</em>.</h1>
       <p class="lede">abap-adt-mcp is a Model Context Protocol server. Run it next to Claude Desktop, Claude Code or any other MCP host, point it at one or more SAP systems, and the model gets the same ADT REST endpoints Eclipse uses: search objects, read and edit source, create transports, activate, run ABAP Unit and ATC, read short dumps, query tables.</p>
-      <div class="install">
-        <span class="chip">npx -y abap-adt-mcp <button type="button" class="copy" data-copy="npx -y abap-adt-mcp" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button></span>
-        <a class="btn" href="#setup">Set it up in three steps</a>
-      </div>
       <div class="facts"><span><b>173 tools</b>, 16 toolsets</span><span>S/4HANA Cloud and on-prem</span><span>Node.js 22.12+</span><span>MIT</span></div>
     </div>
     <figure><div class="player"><video controls preload="none" playsinline poster="media/brag/film.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-film.mp4" aria-label="The first film about abap-adt-mcp"><track kind="captions" srclang="en" label="English" src="media/brag/film.vtt" /></video></div></figure>
@@ -233,11 +233,28 @@
   <section id="setup">
     <div class="wrap">
       <h2>Setup in three steps.</h2>
-      <p class="intro">You need Node.js 22.12 or newer, access to the SAP system (on S/4HANA Cloud the developer business role your user already has for Eclipse ADT; on-prem the <code>/sap/bc/adt</code> service active in <code>SICF</code>), and a Chromium browser for browser SSO. The full version, with Windows paths and the host logs, is in the <a href="https://github.com/williansaez/abap-adt-mcp#setup">README</a>.</p>
+      <p class="intro">Three steps, all of them in a chat. You need Node.js 22.12 or newer and a Chromium browser (Chrome or Edge) for the SAP login. The long version, with Windows paths and the host logs, is in the <a href="https://github.com/williansaez/abap-adt-mcp#setup">README</a>.</p>
       <div class="steps">
         <div class="step">
-          <div><h3>Describe your SAP systems</h3><p>One file, <code>~/.abap-adt-mcp/systems.json</code>, one entry per system. The key is the name you will use in chats. This complete S/4HANA Cloud entry with browser SSO starts read-only; drop the <code>policy</code> line when you are ready to write, and the model can then create, edit and activate within your SAP authorizations.</p></div>
-          <div class="code"><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button><pre><code>{
+          <div><h3>Install the plugin</h3><p>One plugin brings the server and a setup guide the agent follows, in the Code tab or in Cowork of the Claude desktop app (the terminal works too). The easy way is to paste the sentence on the right into a chat; the agent runs the commands and asks before each one.</p></div>
+          <div>
+            <div class="say"><p class="said">Install the abap-adt-mcp plugin from the marketplace williansaez/abap-adt-mcp, using plugin marketplace add and then plugin install, and tell me when I need to reload.</p><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button></div>
+            <p class="or">Or do it by hand:</p>
+            <ul class="paths">
+              <li><b>Code tab (or the terminal):</b> type the three commands below in the chat box, one at a time.</li>
+              <li><b>Cowork:</b> Customize, Plugins, Add, Add marketplace, type <code>williansaez/abap-adt-mcp</code>, then Add on the plugin.</li>
+            </ul>
+            <div class="code"><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button><pre class="sh"><code>/plugin marketplace add williansaez/abap-adt-mcp
+/plugin install abap-adt-mcp@abap-adt-mcp
+/reload-plugins</code></pre></div>
+          </div>
+        </div>
+        <div class="step">
+          <div><h3>Tell it which SAP system</h3><p>In the same chat, give the address and the client. The setup guide writes <code>~/.abap-adt-mcp/systems.json</code>, read-only to start, and asks you to run <code>/reload-plugins</code>. Until that file exists the server answers only <code>listSystems</code> and <code>healthcheck</code>, both saying what is missing. On S/4HANA Cloud your user needs the developer business role it already has for Eclipse ADT; on-prem, <code>/sap/bc/adt</code> must be active in <code>SICF</code>.</p></div>
+          <div>
+            <div class="say"><p class="said">Set up abap-adt-mcp for my SAP system DEV at https://myXXXXXX.s4hana.cloud.sap, client 080, with browser login, read-only to start.</p><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button></div>
+            <p class="or">Or write the file yourself. Drop the <code>policy</code> line when you are ready to let the model create, edit and activate within your SAP authorizations:</p>
+            <div class="code"><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button><pre><code>{
   <span class="k">"DEV"</span>: {
     <span class="k">"url"</span>: <span class="s">"https://myXXXXXX.s4hana.cloud.sap"</span>,
     <span class="k">"client"</span>: <span class="s">"080"</span>,
@@ -246,33 +263,14 @@
     <span class="k">"policy"</span>: { <span class="k">"readOnly"</span>: true }
   }
 }</code></pre></div>
-        </div>
-        <div class="step">
-          <div><h3>Register the server in your host</h3><p>Claude Code is one line. Claude Desktop takes the JSON under Settings, Developer, Edit Config, then a restart. The same map works in Cursor and Cline; VS Code names it <code>servers</code>.</p></div>
-          <div>
-            <div class="code"><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button><pre class="sh"><code>claude mcp add abap-adt-mcp \
-  -e SAP_SYSTEMS_FILE=$HOME/.abap-adt-mcp/systems.json \
-  -- npx -y abap-adt-mcp</code></pre></div>
-            <div class="code"><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button><pre><code>{
-  <span class="k">"mcpServers"</span>: {
-    <span class="k">"abap-adt-mcp"</span>: {
-      <span class="k">"command"</span>: <span class="s">"npx"</span>,
-      <span class="k">"args"</span>: [<span class="s">"-y"</span>, <span class="s">"abap-adt-mcp"</span>],
-      <span class="k">"env"</span>: {
-        <span class="k">"SAP_SYSTEMS_FILE"</span>: <span class="s">"/Users/me/.abap-adt-mcp/systems.json"</span>,
-        <span class="k">"MCP_TOOLSETS"</span>: <span class="s">"focused"</span>
-      }
-    }
-  }
-}</code></pre></div>
           </div>
         </div>
         <div class="step">
-          <div><h3>Say hello</h3><p>Open a new chat. The model calls <code>listSystems</code>, <code>login</code> (a browser window appears once for SSO), <code>searchObject</code> and <code>getObjectSource</code>. When the source comes back, you are done.</p></div>
-          <p class="say">List my SAP systems, log in to DEV and show me the source of class CL_ABAP_CHAR_UTILITIES.</p>
+          <div><h3>Say hello</h3><p>After the reload, open a new chat. The model calls <code>listSystems</code>, <code>login</code> (a browser window appears once for SSO), <code>searchObject</code> and <code>getObjectSource</code>. When the source comes back, you are done.</p></div>
+          <div class="say"><p class="said">List my SAP systems, log in to DEV and show me the source of class CL_ABAP_CHAR_UTILITIES.</p><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button></div>
         </div>
       </div>
-      <p class="note">If nothing appears in the host, read its MCP log: <code>spawn npx ENOENT</code> means Node.js is missing; no browser window means no Chromium found (<code>SAP_BROWSER_PATH</code> names one); on-prem, <code>/sap/bc/adt</code> must be active in <code>SICF</code>. The <a href="https://github.com/williansaez/abap-adt-mcp#troubleshooting">troubleshooting list</a> has the rest.</p>
+      <p class="note">If the SAP tools do not appear, run <code>npx -y abap-adt-mcp --check</code> in a terminal: one line per check, Node, the systems file, every system over HTTPS and the browser. Then read the host's MCP log: <code>spawn npx ENOENT</code> means Node.js is missing; no browser window means no Chromium found (<code>SAP_BROWSER_PATH</code> names one); on-prem, <code>/sap/bc/adt</code> must be active in <code>SICF</code>. The <a href="https://github.com/williansaez/abap-adt-mcp#troubleshooting">troubleshooting list</a> has the rest.</p>
     </div>
   </section>
 
@@ -386,8 +384,22 @@
     <div class="wrap">
       <h2>Other ways to install.</h2>
       <div class="ways">
-        <div><h3>Claude Code plugin</h3><p>The repository is its own plugin marketplace. Two commands register the server and load both skills, pinned to the release they ship with.</p><div class="code"><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button><pre class="sh"><code>/plugin marketplace add williansaez/abap-adt-mcp
-/plugin install abap-adt-mcp@abap-adt-mcp</code></pre></div></div>
+        <div><h3>Without the plugin</h3><p>For Claude Desktop chat, Cursor, Cline, VS Code with Copilot, or Claude Code without plugins. Claude Code takes the one line; the others take the JSON (Claude Desktop under Settings, Developer, Edit Config, then a restart; VS Code names the map <code>servers</code>). Write <code>systems.json</code> as in step 2.</p>
+<div class="code"><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button><pre class="sh"><code>claude mcp add abap-adt-mcp \
+  -e SAP_SYSTEMS_FILE=$HOME/.abap-adt-mcp/systems.json \
+  -- npx -y abap-adt-mcp</code></pre></div>
+            <div class="code"><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button><pre><code>{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"abap-adt-mcp"</span>: {
+      <span class="k">"command"</span>: <span class="s">"npx"</span>,
+      <span class="k">"args"</span>: [<span class="s">"-y"</span>, <span class="s">"abap-adt-mcp"</span>],
+      <span class="k">"env"</span>: {
+        <span class="k">"SAP_SYSTEMS_FILE"</span>: <span class="s">"/Users/me/.abap-adt-mcp/systems.json"</span>,
+        <span class="k">"MCP_TOOLSETS"</span>: <span class="s">"focused"</span>
+      }
+    }
+  }
+}</code></pre></div></div>
         <div><h3>Container</h3><p>Built from <code>node:22-alpine</code>, runs as the unprivileged <code>node</code> user, published to GHCR on every release. Browser SSO needs a local browser; <code>basic</code> and <code>oauth</code> destinations work inside.</p><div class="code"><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button><pre class="sh"><code>docker run -i --rm \
   -v "$PWD/systems.json:/config/systems.json:ro" \
   -e SAP_SYSTEMS_FILE=/config/systems.json \
@@ -404,9 +416,8 @@ cd abap-adt-mcp &amp;&amp; npm ci &amp;&amp; npm run build</code></pre></div></d
   <section class="close" id="start">
     <div class="wrap">
       <h2>One prompt away from your first activation.</h2>
-      <p class="intro">Node.js, a systems.json, one line in your host. The first chat can read a class; the guard rails decide what it may write.</p>
+      <p class="intro">Install the plugin, name your system, say hello. The first chat can read a class; the guard rails decide what it may write.</p>
       <div class="install">
-        <span class="chip">npx -y abap-adt-mcp <button type="button" class="copy" data-copy="npx -y abap-adt-mcp" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button></span>
         <a class="btn" href="https://github.com/williansaez/abap-adt-mcp">Read the README on GitHub</a>
       </div>
     </div>
@@ -433,11 +444,11 @@ cd abap-adt-mcp &amp;&amp; npm ci &amp;&amp; npm run build</code></pre></div></d
     const live = document.getElementById("live");
     document.querySelectorAll(".copy").forEach((btn) => {
       const idle = btn.textContent; let timer;
-      const source = () => btn.dataset.copy || (btn.parentElement.querySelector("pre") || {}).textContent || "";
+      const source = () => btn.dataset.copy || (btn.parentElement.querySelector("pre, .said") || {}).textContent || "";
       btn.addEventListener("click", async () => {
         clearTimeout(timer); let ok = false; const text = source().trim();
         try { await navigator.clipboard.writeText(text); ok = true; }
-        catch (e) { const pre = btn.parentElement.querySelector("pre") || btn.parentElement; const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); try { ok = document.execCommand("copy"); } catch (e2) {} s.removeAllRanges(); }
+        catch (e) { const pre = btn.parentElement.querySelector("pre, .said") || btn.parentElement; const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); try { ok = document.execCommand("copy"); } catch (e2) {} s.removeAllRanges(); }
         btn.dataset.state = ok ? "done" : "idle"; btn.textContent = ok ? btn.dataset.done : btn.dataset.fail; live.textContent = btn.textContent;
         timer = setTimeout(() => { btn.dataset.state = "idle"; btn.textContent = idle; live.textContent = ""; }, 2200);
       });

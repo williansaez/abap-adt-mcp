@@ -2,6 +2,18 @@
 
 The [README](../README.md#troubleshooting) lists the symptoms people hit first. This page goes one level down: how the server classifies an error, what each message means, where to look, and what the agent (or you) should do next. Options are in [docs/CONFIGURATION.md](CONFIGURATION.md), tool flows in [docs/WORKFLOWS.md](WORKFLOWS.md), the per-tool reference in [docs/TOOLS.md](TOOLS.md), authentication in [docs/AUTH.md](AUTH.md).
 
+## The server does not show up in the host
+
+Run the self-check in a terminal first; it needs no host and sends no credentials:
+
+```bash
+npx -y abap-adt-mcp --check
+```
+
+One line per check: Node.js (22.12 or newer), the systems file (path, valid JSON, every `${env:VAR}` set), each destination reached over HTTPS with its own TLS settings (any HTTP status, 401 included, means host, port and certificate are fine; `ENOTFOUND`, `ECONNREFUSED`, a timeout or a certificate error is named with its fix), and a browser when a destination uses `sso`. It exits 1 while a line reads `FAIL`.
+
+When `--check` is clean and the host still shows nothing, the host is starting something else: plain Claude Desktop chat never starts a plugin's MCP server (use Code, Cowork, or `claude_desktop_config.json`), and GUI apps on macOS do not see Node installed by nvm, fnm or Homebrew (`spawn npx ENOENT` in the host log; give the full path of `npx` as `command`). A server started before the systems file existed answers `healthcheck` with `status: "needsSetup"`: restart it (`/reload-plugins` in Claude Code).
+
 ## How an error reaches the model
 
 A failed call returns a text content item with `isError: true` whose text is a JSON object:

@@ -22,7 +22,7 @@ import https from 'https';
 import { CookieHttpClient } from './lib/cookieHttpClient.js';
 import { browserLogin } from './lib/browserLogin.js';
 import { getSso2Cookies } from './lib/sso2TicketProvider.js';
-import { readSystems, defaultDestination, SystemConfig } from './lib/systems.js';
+import { readSystems, defaultDestination, SystemConfig, NoSystemsConfiguredError } from './lib/systems.js';
 import { classifyAdtError } from './lib/adtErrorHints.js';
 import { redactSecrets } from './lib/redact.js';
 import { installProcessGuards } from './lib/processGuards.js';
@@ -36,6 +36,7 @@ import { TOOLSET_FEATURE } from './lib/systemProfile.js';
 import { AuditLog, summarizeArgs } from './lib/audit.js';
 import { buildHttpsAgent, describeTls, enforceTlsVerification } from './lib/tls.js';
 import { listPrompts, getPrompt } from './prompts.js';
+import { runSelfCheck } from './lib/selfCheck.js';
 import { createReporter, withProgress, withHeartbeat, reportProgress, ProgressReporter } from './lib/progress.js';
 import { AuthHandlers } from './handlers/AuthHandlers.js';
 import { TransportHandlers } from './handlers/TransportHandlers.js';
@@ -71,6 +72,8 @@ import { SnippetHandlers } from './handlers/SnippetHandlers.js';
 
 // Single source of truth for the version announced to MCP hosts (dist/ sits one level below package.json).
 const PACKAGE_VERSION: string = require("../package.json").version;
+/** Stand-in used only to enumerate tool schemas when no system is configured yet; never connected. */
+const SCHEMA_ONLY_SYSTEM: SystemConfig = { name: 'schema', url: 'https://localhost', authType: 'basic', user: 'schema', password: 'schema' };
 
 // quiet: dotenv 17 logs "injected env (N) from .env" to stdout by default, and
 // stdout is the JSON-RPC channel in stdio mode. One stray line breaks the host.
@@ -188,6 +191,8 @@ export class AbapAdtServer extends Server {
   private static warnedOnce = false;
   private systems: Map<string, SystemConfig>;
   private defaultDest?: string;
+  /** Set when no system is configured: only listSystems and healthcheck are offered, both carrying this text. */
+  private setupNeeded?: string;
   private pool = new Map<string, Destination>();
   private toolToHandlerKey = new Map<string, keyof HandlerSet>();
   private toolSchemas?: Map<string, any>;
@@ -218,7 +223,14 @@ export class AbapAdtServer extends Server {
       }
     );
 
-    this.systems = readSystems();
+    try {
+      this.systems = readSystems();
+    } catch (e) {
+      if (!(e instanceof NoSystemsConfiguredError)) throw e;
+      this.systems = new Map();
+      this.setupNeeded = e.message;
+      if (!AbapAdtServer.warnedOnce) console.error(`[abap-adt-mcp] ${e.message}`);
+    }
     this.defaultDest = defaultDestination(this.systems);
 
     // Surface TLS-verification bypasses loudly: they silently apply to every request.
@@ -240,7 +252,7 @@ export class AbapAdtServer extends Server {
     this.toolsets = resolveToolsets();
 
     // Handlers used only to enumerate tool schemas (never connected).
-    const firstSystem = [...this.systems.values()][0];
+    const firstSystem = [...this.systems.values()][0] ?? SCHEMA_ONLY_SYSTEM;
     this.schemaHandlers = this.buildHandlers(this.makeClient(firstSystem).adtClient);
     if (this.toolsets.active.length < Object.keys(TOOLSETS).length) {
       console.error(`[abap-adt-mcp] Active toolsets: ${this.toolsets.active.join(', ')} (${this.getToolCatalog().length} tools). Change with MCP_TOOLSETS / MCP_DISABLED_TOOLSETS.`);
@@ -493,6 +505,7 @@ export class AbapAdtServer extends Server {
       inputSchema: { type: 'object', properties: {} },
       annotations: { title: 'Healthcheck', ...toolAnnotations('healthcheck') },
     });
+    if (this.setupNeeded) return tools.filter((t) => t.name === 'listSystems' || t.name === 'healthcheck');
     tools.push(this.withDestination({
       name: 'systemProfile',
       description: 'Capability profile of a destination: platform (S/4HANA Cloud vs on-prem), system information, which ADT features the backend exposes (debugger, traces, abapGit, ATC, RAP generator, text search, API releases…) and therefore which toolsets/tools will not work there. Cached per destination; pass refresh=true to rebuild. Call it once before using debugger/traces/abapGit/RAP tools on an unfamiliar system.',
@@ -616,11 +629,12 @@ export class AbapAdtServer extends Server {
           ...(profile ? { platform: profile.platform, unavailableToolsets: profile.unavailableToolsets } : {}),
         };
       }));
-      return this.serializeResult({ systems, default: this.defaultDest, activeToolsets: this.toolsets.active });
+      return this.serializeResult({ systems, default: this.defaultDest, activeToolsets: this.toolsets.active, ...(this.setupNeeded ? { setup: this.setupNeeded } : {}) });
     }
     if (name === 'healthcheck') {
       return this.serializeResult({
-        status: 'healthy',
+        status: this.setupNeeded ? 'needsSetup' : 'healthy',
+        ...(this.setupNeeded ? { setup: this.setupNeeded } : {}),
         version: PACKAGE_VERSION,
         destinations: [...this.systems.keys()],
         default: this.defaultDest,
@@ -628,6 +642,8 @@ export class AbapAdtServer extends Server {
         tools: this.getToolCatalog().length,
       });
     }
+
+    if (this.setupNeeded) throw new McpError(ErrorCode.InvalidRequest, this.setupNeeded);
 
     // Resolve destination.
     const destination = rawArgs.destination || this.defaultDest;
@@ -788,7 +804,12 @@ export class AbapAdtServer extends Server {
 }
 
 // Start only when executed directly (tests and tooling import the class).
-if (require.main === module) {
+if (require.main === module && process.argv.includes('--version')) {
+  process.stdout.write(PACKAGE_VERSION + '\n');
+} else if (require.main === module && process.argv.includes('--check')) {
+  // Terminal self-check (lib/selfCheck.ts): not an MCP session, stdout is free.
+  runSelfCheck(PACKAGE_VERSION).then((code) => process.exit(code));
+} else if (require.main === module) {
   let server: AbapAdtServer;
   try {
     server = new AbapAdtServer();
