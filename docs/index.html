@@ -206,7 +206,7 @@
 
   <nav class="top" aria-label="Page">
     <div class="wrap">
-      <a class="wordmark" href="#top"><span class="rule"></span>abap-adt-mcp <span class="v">2.7.0</span></a>
+      <a class="wordmark" href="#top"><span class="rule"></span>abap-adt-mcp <span class="v">2.7.1</span></a>
       <ul>
         <li><a href="#setup">Setup</a></li>
         <li class="opt"><a href="#ask">What to ask</a></li>
@@ -404,7 +404,7 @@
   -v "$PWD/systems.json:/config/systems.json:ro" \
   -e SAP_SYSTEMS_FILE=/config/systems.json \
   ghcr.io/williansaez/abap-adt-mcp:latest</code></pre></div></div>
-        <div><h3>Pinned version</h3><p><code>npx -y abap-adt-mcp</code> fetches the newest release at every start. For a controlled rollout pin it and verify the provenance attestation trusted publishing attaches.</p><div class="code"><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button><pre class="sh"><code>npx -y abap-adt-mcp@2.7.0
+        <div><h3>Pinned version</h3><p><code>npx -y abap-adt-mcp</code> fetches the newest release at every start. For a controlled rollout pin it and verify the provenance attestation trusted publishing attaches.</p><div class="code"><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button><pre class="sh"><code>npx -y abap-adt-mcp@2.7.1
 npm audit signatures</code></pre></div></div>
         <div><h3>From source</h3><p>A <code>systems.json</code> next to the checkout is picked up automatically. Point the host at <code>dist/index.js</code>.</p><div class="code"><button type="button" class="copy" data-state="idle" data-done="Copied" data-fail="Select and copy">Copy</button><pre class="sh"><code>git clone https://github.com/williansaez/abap-adt-mcp.git
 cd abap-adt-mcp &amp;&amp; npm ci &amp;&amp; npm run build</code></pre></div></div>

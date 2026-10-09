@@ -218,7 +218,8 @@ The GitHub Copilot milestone (#17): VS Code agent mode and the Copilot CLI were 
 - Dependencies (Dependabot #48, #52, #53, #67): `@modelcontextprotocol/sdk` 1.30.1, `puppeteer-core` 25.11.0, `jest` 30.5.2 and its tooling, `@types/node` 22.20.4, and the security group `fast-uri` 3.1.8 (GHSA-hrr3-gc8f-f4qj), `brace-expansion` 2.1.7, `ip-address` 10.7.2. Lock file only; the ranges in `package.json` are unchanged.
 
 
-## [Unreleased]
+## [2.7.1] - 2026-10-09 - A first install that does not fail before setup, a self-check, the plugin first
+People were failing to install: a fresh plugin install showed the server as failed because it exited without a systems file, and nothing on a terminal said which part was wrong. This release starts the server in setup mode instead, adds `abap-adt-mcp --check`, teaches the setup skill to check the ground before writing anything, and rewrites the site so installing the plugin is the first step. Also: the README as an entry door in three languages, and two dependency bumps (puppeteer-core 25.12.0, @types/node 22.20.5).
 
 ### First install
 - **The server starts without a systems file.** With no `SAP_SYSTEMS`, no systems file and no `SAP_URL` it used to exit, so a fresh plugin install showed as failed in the host before anyone had a chance to configure it. It now starts in setup mode: only `listSystems` and `healthcheck`, the latter with `status: "needsSetup"`, both naming the missing file and the next step; every other tool answers with the same text.
