@@ -229,6 +229,8 @@ Then ask for `listSystems`: the destination must show `"transport": "rfc"`.
 
 Each RFC destination keeps two RFC connections by default (`"sessions": "split"` inside the `rfc` block), as Eclipse does. One carries only lock and unlock requests and holds the locks; the other carries everything else and is reset after every write, so a leftover session buffer cannot disturb the next request. Setting `"sessions": "single"` in the `rfc` block puts everything on one connection; it is meant as a fallback if a system misbehaves with `split`.
 
+On SAP_BASIS 7.40 the transport services live at an older address (`/sap/bc/cts/` instead of `/sap/bc/adt/cts/`); the server notices the first time a transport call is answered with 404 and uses the older address from then on, so transport tools work there too.
+
 Connections open on first use and reopen by themselves after the network or the gateway dropped them. An ABAP message or a short dump in the endpoint ends the session of its connection as well (the SDK closes the connection after them); the error itself is reported and the next call opens a new connection. Locks live in the ABAP session of the lock connection: when that connection ends for any of these reasons, its locks are gone and the error says so. Lock the object again and repeat the write.
 
 ## When something goes wrong

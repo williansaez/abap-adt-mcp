@@ -53,6 +53,19 @@ const DROPPED_QUERY_KEYS = new Set(['sap-client', 'sap-language']);
 /** Never forwarded to SAP (case-insensitive). */
 const STRIPPED_HEADERS = new Set(['cookie', 'authorization', 'x-csrf-token', 'x-sap-adt-sessiontype', 'accept-encoding', 'content-length', 'host']);
 const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+/**
+ * The Change and Transport System resources moved under /sap/bc/adt/cts/ in
+ * later releases; SAP_BASIS 7.40 still serves them at /sap/bc/cts/ (its ADT
+ * discovery lists /sap/bc/cts/transports, transportchecks, transportrequests).
+ * abap-adt-api calls the new path, which such a system answers with 404.
+ */
+const CTS_ADT_PREFIX = '/sap/bc/adt/cts/';
+const CTS_LEGACY_PREFIX = '/sap/bc/cts/';
+
+/** The same request on the older CTS path, or undefined when uri is not a CTS request. */
+export function legacyCtsUri(uri: string): string | undefined {
+  return uri.startsWith(CTS_ADT_PREFIX) ? CTS_LEGACY_PREFIX + uri.slice(CTS_ADT_PREFIX.length) : undefined;
+}
 /** Status for an <exc:exception> body when an old release sends no STATUS_CODE. */
 const EXCEPTION_STATUS: Record<string, number> = {
   ExceptionResourceNotFound: 404,
@@ -231,6 +244,8 @@ export class RfcHttpClient implements HttpClient {
   private readonly enqueue: Slot;
   private readonly work: Slot;
   private override: RfcLogonParams = {};
+  /** Set once the system answered a /sap/bc/adt/cts/ request with 404 and served it on /sap/bc/cts/. */
+  private ctsLegacy = false;
   /**
    * Set after SAP refused a password logon: no further password logon is
    * attempted until allowLogonAgain() (the login tool) or a restart, so failed
@@ -269,16 +284,33 @@ export class RfcHttpClient implements HttpClient {
     }
 
     const slot = isLockRequest(options.url, qs) ? this.enqueue : this.work;
+    const uri = buildUri(options.url, qs);
     const sadt: SadtRequest = {
       method: method === 'HEAD' ? 'GET' : method,
-      uri: buildUri(options.url, qs),
+      uri: this.ctsLegacy ? (legacyCtsUri(uri) ?? uri) : uri,
       version: 'HTTP/1.1',
       headers: buildHeaders(options.headers as Record<string, unknown>),
       body: bodyBuffer((options as { body?: unknown }).body),
     };
     const isRead = READ_METHODS.has(method);
 
-    const res = await this.serialize(slot, async () => {
+    let res = await this.send(slot, sadt, options, isRead);
+    // A 404 on the newer CTS path means the request was not executed: ask the
+    // older path once, and keep using it for this destination when it answers.
+    const legacy = !this.ctsLegacy ? legacyCtsUri(sadt.uri) : undefined;
+    if (legacy && toHttpResponse(res).status === 404) {
+      const retry = await this.send(slot, { ...sadt, uri: legacy }, options, isRead);
+      if (toHttpResponse(retry).status !== 404) {
+        this.ctsLegacy = true;
+        res = retry;
+      }
+    }
+    return toHttpResponse(res, method === 'HEAD');
+  }
+
+  /** One SADT_REST_RFC_ENDPOINT call on the slot's connection, serialized with the slot's other calls. */
+  private send(slot: Slot, sadt: SadtRequest, options: HttpClientOptions, isRead: boolean): Promise<SadtResponse> {
+    return this.serialize(slot, async () => {
       const reused = !!slot.conn && !slot.conn.closed;
       let conn = await this.acquire(slot, options);
       let out: SadtResponse;
@@ -294,7 +326,6 @@ export class RfcHttpClient implements HttpClient {
       if (this.options.sessions === 'split' && slot === this.work && !isRead) await this.resetQuietly(slot);
       return out;
     });
-    return toHttpResponse(res, method === 'HEAD');
   }
 
   /**

@@ -280,6 +280,28 @@ describe('RfcHttpClient', () => {
     await expect(client.request({ url: '/sap/bc/adt/x', method: 'PUT', headers: {}, body: 'x' })).rejects.toThrow(/lost/);
   });
 
+  it('falls back to the older CTS path of SAP_BASIS 7.40 once, then uses it directly', async () => {
+    const seen: string[] = [];
+    const connector = new FakeConnector(async (req) => {
+      seen.push(`${req.method} ${req.uri}`);
+      if (req.uri.startsWith('/sap/bc/adt/cts/')) return { version: 'HTTP/1.1', statusCode: '404', reasonPhrase: 'Not Found', headers: [], body: Buffer.alloc(0) };
+      return ok('<ok/>');
+    });
+    const client = makeClient(connector);
+    const first = await client.request({ url: '/sap/bc/adt/cts/transportchecks', method: 'POST', headers: {}, body: '<x/>' });
+    expect(first.status).toBe(200);
+    const second = await client.request(GET('/sap/bc/adt/cts/transportrequests', { qs: { user: 'MLS_BC' } }));
+    expect(second.status).toBe(200);
+    expect(seen).toEqual([
+      'POST /sap/bc/adt/cts/transportchecks',
+      'POST /sap/bc/cts/transportchecks',
+      'GET /sap/bc/cts/transportrequests?user=MLS_BC',
+    ]);
+    // a 404 outside the CTS paths is SAP's answer and is returned as is
+    const other = makeClient(new FakeConnector(async () => ({ version: 'HTTP/1.1', statusCode: '404', reasonPhrase: 'Not Found', headers: [], body: Buffer.alloc(0) })));
+    expect((await other.request(GET('/sap/bc/adt/programs/programs/zmissing'))).status).toBe(404);
+  });
+
   it('refuses a wrong password once, then makes no further logon attempt until login or a restart', async () => {
     const connector = new FakeConnector();
     let attempts = 0;

@@ -245,6 +245,7 @@ People were failing to install: a fresh plugin install showed the server as fail
 - The SDK's `dev_rfc.log` and traces go to `~/.abap-adt-mcp/rfc` (mode 0700), and `sapnwrfc.ini` is read only from there, never from the folder the host started in (often the user's project).
 - A process that loaded the SDK used to hang on exit (the SDK closes stdout at exit and koffi's exit-time flush then blocks); the server now ends through the C runtime's immediate exit once everything Node runs on exit has run. Only RFC destinations load the SDK.
 - `runClass` and `runSnippet` on an RFC destination with the default split sessions keep the locks: the request connection is fresh after every write. With `rfc.sessions: "single"` they end that session for a fresh load and report the released locks.
+- Transport tools work on SAP_BASIS 7.40 over RFC: that release serves the Change and Transport System at `/sap/bc/cts/` (its ADT discovery says so) instead of `/sap/bc/adt/cts/`; a 404 on the newer path is retried once on the older one, which the destination then keeps using.
 - `transport` and `rfc` keys that mean nothing (an unknown transport, an `rfc` block without `transport: "rfc"`) are ignored with a warning, so an existing `systems.json` keeps loading.
 
 ### Fixes
