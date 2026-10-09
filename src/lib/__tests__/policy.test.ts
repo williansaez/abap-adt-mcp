@@ -213,3 +213,13 @@ describe('systems.json policy parsing', () => {
     expect((await evaluatePolicy({ readOnly: true }, 'exportPackageSources', { packageName: 'ZX', targetDir: '/tmp' }, c)).allowed).toBe(true);
   });
 });
+
+describe('objectUrlOf and program includes', () => {
+  it('keeps a program include as the object and still cuts class includes and sources', () => {
+    // deleteObject of /sap/bc/adt/programs/includes/zmcp_rfc_x_inc locked /sap/bc/adt/programs on P03.
+    expect(objectUrlOf('/sap/bc/adt/programs/includes/zmcp_rfc_x_inc')).toBe('/sap/bc/adt/programs/includes/zmcp_rfc_x_inc');
+    expect(objectUrlOf('/sap/bc/adt/programs/includes/zmcp_rfc_x_inc/source/main')).toBe('/sap/bc/adt/programs/includes/zmcp_rfc_x_inc');
+    expect(objectUrlOf('/sap/bc/adt/oo/classes/zcl_x/includes/testclasses')).toBe('/sap/bc/adt/oo/classes/zcl_x');
+    expect(objectUrlOf('/sap/bc/adt/programs/programs/zrep/source/main#start=3')).toBe('/sap/bc/adt/programs/programs/zrep');
+  });
+});
