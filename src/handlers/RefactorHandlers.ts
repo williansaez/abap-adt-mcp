@@ -222,6 +222,10 @@ export class RefactorHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             if (error instanceof McpError) throw error;
+            // SAP_BASIS 7.40 has no change package refactoring and rejects its relation.
+            if (/Unknown value for parameter 'relation'/i.test(this.formatAdtError(error))) {
+                throw new McpError(ErrorCode.InvalidRequest, `Change package is not available on this system: SAP rejected the refactoring relation (${this.formatAdtError(error)}). SAP_BASIS 7.40 and older have no change package refactoring in ADT; change the package in SAP GUI (SE03, Change Object Directory Entries, or SE80). Nothing was changed.`);
+            }
             throw this.adtFailure(`Failed to preview change package`, error);
         }
     }

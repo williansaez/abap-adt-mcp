@@ -32,3 +32,14 @@ describe('changePackagePreview', () => {
     expect(sent).toHaveLength(0);
   });
 });
+
+describe('changePackagePreview on SAP_BASIS 7.40', () => {
+  it('explains the rejected refactoring relation', async () => {
+    const { adtException } = require('abap-adt-api/build/AdtException');
+    const client: any = {
+      objectStructure: jest.fn(async () => ({ metaData: { 'adtcore:name': 'ZMCP_RFC_PROG', 'adtcore:type': 'PROG/P' } })),
+      changePackagePreview: jest.fn(async () => { throw adtException("Unknown value for parameter 'relation': http://www.sap.com/adt/relations/refactoring/chang", 500); })
+    };
+    await expect(new RefactorHandlers(client).handle('changePackagePreview', ARGS)).rejects.toThrow(/not available on this system.*SE03/);
+  });
+});
