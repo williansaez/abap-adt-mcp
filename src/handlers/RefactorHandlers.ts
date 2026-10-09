@@ -198,6 +198,14 @@ export class RefactorHandlers extends BaseHandler {
     async handleChangePackagePreview(args: any): Promise<any> {
         const startTime = performance.now();
         try {
+            // abap-adt-api serializes affectedObjects as one object and reads its
+            // name and type; undefined there threw before any request was sent.
+            const structure: any = await this.adtclient.objectStructure(args.objectUrl);
+            const name = structure?.metaData?.['adtcore:name'];
+            const type = structure?.metaData?.['adtcore:type'];
+            if (!name || !type) {
+                throw new McpError(ErrorCode.InvalidParams, `Could not read the name and type of ${args.objectUrl}; pass the object URL (e.g. /sap/bc/adt/programs/programs/zreport), not a source URL`);
+            }
             const proposal: any = {
                 oldPackage: args.oldPackage,
                 newPackage: args.newPackage,
@@ -206,13 +214,14 @@ export class RefactorHandlers extends BaseHandler {
                 ignoreSyntaxErrorsAllowed: false,
                 ignoreSyntaxErrors: false,
                 userContent: '',
-                affectedObjects: undefined
+                affectedObjects: { uri: args.objectUrl, type, name, oldPackage: args.oldPackage, newPackage: args.newPackage, parentUri: '' }
             };
             const result = await this.adtclient.changePackagePreview(proposal as ChangePackageRefactoring, args.transport);
             this.trackRequest(startTime, true);
             return { content: [{ type: 'text', text: JSON.stringify({ status: 'success', refactoring: result, next: 'changePackageExecute' }) }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
             throw this.adtFailure(`Failed to preview change package`, error);
         }
     }
