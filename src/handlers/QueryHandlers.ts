@@ -4,6 +4,7 @@ import type { ToolDefinition } from '../types/tools.js';
 import { SAFE_OUTPUT_CHARS, shrinkToFit } from '../lib/responseSizing.js';
 import { reflowSql, dataPreviewHint } from '../lib/sqlReflow.js';
 import { normalizeQueryResult } from '../lib/queryDecode.js';
+import { httpStatusOf } from '../lib/adtErrorHints.js';
 
 // SAP-side cap on rows requested from the ADT service itself (tableContents/
 // runQuery `rowNumber` param). Independent from the JSON-output-size
@@ -145,7 +146,11 @@ export class QueryHandlers extends BaseHandler {
         } catch (error: any) {
             this.trackRequest(startTime, false);
             const message = this.formatAdtError(error);
-            const hint = dataPreviewHint(message);
+            // SQL errors come back as 400; a 404 means the free-style preview
+            // itself is missing, as on SAP_BASIS 7.40 (only datapreview/ddic and /cds).
+            const hint = httpStatusOf(error) === 404
+                ? 'Free SQL is not available on this system (no /sap/bc/adt/datapreview/freestyle, e.g. SAP_BASIS 7.40). Use tableContents(ddicEntityName, sqlQuery: "select * from <table> where ...") instead.'
+                : dataPreviewHint(message);
             throw Object.assign(new Error(`Failed to run query: ${message}${hint ? ` Hint: ${hint}` : ''}`), { cause: error });
         }
     }

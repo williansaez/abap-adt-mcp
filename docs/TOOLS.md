@@ -697,7 +697,7 @@ See also: [`setTextElements`](#settextelements), [`lock`](#lock), [`getObjectSou
 
 ⚠️ Set Text Elements · toolset `source` · destructive
 
-Write text elements (text symbols, selection texts or list headings) of a locked object. Pass the full list for the category: elements missing from the list are removed. Requires lock (lockHandle) and, for transportable packages, a transport. Not available on SAP_BASIS 7.40 and older: the tool refuses there instead of writing.
+Write text elements (text symbols, selection texts or list headings) of a locked object. Pass the full list for the category: elements missing from the list are removed. Requires lock (lockHandle) and, for transportable packages, a transport. Not available on SAP_BASIS 7.40 and older (no text element resources in ADT).
 
 | Parameter | Type | Required | Description | Example |
 |---|---|---|---|---|

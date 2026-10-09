@@ -24,6 +24,8 @@ describe('reflowSql', () => {
   it('explains data preview refusals and truncation errors', () => {
     expect(dataPreviewHint('The use of element STATUS of Table ZX is not permitted')).toMatch(/tableContents/);
     expect(dataPreviewHint('A Boolean expression was expected in "MATERIAL".')).toMatch(/255-character/);
+    // SAP_BASIS 7.40 (P03) rejects a field list in the DDIC preview with this message.
+    expect(dataPreviewHint('No contexto OO são necessárias especificações de comprimento explícitas nos tipos C, P, X, N e W.')).toMatch(/select \* from/);
     expect(dataPreviewHint('something else')).toBeUndefined();
   });
 });

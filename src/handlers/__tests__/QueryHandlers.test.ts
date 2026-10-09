@@ -1,5 +1,6 @@
 import { parseQueryResponse, decodeQueryResult } from 'abap-adt-api/build/api/tablecontents';
 import { QueryHandlers } from '../QueryHandlers';
+import { adtException } from 'abap-adt-api/build/AdtException';
 
 const column = (name: string, type: string, values: string[]) =>
   `<dataPreview:columns><dataPreview:metadata dataPreview:name="${name}" dataPreview:type="${type}" dataPreview:description="d" dataPreview:keyAttribute="false" dataPreview:colType="" dataPreview:isKeyFigure="false" dataPreview:length="10"/>` +
@@ -53,5 +54,15 @@ describe('tableContents and runQuery values', () => {
     const payload = JSON.parse((await handler.handle('tableContents', { ddicEntityName: 'KONV', startRow: 1, maxRows: 1 })).content[0].text);
     expect(payload).toMatchObject({ totalRows: 2, startRow: 1, returnedRows: 1, hasMore: false });
     expect(payload.result.values).toEqual([{ KWERT: '1234567890123456.78', KPOSN: '000020', ERDAT: '00000000', KSCHL: '' }]);
+  });
+});
+
+describe('runQuery on a release without the free-style preview', () => {
+  it('points to tableContents on a 404 and keeps the SQL hints for other errors', async () => {
+    const { client, handler } = make();
+    client.runQuery.mockRejectedValueOnce(adtException('Error 404:Not Found', 404));
+    await expect(handler.handle('runQuery', { sqlQuery: 'select * from t000' })).rejects.toThrow(/Free SQL is not available.*tableContents/);
+    client.runQuery.mockRejectedValueOnce(Object.assign(new Error('A Boolean expression was expected in "X".'), { status: 400 }));
+    await expect(handler.handle('runQuery', { sqlQuery: 'select * from t000' })).rejects.toThrow(/255-character/);
   });
 });

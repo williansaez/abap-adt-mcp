@@ -1,3 +1,4 @@
+import { adtException } from 'abap-adt-api/build/AdtException';
 import { AtcHandlers } from '../AtcHandlers';
 import { usageReferencesExplained } from '../../lib/usageReferences';
 
@@ -10,7 +11,8 @@ function makeHandler(checkVariant: () => Promise<string>) {
 }
 
 describe('ATC on a release without /sap/bc/adt/atc/worklists', () => {
-  const notFound = async (): Promise<string> => { throw Object.assign(new Error('Not Found'), { status: 404 }); };
+  // abap-adt-api throws err=404 without status/response for an exc:exception or empty 404 body.
+  const notFound = async (): Promise<string> => { throw adtException('No suitable resource found', 404); };
 
   it('says the ADT ATC flow is missing instead of a bare Not Found', async () => {
     const { client, handler } = makeHandler(notFound);
@@ -30,7 +32,7 @@ describe('ATC on a release without /sap/bc/adt/atc/worklists', () => {
 
 describe('where-used on a release without usageReferences', () => {
   it('explains the 404 and passes other errors through', async () => {
-    const missing: any = { usageReferences: jest.fn(async () => { throw Object.assign(new Error('Not Found'), { status: 404 }); }) };
+    const missing: any = { usageReferences: jest.fn(async () => { throw adtException('No suitable resource found', 404); }) };
     await expect(usageReferencesExplained(missing, '/sap/bc/adt/oo/classes/cl_x')).rejects.toThrow(/SAP_BASIS 7.40 and older/);
     const broken: any = { usageReferences: jest.fn(async () => { throw Object.assign(new Error('boom'), { status: 500 }); }) };
     await expect(usageReferencesExplained(broken, '/x')).rejects.toThrow('boom');

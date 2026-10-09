@@ -6,6 +6,7 @@ import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { shrinkToFit, SAFE_OUTPUT_CHARS } from '../lib/responseSizing.js';
 import { reportProgress } from '../lib/progress.js';
 import { htmlToText } from '../lib/htmlText.js';
+import { httpStatusOf } from '../lib/adtErrorHints.js';
 
 export class AtcHandlers extends BaseHandler {
     getTools(): ToolDefinition[] {
@@ -459,8 +460,7 @@ export class AtcHandlers extends BaseHandler {
         try {
             return await this.adtclient.atcCheckVariant(variant);
         } catch (error: any) {
-            const status = error?.status ?? error?.response?.status;
-            if (status === 404) {
+            if (httpStatusOf(error) === 404) {
                 throw new McpError(ErrorCode.InvalidRequest, `ATC check variant worklists are not available on this system (POST /sap/bc/adt/atc/worklists answers 404; SAP_BASIS 7.40 and older have no such resource). Run the ATC in SAP GUI (transaction ATC or SCI) for this release.`);
             }
             throw error;

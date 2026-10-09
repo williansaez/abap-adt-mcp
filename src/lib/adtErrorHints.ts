@@ -215,6 +215,12 @@ function isSynthetic500(err: any): boolean {
   return err.type === '' && !err.namespace && !err.response && !/^Error 500:/.test(String(err.message || ''));
 }
 
+/** HTTP status of an error from abap-adt-api or the HTTP/RFC clients, wherever the library put it (status, err, response.status). */
+export function httpStatusOf(err: unknown): number | undefined {
+  const e: any = err;
+  return extractStatus(e, String(e?.message ?? ''));
+}
+
 function extractStatus(err: any, text: string): number | undefined {
   const candidates = [err?.status, isSynthetic500(err) ? undefined : err?.err, err?.response?.status, err?.parent?.status, err?.parent?.response?.status];
   for (const c of candidates) {
