@@ -5,6 +5,7 @@ import { ADTClient } from 'abap-adt-api';
 import { sourceCache } from '../lib/sourceCache.js';
 import { SAFE_OUTPUT_CHARS, shrinkToFit } from '../lib/responseSizing.js';
 import { htmlToText, stripAbapDocChrome } from '../lib/htmlText.js';
+import { usageReferencesExplained } from '../lib/usageReferences.js';
 
 export class CodeAnalysisHandlers extends BaseHandler {
     getTools(): ToolDefinition[] {
@@ -383,11 +384,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
     async handleUsageReferences(args: any): Promise<any> {
         const startTime = performance.now();
         try {
-            const result = await this.adtclient.usageReferences(
-                args.url,
-                args.line,
-                args.column
-            );
+            const result = await usageReferencesExplained(this.adtclient, args.url, args.line, args.column);
             this.trackRequest(startTime, true);
 
             const requestedPaging = args.startIndex !== undefined || args.maxItems !== undefined;
@@ -428,6 +425,7 @@ export class CodeAnalysisHandlers extends BaseHandler {
             return { content: [{ type: 'text', text }] };
         } catch (error: any) {
             this.trackRequest(startTime, false);
+            if (error instanceof McpError) throw error;
             throw this.adtFailure(`Usage references failed`, error);
         }
     }

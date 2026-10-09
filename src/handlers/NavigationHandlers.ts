@@ -8,6 +8,7 @@ import { abapgitFileName, CLASS_INCLUDES, EXPORTABLE_TYPES, resolveExportDir } f
 import { reportProgress } from '../lib/progress.js';
 import fs from 'fs';
 import path from 'path';
+import { usageReferencesExplained } from '../lib/usageReferences.js';
 
 /**
  * Navigation helpers that abap-adt-api already implements but were never
@@ -249,7 +250,7 @@ export class NavigationHandlers extends BaseHandler {
                 throw new McpError(ErrorCode.InvalidRequest, `${name} is ambiguous: ${exact.map(h => h['adtcore:type']).join(', ')}. Pass objType.`);
             }
             const target = exact[0];
-            const refs: any[] = await this.adtclient.usageReferences(target['adtcore:uri']);
+            const refs: any[] = await usageReferencesExplained(this.adtclient, target['adtcore:uri']);
             this.trackRequest(startTime, true);
             const toRow = (r: any) => ({ object: r.objectIdentifier, uri: r.uri, parentUri: r.parentUri, usage: r.usageInformation, canHaveChildren: r.canHaveChildren });
             const results = refs.filter(r => r.isResult !== false).map(toRow);
