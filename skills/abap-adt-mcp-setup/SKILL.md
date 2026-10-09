@@ -5,6 +5,12 @@ description: Install and configure the abap-adt-mcp MCP server for an MCP host (
 
 # Setting up abap-adt-mcp
 
+## 0. Check the ground first
+Do this before writing any file; most failed installs stop here.
+1. Where is the user talking to you? The plugin's MCP server runs in Claude Code (terminal, the Code tab of the desktop app, VS Code) and in Cowork sessions on the user's computer. Plain chat in Claude Desktop loads this skill but never starts the server: there the server goes into `claude_desktop_config.json` by hand (section 2, without the plugin). The plugin never writes that file.
+2. Run `node -v` (22.12 or newer) and `which npx` (`where npx` on Windows). Node from nvm, fnm or Homebrew is often invisible to GUI apps on macOS: the host log then shows `spawn npx ENOENT`. Fix by giving the full path of `npx` as `command`, or install Node from nodejs.org.
+3. Run `npx -y abap-adt-mcp --check`. It prints one line per check (Node, systems file, every destination over HTTPS with its TLS settings, a browser for SSO) and exits 1 when something must be fixed. Before step 1 it reports the missing systems file; that is expected. No credentials are sent.
+
 ## 1. Describe the SAP systems
 Create `~/.abap-adt-mcp/systems.json` (mode 0600) with one entry per destination:
 
@@ -25,8 +31,12 @@ Create `~/.abap-adt-mcp/systems.json` (mode 0600) with one entry per destination
 - Secrets: never inline. `${env:VAR}` works in every string and a missing variable fails at startup by name. A file readable by others is refused when it holds an inline password.
 - TLS stays on. `tls.ca` adds a corporate or self-signed CA; `tls.servername` names the certificate when the system is reached by IP address or short hostname; `tls.cert`/`tls.key` or `tls.pfx` for client certificates. `insecureTls: true` is the last resort, per destination, announced at startup. `NODE_TLS_REJECT_UNAUTHORIZED=0` is ignored by the server.
 
+Then run `npx -y abap-adt-mcp --check` again: every line should read `ok` (an HTTP 401 from a destination is fine, it only means no credentials were sent).
+
 ## 2. Register the server in the host
-Server key `abap-adt-mcp` (keep this key: public ABAP skills route by it).
+Installed as the plugin (Claude Code or Cowork), the server is already registered and reads `~/.abap-adt-mcp/systems.json`. Without that file it starts in setup mode: only `listSystems` and `healthcheck`, both answering `needsSetup` with these instructions. After writing the file, tell the user to run `/reload-plugins` (or start a new session), then go to section 3. Skip the rest of this section.
+
+Without the plugin, server key `abap-adt-mcp` (keep this key: public ABAP skills route by it). Claude Desktop chat: Settings, Developer, Edit Config opens `claude_desktop_config.json`; add the map below and restart the app.
 
 Claude Code (`.mcp.json` or `claude mcp add`):
 ```json
@@ -40,7 +50,8 @@ From a source checkout use `"command": "node", "args": ["/abs/path/abap-adt-mcp/
 Useful environment variables: `MCP_TOOLSETS=focused` (114 development tools instead of 173) or a comma list of toolsets, `MCP_DISABLED_TOOLSETS=debugger,traces`, `MCP_MAX_RESPONSE_CHARS`, `MCP_HTTP_PORT` (Streamable HTTP with bearer token, `MCP_HTTP_HOST=0.0.0.0` only in containers).
 
 ## 3. Verify
-1. `healthcheck`: version, destinations, active toolsets, tool count.
+Call the tools yourself; do not tell the user setup is done before step 5 succeeds.
+1. `healthcheck`: version, destinations, active toolsets, tool count. `status: "needsSetup"` means the server started before the systems file existed: reload it. If the tool does not exist at all, the server is not running in this host: go back to section 0 and read the host's MCP log (Claude Desktop on macOS: `~/Library/Logs/Claude/mcp-server-abap-adt-mcp.log` or `mcp*.log` there; Windows: `%APPDATA%\Claude\logs`).
 2. `listSystems`: every destination with its policy.
 3. `login(destination)` for SSO destinations (browser window once).
 4. `systemProfile(destination)`: platform and unavailable toolsets.
@@ -52,3 +63,4 @@ Useful environment variables: `MCP_TOOLSETS=focused` (114 development tools inst
 - Tool refused with `policyDenied`: adjust the destination's `policy`.
 - Tool refused as unavailable: the system lacks that ADT collection (see `systemProfile`); when the debugger toolset is missing use `dumps`/`dumpDetails`. `MCP_PROFILE_GATE=warn` logs instead of refusing, `off` disables the gate.
 - Node 22.12+ required (22 or 24 LTS).
+- Server listed as failed or missing in the host: `npx -y abap-adt-mcp --check` in a terminal shows which part breaks, then the host log shows how the host starts it.

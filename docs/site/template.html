@@ -112,6 +112,11 @@
     .step { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: clamp(20px, 3vw, 48px); align-items: start; }
     .step h3 { font-size: 1.5rem; font-weight: 900; }
     .step p { margin-top: 12px; color: var(--soft); font-size: 16px; }
+    .step .or { margin-top: 20px; font-size: 15px; color: var(--soft); }
+    .step .paths { margin: 10px 0 0; padding-left: 1.2em; color: var(--soft); font-size: 15.5px; display: grid; gap: 8px; }
+    .step .paths + .code, .step .or + .code { margin-top: 14px; }
+    .step .say .said { margin: 0; color: inherit; font-size: inherit; }
+    .step .say .copy { display: block; margin-top: 16px; }
     .step .say { font-size: 20px; line-height: 1.45; color: var(--prompt); background: rgba(217,119,87,0.16); border: 2px solid rgba(217,119,87,0.5); border-radius: 18px 18px 18px 6px; padding: 22px 26px; max-width: none; }
 
     table { width: 100%; border-collapse: collapse; margin-top: 28px; font-size: 15.5px; table-layout: fixed; }
@@ -169,7 +174,6 @@
       body { font-size: 16px; }
       .hero { padding-top: 28px; }
       .hero > div:first-child .lede { order: 3; margin-top: 22px; }
-      .hero > div:first-child .install { order: 2; margin-top: 22px; }
       .hero > div:first-child .facts { order: 4; margin-top: 22px; }
       .wordmark .v { display: none; }
       nav.top ul a { font-size: 13px; }
@@ -217,10 +221,6 @@
     <div>
       <h1>{{heroTitle}}</h1>
       <p class="lede">{{heroLede}}</p>
-      <div class="install">
-        <span class="chip">npx -y abap-adt-mcp <button type="button" class="copy" data-copy="npx -y abap-adt-mcp" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button></span>
-        <a class="btn" href="#setup">{{heroCta}}</a>
-      </div>
       <div class="facts"><span><b>173 {{toolsWord}}</b>, 16 {{toolsetsWord}}</span><span>{{factSystems}}</span><span>Node.js 22.12+</span><span>MIT</span></div>
     </div>
     <figure><div class="player"><video controls preload="none" playsinline poster="{{base}}media/brag/film.jpg" src="https://github.com/williansaez/abap-adt-mcp/releases/download/v2.7.0/brag-film.mp4" aria-label="{{film0Aria}}"><track kind="captions" srclang="en" label="English" src="{{base}}media/brag/film.vtt" /></video></div></figure>
@@ -234,7 +234,24 @@
       <div class="steps">
         <div class="step">
           <div><h3>{{step1Title}}</h3><p>{{step1Text}}</p></div>
-          <div class="code"><button type="button" class="copy" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button><pre><code>{
+          <div>
+            <div class="say"><p class="said">{{step1Say}}</p><button type="button" class="copy" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button></div>
+            <p class="or">{{step1Or}}</p>
+            <ul class="paths">
+              <li>{{step1PathCli}}</li>
+              <li>{{step1PathCowork}}</li>
+            </ul>
+            <div class="code"><button type="button" class="copy" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button><pre class="sh"><code>/plugin marketplace add williansaez/abap-adt-mcp
+/plugin install abap-adt-mcp@abap-adt-mcp
+/reload-plugins</code></pre></div>
+          </div>
+        </div>
+        <div class="step">
+          <div><h3>{{step2Title}}</h3><p>{{step2Text}}</p></div>
+          <div>
+            <div class="say"><p class="said">{{step2Say}}</p><button type="button" class="copy" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button></div>
+            <p class="or">{{step2Or}}</p>
+            <div class="code"><button type="button" class="copy" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button><pre><code>{
   <span class="k">"DEV"</span>: {
     <span class="k">"url"</span>: <span class="s">"https://myXXXXXX.s4hana.cloud.sap"</span>,
     <span class="k">"client"</span>: <span class="s">"080"</span>,
@@ -243,30 +260,11 @@
     <span class="k">"policy"</span>: { <span class="k">"readOnly"</span>: true }
   }
 }</code></pre></div>
-        </div>
-        <div class="step">
-          <div><h3>{{step2Title}}</h3><p>{{step2Text}}</p></div>
-          <div>
-            <div class="code"><button type="button" class="copy" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button><pre class="sh"><code>claude mcp add abap-adt-mcp \
-  -e SAP_SYSTEMS_FILE=$HOME/.abap-adt-mcp/systems.json \
-  -- npx -y abap-adt-mcp</code></pre></div>
-            <div class="code"><button type="button" class="copy" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button><pre><code>{
-  <span class="k">"mcpServers"</span>: {
-    <span class="k">"abap-adt-mcp"</span>: {
-      <span class="k">"command"</span>: <span class="s">"npx"</span>,
-      <span class="k">"args"</span>: [<span class="s">"-y"</span>, <span class="s">"abap-adt-mcp"</span>],
-      <span class="k">"env"</span>: {
-        <span class="k">"SAP_SYSTEMS_FILE"</span>: <span class="s">"/Users/me/.abap-adt-mcp/systems.json"</span>,
-        <span class="k">"MCP_TOOLSETS"</span>: <span class="s">"focused"</span>
-      }
-    }
-  }
-}</code></pre></div>
           </div>
         </div>
         <div class="step">
           <div><h3>{{step3Title}}</h3><p>{{step3Text}}</p></div>
-          <p class="say">{{step3Say}}</p>
+          <div class="say"><p class="said">{{step3Say}}</p><button type="button" class="copy" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button></div>
         </div>
       </div>
       <p class="note">{{setupTrouble}}</p>
@@ -383,8 +381,22 @@
     <div class="wrap">
       <h2>{{installTitle}}</h2>
       <div class="ways">
-        <div><h3>{{wayPluginTitle}}</h3><p>{{wayPluginText}}</p><div class="code"><button type="button" class="copy" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button><pre class="sh"><code>/plugin marketplace add williansaez/abap-adt-mcp
-/plugin install abap-adt-mcp@abap-adt-mcp</code></pre></div></div>
+        <div><h3>{{wayManualTitle}}</h3><p>{{wayManualText}}</p>
+<div class="code"><button type="button" class="copy" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button><pre class="sh"><code>claude mcp add abap-adt-mcp \
+  -e SAP_SYSTEMS_FILE=$HOME/.abap-adt-mcp/systems.json \
+  -- npx -y abap-adt-mcp</code></pre></div>
+            <div class="code"><button type="button" class="copy" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button><pre><code>{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"abap-adt-mcp"</span>: {
+      <span class="k">"command"</span>: <span class="s">"npx"</span>,
+      <span class="k">"args"</span>: [<span class="s">"-y"</span>, <span class="s">"abap-adt-mcp"</span>],
+      <span class="k">"env"</span>: {
+        <span class="k">"SAP_SYSTEMS_FILE"</span>: <span class="s">"/Users/me/.abap-adt-mcp/systems.json"</span>,
+        <span class="k">"MCP_TOOLSETS"</span>: <span class="s">"focused"</span>
+      }
+    }
+  }
+}</code></pre></div></div>
         <div><h3>{{wayContainerTitle}}</h3><p>{{wayContainerText}}</p><div class="code"><button type="button" class="copy" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button><pre class="sh"><code>docker run -i --rm \
   -v "$PWD/systems.json:/config/systems.json:ro" \
   -e SAP_SYSTEMS_FILE=/config/systems.json \
@@ -403,7 +415,6 @@ cd abap-adt-mcp &amp;&amp; npm ci &amp;&amp; npm run build</code></pre></div></d
       <h2>{{closeTitle}}</h2>
       <p class="intro">{{closeText}}</p>
       <div class="install">
-        <span class="chip">npx -y abap-adt-mcp <button type="button" class="copy" data-copy="npx -y abap-adt-mcp" data-state="idle" data-done="{{copied}}" data-fail="{{copyFail}}">{{copy}}</button></span>
         <a class="btn" href="https://github.com/williansaez/abap-adt-mcp">{{closeCta}}</a>
       </div>
     </div>
@@ -430,11 +441,11 @@ cd abap-adt-mcp &amp;&amp; npm ci &amp;&amp; npm run build</code></pre></div></d
     const live = document.getElementById("live");
     document.querySelectorAll(".copy").forEach((btn) => {
       const idle = btn.textContent; let timer;
-      const source = () => btn.dataset.copy || (btn.parentElement.querySelector("pre") || {}).textContent || "";
+      const source = () => btn.dataset.copy || (btn.parentElement.querySelector("pre, .said") || {}).textContent || "";
       btn.addEventListener("click", async () => {
         clearTimeout(timer); let ok = false; const text = source().trim();
         try { await navigator.clipboard.writeText(text); ok = true; }
-        catch (e) { const pre = btn.parentElement.querySelector("pre") || btn.parentElement; const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); try { ok = document.execCommand("copy"); } catch (e2) {} s.removeAllRanges(); }
+        catch (e) { const pre = btn.parentElement.querySelector("pre, .said") || btn.parentElement; const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); try { ok = document.execCommand("copy"); } catch (e2) {} s.removeAllRanges(); }
         btn.dataset.state = ok ? "done" : "idle"; btn.textContent = ok ? btn.dataset.done : btn.dataset.fail; live.textContent = btn.textContent;
         timer = setTimeout(() => { btn.dataset.state = "idle"; btn.textContent = idle; live.textContent = ""; }, 2200);
       });
