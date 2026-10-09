@@ -99,6 +99,16 @@ describe('auto-lock writes', () => {
     expect(client.unLock).not.toHaveBeenCalled();
     expect(res.lockMode).toBe('explicit');
   });
+
+  it('says to unlock first when activation fails under a lock the caller keeps', async () => {
+    // P03, SAP_BASIS 7.40: "Usuário MLS_BC já está processando ZMCP_RFC_X" with the lock held.
+    const { client, handler } = makeHandler('a');
+    client.activate.mockRejectedValue(new Error('Usuário MLS_BC já está processando ZMCP_RFC_X'));
+    const held = parse(await handler.handle('setObjectSource', { objectSourceUrl: URL, source: 'x', lockHandle: 'LH', activate: true }));
+    expect(held.activation).toMatchObject({ success: false, hint: expect.stringMatching(/call unLock for it, then activateByName/) });
+    const auto = parse(await handler.handle('setObjectSource', { objectSourceUrl: URL, source: 'y', activate: true }));
+    expect(auto.activation.hint).toBeUndefined();
+  });
 });
 
 describe('getMethodSource / setMethodSource', () => {

@@ -599,36 +599,3 @@ describe('RfcHttpClient logon cut off by SAP', () => {
   });
 });
 
-describe('RfcHttpClient activation under an explicit lock (split sessions)', () => {
-  // P03, 2026-10-09: with a lock held across writes, activation in the work session failed
-  // with "Usuário MLS_BC já está processando ZMCP_RFC_X": the lock lives in the enqueue session.
-  const activate = { url: '/sap/bc/adt/activation', method: 'POST' as const, headers: {}, qs: { method: 'activate', preauditRequested: true }, body: '<x/>' };
-
-  it('activates in the enqueue session while it holds a lock, and in the work session otherwise', async () => {
-    const connector = new FakeConnector();
-    const client = makeClient(connector);
-    await client.request(activate);
-    expect(connector.opened).toHaveLength(1);
-    const work = connector.opened[0];
-    expect(work.calls.map(c => c.uri)).toEqual([expect.stringMatching(/^\/sap\/bc\/adt\/activation/)]);
-
-    await client.request(lockReq('LOCK'));
-    const enqueue = connector.opened[1];
-    await client.request(activate);
-    expect(enqueue.calls.map(c => c.uri)).toEqual([expect.stringMatching(/_action=LOCK/), expect.stringMatching(/^\/sap\/bc\/adt\/activation/)]);
-
-    await client.request(lockReq('UNLOCK'));
-    await client.request(activate);
-    expect(work.calls.filter(c => c.uri.startsWith('/sap/bc/adt/activation'))).toHaveLength(2);
-  });
-
-  it('forgets the locks when the enqueue session ends', async () => {
-    const connector = new FakeConnector();
-    const client = makeClient(connector);
-    await client.request(lockReq('LOCK'));
-    await client.endStatefulSession();
-    await client.request(activate);
-    const activations = connector.opened.flatMap(c => c.calls.filter(x => x.uri.startsWith('/sap/bc/adt/activation')).map(() => c.id));
-    expect(activations).toEqual([1]);
-  });
-});

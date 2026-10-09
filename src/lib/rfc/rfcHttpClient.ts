@@ -59,11 +59,7 @@ interface Slot {
   conn?: RfcConnection;
   /** Serializes everything that touches this connection. */
   chain: Promise<unknown>;
-  /** Objects this connection's session holds enqueue locks on (LOCK answered, UNLOCK not yet). */
-  locked: Set<string>;
 }
-
-const ACTIVATION_PATH = '/sap/bc/adt/activation';
 
 const GRAPH_PATH = '/sap/bc/adt/compatibility/graph';
 const LOGOFF_PATH = '/sap/public/bc/icf/logoff';
@@ -274,10 +270,10 @@ export class RfcHttpClient implements HttpClient {
 
   constructor(private readonly options: RfcHttpClientOptions) {
     if (options.sessions === 'single') {
-      this.enqueue = this.work = { name: 'single', holdsLocks: true, chain: Promise.resolve(), locked: new Set() };
+      this.enqueue = this.work = { name: 'single', holdsLocks: true, chain: Promise.resolve() };
     } else {
-      this.enqueue = { name: 'enqueue', holdsLocks: true, chain: Promise.resolve(), locked: new Set() };
-      this.work = { name: 'work', holdsLocks: false, chain: Promise.resolve(), locked: new Set() };
+      this.enqueue = { name: 'enqueue', holdsLocks: true, chain: Promise.resolve() };
+      this.work = { name: 'work', holdsLocks: false, chain: Promise.resolve() };
     }
   }
 
@@ -302,14 +298,7 @@ export class RfcHttpClient implements HttpClient {
       await this.endStatefulSession();
     }
 
-    const lockAction = isLockRequest(options.url, qs);
-    // SAP checks at activation that the enqueue lock belongs to the activating
-    // session. While the enqueue session holds a lock (an explicit lock kept
-    // across writes), activation in the work session fails with "user X is
-    // already editing": send it where the lock lives, as Eclipse does in its
-    // one session.
-    const activatesUnderLock = method === 'POST' && target.path === ACTIVATION_PATH && this.enqueue !== this.work && this.enqueue.locked.size > 0;
-    const slot = lockAction || activatesUnderLock ? this.enqueue : this.work;
+    const slot = isLockRequest(options.url, qs) ? this.enqueue : this.work;
     const uri = buildUri(options.url, qs);
     const sadt: SadtRequest = {
       method: method === 'HEAD' ? 'GET' : method,
@@ -330,11 +319,6 @@ export class RfcHttpClient implements HttpClient {
         this.ctsLegacy = true;
         res = retry;
       }
-    }
-    if (lockAction && toHttpResponse(res).status < 400) {
-      const action = String(qsEntries(qs).find(([k]) => k === '_action')?.[1] ?? parseTarget(options.url).urlPairs.filter(p => pairKey(p) === '_action').map(pairValue)[0] ?? '').trim().toUpperCase();
-      if (action === 'LOCK') slot.locked.add(target.path.toLowerCase());
-      else slot.locked.delete(target.path.toLowerCase());
     }
     return toHttpResponse(res, method === 'HEAD');
   }
@@ -370,7 +354,7 @@ export class RfcHttpClient implements HttpClient {
       const conn = slot.conn;
       if (!conn) return;
       if (conn.closed) { await this.forget(slot); return; }
-      try { await conn.reset(); slot.locked.clear(); } catch { await this.forget(slot); }
+      try { await conn.reset(); } catch { await this.forget(slot); }
     });
   }
 
@@ -410,7 +394,6 @@ export class RfcHttpClient implements HttpClient {
   private async forget(slot: Slot): Promise<void> {
     const conn = slot.conn;
     slot.conn = undefined;
-    slot.locked.clear();
     if (conn) {
       try { await conn.close(); } catch { /* the connection is gone either way */ }
     }
