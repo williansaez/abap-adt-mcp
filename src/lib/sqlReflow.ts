@@ -44,6 +44,9 @@ export function dataPreviewHint(message: string): string | undefined {
   if (/256|255|Boolean expression was expected|Substring access|subcpo|text literal/i.test(m)) {
     return 'The data preview reads the statement in 255-character lines. The server already wraps long statements; if this still fails, a single literal or identifier is longer than 255 characters, or the SQL has a real syntax error at the named token.';
   }
+  if (/new OpenSQL syntax is used, it must be used throughout|nova sintaxe OpenSQL/i.test(m)) {
+    return 'SAP_BASIS 7.40 cannot preview a CDS entity this way; read its SQL view instead (the name in @AbapCatalog.sqlViewName), e.g. tableContents(ddicEntityName: "ZMYSQLVIEW").';
+  }
   if (/explicit length|comprimento expl[ií]cit|Längenangabe/i.test(m)) {
     return 'SAP_BASIS 7.40 builds a program from the statement and rejects a field list there; select every column instead: select * from <table> where ...';
   }

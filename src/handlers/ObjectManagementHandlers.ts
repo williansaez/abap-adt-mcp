@@ -3,6 +3,7 @@ import { BaseHandler } from './BaseHandler';
 import type { ToolDefinition } from '../types/tools';
 import { shrinkToFit, SAFE_OUTPUT_CHARS } from '../lib/responseSizing';
 import { walkPackage } from '../lib/packageWalk';
+import { parseFlatInactiveObjects } from '../lib/inactiveObjects740.js';
 
 interface InactiveObject {
   "adtcore:uri": string;
@@ -152,12 +153,14 @@ export class ObjectManagementHandlers extends BaseHandler {
           throw new Error("Parsed objects must be an array");
         }
         
-        // Validate each object has required properties
-        objects.forEach((obj, index) => {
-          if (!obj["adtcore:uri"] || !obj["adtcore:type"] || 
-              !obj["adtcore:name"] || !obj["adtcore:parentUri"]) {
-            throw new Error(`Object at index ${index} is missing required properties`);
+        // Main objects (programs, classes) have no parent: parentUri is
+        // optional, and abap-adt-api writes it as is, so default it to ''
+        // instead of sending the text "undefined".
+        objects = objects.map((obj, index) => {
+          if (!obj["adtcore:uri"] || !obj["adtcore:type"] || !obj["adtcore:name"]) {
+            throw new Error(`Object at index ${index} needs adtcore:uri, adtcore:type and adtcore:name`);
           }
+          return { ...obj, "adtcore:parentUri": obj["adtcore:parentUri"] ?? "" };
         });
       } catch (parseError: any) {
         throw new McpError(
@@ -215,7 +218,12 @@ export class ObjectManagementHandlers extends BaseHandler {
   async handleInactiveObjects(args: any): Promise<any> {
     const startTime = performance.now();
     try {
-      const result: InactiveObjectRecord[] = await this.adtclient.inactiveObjects();
+      let result: InactiveObjectRecord[] = await this.adtclient.inactiveObjects();
+      if (result.length === 0) {
+        // SAP_BASIS 7.40 sends a flat objectReferences list the library reads as empty.
+        const raw = await this.adtclient.httpClient.request('/sap/bc/adt/activation/inactiveobjects', { headers: { Accept: 'application/vnd.sap.adt.inactivectsobjects.v1+xml, application/xml;q=0.8' } });
+        result = parseFlatInactiveObjects(raw.body) as InactiveObjectRecord[];
+      }
       this.trackRequest(startTime, true);
 
       const requestedPaging = args.startIndex !== undefined || args.maxItems !== undefined;

@@ -560,3 +560,75 @@ describe('server wiring of transport rfc', () => {
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('locks held in the RFC session are gone'));
   });
 });
+
+describe('RfcHttpClient logon cut off by SAP', () => {
+  // P03, 2026-10-09: right after SM04 ended every session of the user, RfcOpenConnection
+  // failed with RFC_CLOSED / CM_NO_DATA_RECEIVED; 90 seconds later the same ticket logged on.
+  const cutOff = () => new RfcError('connection closed without message (CM_NO_DATA_RECEIVED)', RFC_RC.RFC_CLOSED, 'RFC_CLOSED');
+
+  class FlakyConnector extends FakeConnector {
+    attempts = 0;
+    constructor(private failures: number, private error: () => unknown = cutOff) { super(); }
+    async open(params: RfcLogonParams): Promise<RfcConnection> {
+      this.attempts++;
+      if (this.attempts <= this.failures) throw this.error();
+      return super.open(params);
+    }
+  }
+
+  it('tries the logon again and goes on once SAP accepts it', async () => {
+    const connector = new FlakyConnector(2);
+    const client = makeClient(connector, { logonRetryDelaysMs: [0, 0, 0] });
+    await expect(client.request(GET('/sap/bc/adt/discovery'))).resolves.toMatchObject({ status: 200 });
+    expect(connector.attempts).toBe(3);
+    expect(connector.opened).toHaveLength(1);
+  });
+
+  it('stops after the last wait with a message that says what happened and what to do', async () => {
+    const connector = new FlakyConnector(99);
+    const err: any = await makeClient(connector, { logonRetryDelaysMs: [0, 0] }).request(GET('/x')).catch(e => e);
+    expect(connector.attempts).toBe(3);
+    expect(err.code).toBe('RFC_CLOSED');
+    expect(err.message).toMatch(/during the logon 3 times.*sessions were ended \(SM04\): try again in a minute.*call login for DEV/);
+  });
+
+  it('does not retry an unreachable host', async () => {
+    const connector = new FlakyConnector(99, () => new RfcError('partner h:3300 not reached', RFC_RC.RFC_COMMUNICATION_FAILURE, 'RFC_COMMUNICATION_FAILURE'));
+    await expect(makeClient(connector, { logonRetryDelaysMs: [0, 0, 0] }).request(GET('/x'))).rejects.toThrow(/RFC_COMMUNICATION_FAILURE/);
+    expect(connector.attempts).toBe(1);
+  });
+});
+
+describe('RfcHttpClient activation under an explicit lock (split sessions)', () => {
+  // P03, 2026-10-09: with a lock held across writes, activation in the work session failed
+  // with "Usuário MLS_BC já está processando ZMCP_RFC_X": the lock lives in the enqueue session.
+  const activate = { url: '/sap/bc/adt/activation', method: 'POST' as const, headers: {}, qs: { method: 'activate', preauditRequested: true }, body: '<x/>' };
+
+  it('activates in the enqueue session while it holds a lock, and in the work session otherwise', async () => {
+    const connector = new FakeConnector();
+    const client = makeClient(connector);
+    await client.request(activate);
+    expect(connector.opened).toHaveLength(1);
+    const work = connector.opened[0];
+    expect(work.calls.map(c => c.uri)).toEqual([expect.stringMatching(/^\/sap\/bc\/adt\/activation/)]);
+
+    await client.request(lockReq('LOCK'));
+    const enqueue = connector.opened[1];
+    await client.request(activate);
+    expect(enqueue.calls.map(c => c.uri)).toEqual([expect.stringMatching(/_action=LOCK/), expect.stringMatching(/^\/sap\/bc\/adt\/activation/)]);
+
+    await client.request(lockReq('UNLOCK'));
+    await client.request(activate);
+    expect(work.calls.filter(c => c.uri.startsWith('/sap/bc/adt/activation'))).toHaveLength(2);
+  });
+
+  it('forgets the locks when the enqueue session ends', async () => {
+    const connector = new FakeConnector();
+    const client = makeClient(connector);
+    await client.request(lockReq('LOCK'));
+    await client.endStatefulSession();
+    await client.request(activate);
+    const activations = connector.opened.flatMap(c => c.calls.filter(x => x.uri.startsWith('/sap/bc/adt/activation')).map(() => c.id));
+    expect(activations).toEqual([1]);
+  });
+});

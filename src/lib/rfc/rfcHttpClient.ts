@@ -33,7 +33,22 @@ export interface RfcHttpClientOptions {
   sessions: 'split' | 'single';
   /** Called when the connection that holds the locks is gone without the server asking for it. */
   onSessionLost?: (reason: string) => void;
+  /** Waits before each new logon attempt after a logon cut off by SAP (see logonCutOff); tests pass zeros. */
+  logonRetryDelaysMs?: number[];
 }
+
+/**
+ * SAP accepted the connection and closed it during the logon, without an
+ * answer. Seen on P03 right after all sessions of the user were ended in SM04:
+ * new RFC logons failed this way for well under 90 seconds, then the same
+ * ticket worked again. A wrong host or a closed port fails with
+ * RFC_COMMUNICATION_FAILURE instead and is not retried.
+ */
+function logonCutOff(e: unknown): boolean {
+  return isRfcError(e) && e.rfcCode === RFC_RC.RFC_CLOSED && /CM_NO_DATA_RECEIVED/.test(String((e as any).message ?? ''));
+}
+
+const DEFAULT_LOGON_RETRY_DELAYS_MS = [3000, 7000, 15000];
 
 type SlotName = 'enqueue' | 'work' | 'single';
 
@@ -44,7 +59,11 @@ interface Slot {
   conn?: RfcConnection;
   /** Serializes everything that touches this connection. */
   chain: Promise<unknown>;
+  /** Objects this connection's session holds enqueue locks on (LOCK answered, UNLOCK not yet). */
+  locked: Set<string>;
 }
+
+const ACTIVATION_PATH = '/sap/bc/adt/activation';
 
 const GRAPH_PATH = '/sap/bc/adt/compatibility/graph';
 const LOGOFF_PATH = '/sap/public/bc/icf/logoff';
@@ -255,10 +274,10 @@ export class RfcHttpClient implements HttpClient {
 
   constructor(private readonly options: RfcHttpClientOptions) {
     if (options.sessions === 'single') {
-      this.enqueue = this.work = { name: 'single', holdsLocks: true, chain: Promise.resolve() };
+      this.enqueue = this.work = { name: 'single', holdsLocks: true, chain: Promise.resolve(), locked: new Set() };
     } else {
-      this.enqueue = { name: 'enqueue', holdsLocks: true, chain: Promise.resolve() };
-      this.work = { name: 'work', holdsLocks: false, chain: Promise.resolve() };
+      this.enqueue = { name: 'enqueue', holdsLocks: true, chain: Promise.resolve(), locked: new Set() };
+      this.work = { name: 'work', holdsLocks: false, chain: Promise.resolve(), locked: new Set() };
     }
   }
 
@@ -283,7 +302,14 @@ export class RfcHttpClient implements HttpClient {
       await this.endStatefulSession();
     }
 
-    const slot = isLockRequest(options.url, qs) ? this.enqueue : this.work;
+    const lockAction = isLockRequest(options.url, qs);
+    // SAP checks at activation that the enqueue lock belongs to the activating
+    // session. While the enqueue session holds a lock (an explicit lock kept
+    // across writes), activation in the work session fails with "user X is
+    // already editing": send it where the lock lives, as Eclipse does in its
+    // one session.
+    const activatesUnderLock = method === 'POST' && target.path === ACTIVATION_PATH && this.enqueue !== this.work && this.enqueue.locked.size > 0;
+    const slot = lockAction || activatesUnderLock ? this.enqueue : this.work;
     const uri = buildUri(options.url, qs);
     const sadt: SadtRequest = {
       method: method === 'HEAD' ? 'GET' : method,
@@ -304,6 +330,11 @@ export class RfcHttpClient implements HttpClient {
         this.ctsLegacy = true;
         res = retry;
       }
+    }
+    if (lockAction && toHttpResponse(res).status < 400) {
+      const action = String(qsEntries(qs).find(([k]) => k === '_action')?.[1] ?? parseTarget(options.url).urlPairs.filter(p => pairKey(p) === '_action').map(pairValue)[0] ?? '').trim().toUpperCase();
+      if (action === 'LOCK') slot.locked.add(target.path.toLowerCase());
+      else slot.locked.delete(target.path.toLowerCase());
     }
     return toHttpResponse(res, method === 'HEAD');
   }
@@ -339,7 +370,7 @@ export class RfcHttpClient implements HttpClient {
       const conn = slot.conn;
       if (!conn) return;
       if (conn.closed) { await this.forget(slot); return; }
-      try { await conn.reset(); } catch { await this.forget(slot); }
+      try { await conn.reset(); slot.locked.clear(); } catch { await this.forget(slot); }
     });
   }
 
@@ -379,6 +410,7 @@ export class RfcHttpClient implements HttpClient {
   private async forget(slot: Slot): Promise<void> {
     const conn = slot.conn;
     slot.conn = undefined;
+    slot.locked.clear();
     if (conn) {
       try { await conn.close(); } catch { /* the connection is gone either way */ }
     }
@@ -416,18 +448,30 @@ export class RfcHttpClient implements HttpClient {
     if (!params.USER && !params.MYSAPSSO2 && !Object.keys(params).some(k => k.startsWith('SNC_'))) {
       throw this.exception(`RFC logon to ${this.options.destination} failed: no user and no logon ticket; log in first`, 'RFC_LOGON_FAILURE', 401, request);
     }
-    try {
-      return await connector.open(params);
-    } catch (e) {
-      // A refused ticket logon is an expired SSO session: answer 401 so the
-      // server logs in again once. A refused password logon is not retried, so
-      // repeated attempts cannot lock the SAP user.
-      if (logonFailure(e) && !params.MYSAPSSO2) {
-        const msg = (e as any)?.message ? String((e as any).message) : String(e);
-        this.refusedLogon = `RFC logon to ${this.options.destination} was refused: ${msg}.`;
-        throw this.exception(`${this.refusedLogon} The server makes no further logon attempt for this destination until login is called or the server restarts, so failed attempts cannot add up to a locked SAP user.`, 'RFC_LOGON_FAILURE', undefined, request, e);
+    const delays = this.options.logonRetryDelaysMs ?? DEFAULT_LOGON_RETRY_DELAYS_MS;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await connector.open(params);
+      } catch (e) {
+        if (logonCutOff(e)) {
+          if (attempt < delays.length) {
+            await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+            continue;
+          }
+          const msg = (e as any)?.message ? String((e as any).message) : String(e);
+          const waited = Math.round(delays.reduce((a, b) => a + b, 0) / 1000);
+          throw this.exception(`RFC connection to ${this.options.destination} could not be opened (RFC_CLOSED): SAP closed the connection during the logon ${attempt + 1} times over ${waited} seconds (${msg}). This happens for a short while after the user's sessions were ended (SM04): try again in a minute. If it goes on, call login for ${this.options.destination}.`, 'RFC_CLOSED', undefined, request, e);
+        }
+        // A refused ticket logon is an expired SSO session: answer 401 so the
+        // server logs in again once. A refused password logon is not retried, so
+        // repeated attempts cannot lock the SAP user.
+        if (logonFailure(e) && !params.MYSAPSSO2) {
+          const msg = (e as any)?.message ? String((e as any).message) : String(e);
+          this.refusedLogon = `RFC logon to ${this.options.destination} was refused: ${msg}.`;
+          throw this.exception(`${this.refusedLogon} The server makes no further logon attempt for this destination until login is called or the server restarts, so failed attempts cannot add up to a locked SAP user.`, 'RFC_LOGON_FAILURE', undefined, request, e);
+        }
+        throw this.wrap(e, 'open', request);
       }
-      throw this.wrap(e, 'open', request);
     }
   }
 

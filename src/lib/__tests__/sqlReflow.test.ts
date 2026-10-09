@@ -26,6 +26,8 @@ describe('reflowSql', () => {
     expect(dataPreviewHint('A Boolean expression was expected in "MATERIAL".')).toMatch(/255-character/);
     // SAP_BASIS 7.40 (P03) rejects a field list in the DDIC preview with this message.
     expect(dataPreviewHint('No contexto OO são necessárias especificações de comprimento explícitas nos tipos C, P, X, N e W.')).toMatch(/select \* from/);
+    // ...and this one for a CDS entity (ZMCP_RFC_CDS on P03); its SQL view ZMCPRFCV read fine.
+    expect(dataPreviewHint('If the new OpenSQL syntax is used, it must be used throughout. This includes using @ to escape host variables.')).toMatch(/sqlViewName/);
     expect(dataPreviewHint('something else')).toBeUndefined();
   });
 });
