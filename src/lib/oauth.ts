@@ -69,6 +69,9 @@ export function makeBearerFetcher(cfg: OAuthConfig): BearerFetcher {
         Accept: 'application/json',
       },
       body: body.toString(),
+      // A token endpoint that stops answering (sleep, VPN drop) fails the call
+      // instead of holding the destination's queue.
+      signal: AbortSignal.timeout(60_000),
     });
 
     const text = await res.text();

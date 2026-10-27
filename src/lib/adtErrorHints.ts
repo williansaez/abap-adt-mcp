@@ -15,6 +15,8 @@ export interface AdtErrorClassification {
   status?: number;
   hint?: string;
   nextTools?: string[];
+  /** sessionExpired only: the logon is still valid, only the stateful ABAP session context ended (ICMENOSESSION). */
+  contextLost?: boolean;
 }
 
 /** Where the failing call was going; lets a hint name the destination and fill in its host and port. */
@@ -209,6 +211,32 @@ function networkHint(ctx: AdtErrorContext | undefined): string {
  * SAP did send carries the exception namespace, the response, or the
  * "Error 500:" text of an empty body.
  */
+const CONTEXT_LOST_HINT = 'The stateful SAP session ended (ICM: "Session Timed Out", ICMENOSESSION), usually after a while without calls. The server opened a new session and retried once; locks held in the old session are gone, so lock again before writing (listLocks shows what the server still holds). If this error still surfaces, call login for the destination.';
+
+/**
+ * The ICM answers a request for a stateful session context that no longer
+ * exists (it timed out after inactivity, or was ended) with 400, the header
+ * sap-err-id: ICMENOSESSION and an HTML page "Session Timed Out". The logon
+ * cookies are still valid; only the sap-contextid cookie is dead. The answer
+ * sits on the error itself or on the axios error abap-adt-api wraps.
+ */
+export function isSessionContextLost(err: unknown): boolean {
+  const seen = new Set<unknown>();
+  const check = (e: any): boolean => {
+    if (!e || typeof e !== 'object' || seen.has(e)) return false;
+    seen.add(e);
+    for (const r of [e.response, e]) {
+      const headers = r?.headers || {};
+      const id = headers['sap-err-id'] ?? headers['x-sap-icm-err-id'] ?? headers['SAP-ERR-ID'];
+      if (String(id ?? '').toUpperCase() === 'ICMENOSESSION') return true;
+      const body = r?.body ?? r?.data;
+      if (typeof body === 'string' && /ICMENOSESSION|\b400 Session Timed Out\b/i.test(body.slice(0, 4000))) return true;
+    }
+    return check(e.parent) || check(e.cause);
+  };
+  return check(err);
+}
+
 function isSynthetic500(err: any): boolean {
   if (Number(err?.err) !== 500) return false;
   if (err.type === 'Unknown error') return true;
@@ -273,6 +301,11 @@ export function classifyAdtError(input: unknown, context?: AdtErrorContext): Adt
 
   if (isNetworkFailure(err, text)) {
     return { kind: 'network', status: undefined, hint: networkHint(context), nextTools: ['listSystems', 'listLocks'] };
+  }
+
+  // Before the 400 rule below: a timed-out stateful session is not a bad request.
+  if ((status === 400 || status === undefined) && isSessionContextLost(err)) {
+    return { kind: 'sessionExpired', status, contextLost: true, hint: CONTEXT_LOST_HINT, nextTools: ['lock', 'listLocks', 'login'] };
   }
 
   let kind: AdtErrorKind = 'unknown';

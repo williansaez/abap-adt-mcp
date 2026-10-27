@@ -625,6 +625,12 @@ All variables declared in [server.json](../server.json), plus a few the server r
 | `MCP_HTTP_ALLOWED_ORIGINS` | unset | Comma list of `Origin` values allowed; `*` allows any. Loopback origins always pass on a loopback bind; requests without `Origin` (every non-browser client) always pass. |
 | `MCP_HTTP_ALLOWED_HOSTS` | unset | Comma list of `Host` header values allowed, with or without port; `*` allows any. Only consulted on a loopback bind, where loopback hosts always pass; on a non-loopback bind every `Host` passes and the variable is never needed. The matrix is in section 6. |
 
+**Connections**
+
+| Variable | Default | Effect |
+|---|---|---|
+| `SAP_REQUEST_TIMEOUT_SECONDS` | `600` | Seconds an ADT request over HTTP may go without receiving anything before it fails with `kind: "network"`. Without it, a request written into a connection that died while the machine was locked or asleep (Wi-Fi or VPN dropped) never returned, and every later call of that destination waited behind it. `0` waits forever, as before this setting existed; a negative or non-numeric value falls back to `600`. The default sits above the usual ICM timeouts so a long ATC run or package activation is not cut off; `debuggerListen` keeps its own long wait. Read once at process start. Idle keep-alive sockets are also closed after 30 seconds, and when the server notices the process was suspended (a timer firing more than a minute late) it closes every connection, which ends a request that was in flight; the stateful ADT session lives in its cookies and survives both. |
+
 **Browser SSO**
 
 | Variable | Default | Effect |

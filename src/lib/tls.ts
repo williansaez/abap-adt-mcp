@@ -7,6 +7,7 @@
  */
 import fs from 'fs';
 import https from 'https';
+import { IDLE_SOCKET_MS } from './connectionHealth.js';
 
 export interface TlsConfig {
   ca?: string;
@@ -70,7 +71,9 @@ export function enforceTlsVerification(env: NodeJS.ProcessEnv = process.env): bo
  * in. Turning verification off is then a choice that has to name a destination.
  */
 export function buildHttpsAgent(tls: TlsConfig | undefined, insecureTls: boolean | undefined): https.Agent {
-  const options: https.AgentOptions = { keepAlive: true, rejectUnauthorized: !insecureTls };
+  // timeout closes idle pooled sockets only (a request in flight is not cut by
+  // it): a socket that died while the machine slept is never reused.
+  const options: https.AgentOptions = { keepAlive: true, timeout: IDLE_SOCKET_MS, rejectUnauthorized: !insecureTls };
   if (tls) {
     const ca = loadPemMaterial(tls.ca, 'ca');
     const cert = loadPemMaterial(tls.cert, 'cert');
