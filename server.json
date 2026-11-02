@@ -212,6 +212,11 @@
           "isRequired": false
         },
         {
+          "name": "SAP_REQUEST_TIMEOUT_SECONDS",
+          "description": "Seconds an ADT request may receive nothing before it fails as a network error, so a connection that died while the machine slept cannot hang every call (default 600; 0 waits forever)",
+          "isRequired": false
+        },
+        {
           "name": "MCP_SOURCE_CACHE_TTL_SECONDS",
           "description": "Lifetime of the per-session source cache used by grepPackage, cdsViewInfo and syntaxCheckCode (default 300; 0 keeps entries until logout)",
           "isRequired": false

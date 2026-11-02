@@ -51,7 +51,7 @@ export class CookieHttpClient {
   private axiosInstance: AxiosInstance;
   private readonly baseOrigin: string;
 
-  constructor(private baseURL: string, cookies: HarvestedCookie[], allowUnauthorized = false, private sapClient?: string, agent?: https.Agent) {
+  constructor(private baseURL: string, cookies: HarvestedCookie[], allowUnauthorized = false, private sapClient?: string, agent?: https.Agent, timeoutMs?: number) {
     this.baseOrigin = new URL(baseURL).origin;
     for (const c of cookies) this.jar.set(c.name, c.value);
     this.axiosInstance = axios.create({
@@ -65,6 +65,10 @@ export class CookieHttpClient {
       // rule for any other construction, so no path here leaves the decision to
       // the environment.
       httpsAgent: agent ?? new https.Agent({ keepAlive: true, rejectUnauthorized: !allowUnauthorized }),
+      // Socket inactivity limit: a request on a connection that died (sleep,
+      // VPN drop) fails instead of waiting forever. A per-request timeout from
+      // the library still wins.
+      timeout: timeoutMs,
     });
   }
 
@@ -72,6 +76,11 @@ export class CookieHttpClient {
   setCookies(cookies: HarvestedCookie[]): void {
     this.jar.clear();
     for (const c of cookies) this.jar.set(c.name, c.value);
+  }
+
+  /** Drop the cookies whose name matches (the dead sap-contextid of a timed-out session). */
+  forgetCookies(name: RegExp): void {
+    for (const k of [...this.jar.keys()]) if (name.test(k)) this.jar.delete(k);
   }
 
   private cookieHeader(): string {

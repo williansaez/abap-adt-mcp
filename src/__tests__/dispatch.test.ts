@@ -128,6 +128,45 @@ describe('dispatch', () => {
     await expect(server.dispatch('getObjectSource', { objectSourceUrl: '/x' }, onRetry)).rejects.toThrow(/401/);
   });
 
+  // The ICM answer for a stateful session that timed out after inactivity.
+  const sessionTimedOut = () => Object.assign(new Error('Request failed with status code 400'), {
+    parent: { status: 400, response: { status: 400, headers: { 'sap-err-id': 'ICMENOSESSION' }, data: '400 Session Timed Out' } },
+  });
+
+  it('opens a new session without a full re-authentication when the stateful session timed out', async () => {
+    let calls = 0;
+    const dest = stub(server, 'DEV', 'objectSource', async () => {
+      if (++calls === 1) throw sessionTimedOut();
+      return { source: 'after renewal' };
+    });
+    const jar: Map<string, string> = (dest.adtClient.httpClient as any).cookie;
+    jar.set('sap-contextid', 'sap-contextid=dead');
+    jar.set('SAP_SESSIONID_X_100', 'SAP_SESSIONID_X_100=s');
+    dest.adtClient.login = jest.fn(async () => { expect(jar.has('sap-contextid')).toBe(false); });
+    require('../lib/lockLedger').recordLock(dest.adtClient, '/sap/bc/adt/oo/classes/zcl_x', 'H1');
+    server.reauthenticate = jest.fn(async () => undefined);
+    const onRetry = jest.fn();
+
+    expect(text(await server.dispatch('getObjectSource', { objectSourceUrl: '/x' }, onRetry))).toEqual({ source: 'after renewal' });
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(dest.adtClient.login).toHaveBeenCalledTimes(1);
+    expect(server.reauthenticate).not.toHaveBeenCalled();
+    // Locks lived in the ended session.
+    expect(require('../lib/lockLedger').listLocks(dest.adtClient)).toEqual([]);
+  });
+
+  it('falls back to the full re-authentication when the logon has expired too', async () => {
+    let calls = 0;
+    const dest = stub(server, 'DEV', 'objectSource', async () => {
+      if (++calls === 1) throw sessionTimedOut();
+      return { source: 'after re-login' };
+    });
+    dest.adtClient.login = jest.fn(async () => { const e: any = new Error('Request failed with status code 401'); e.status = 401; throw e; });
+    server.reauthenticate = jest.fn(async () => undefined);
+    expect(text(await server.dispatch('getObjectSource', { objectSourceUrl: '/x' }, () => undefined))).toEqual({ source: 'after re-login' });
+    expect(server.reauthenticate).toHaveBeenCalledWith('DEV');
+  });
+
   it('builds the profile on the first call of a gated toolset and honours MCP_PROFILE_GATE', async () => {
     process.env.MCP_TOOLSETS = 'source,objects,debugger';
     server = new AbapAdtServer();
