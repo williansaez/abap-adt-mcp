@@ -406,6 +406,7 @@ The English README is the reference for the [Portuguese](docs/i18n/README.pt-BR.
 This server grows with the people who run it against real landscapes and send back what they found.
 
 - [João Gementi](https://github.com/JoaoVTGementi) contributed the headless `sso2` mode (a named on-prem user who already authenticates through SNC connects without a browser and without a stored password) and tightened the cookie client, which now refuses any request that would carry the SAP session off its configured origin.
+- [Harusakii](https://github.com/Harusakii) fixed the tool calls that hung forever after the machine was locked or asleep (request timeouts, idle sockets closed, suspend detection) and the stateful session that SAP had ended, which until then failed every later call with 400 until a restart.
 - [Alexandre Leite](https://github.com/Dregus) reported the Secure Login Client scenario that opened milestone 2.1.0 and tested the on-prem authentication paths.
 - The original `mcp-abap-abap-adt-api` server by [mario-andreschak](https://github.com/mario-andreschak) is where this project started.
 

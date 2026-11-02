@@ -406,6 +406,7 @@ O README em inglês é a referência para as versões em [português](README.pt-
 Este servidor cresce com quem o roda em paisagens reais e devolve o que encontrou.
 
 - [João Gementi](https://github.com/JoaoVTGementi) contribuiu o modo `sso2` sem navegador (um usuário nomeado on-premise que já se autentica por SNC conecta sem navegador e sem senha armazenada) e endureceu o cliente de cookies, que agora recusa qualquer requisição que levaria a sessão SAP para fora da origem configurada.
+- [Harusakii](https://github.com/Harusakii) corrigiu as chamadas de ferramentas que ficavam penduradas para sempre depois de a máquina ser bloqueada ou dormir (tempo limite nas requisições, sockets ociosos fechados, detecção de suspensão) e a sessão stateful que o SAP havia encerrado, que até então fazia toda chamada seguinte falhar com 400 até reiniciar.
 - [Alexandre Leite](https://github.com/Dregus) relatou o cenário do Secure Login Client que abriu o marco 2.1.0 e testou os caminhos de autenticação on-premise.
 - O servidor original `mcp-abap-abap-adt-api` de [mario-andreschak](https://github.com/mario-andreschak) é onde este projeto começou.
 

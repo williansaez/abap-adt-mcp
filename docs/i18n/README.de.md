@@ -406,6 +406,7 @@ Das englische README ist die Referenz für die [portugiesische](README.pt-BR.md)
 Dieser Server wächst mit den Menschen, die ihn gegen echte Landschaften betreiben und zurückmelden, was sie gefunden haben.
 
 - [João Gementi](https://github.com/JoaoVTGementi) hat den Modus `sso2` ohne Browser beigetragen (ein benannter On-Premise-Benutzer, der sich bereits über SNC authentifiziert, verbindet ohne Browser und ohne gespeichertes Passwort) und den Cookie-Client gehärtet, der nun jede Anfrage ablehnt, die die SAP-Sitzung aus ihrem konfigurierten Origin heraustragen würde.
+- [Harusakii](https://github.com/Harusakii) hat die Tool-Aufrufe behoben, die nach dem Sperren oder Ruhezustand des Rechners für immer hingen (Zeitlimit für Anfragen, Schließen ungenutzter Sockets, Erkennung des Ruhezustands), sowie die vom SAP-System beendete zustandsbehaftete Sitzung, an der bis dahin jeder weitere Aufruf mit 400 scheiterte, bis zum Neustart.
 - [Alexandre Leite](https://github.com/Dregus) hat das Secure-Login-Client-Szenario gemeldet, das den Meilenstein 2.1.0 eröffnet hat, und die On-Premise-Authentifizierungswege getestet.
 - Der ursprüngliche Server `mcp-abap-abap-adt-api` von [mario-andreschak](https://github.com/mario-andreschak) ist der Ausgangspunkt dieses Projekts.
 
