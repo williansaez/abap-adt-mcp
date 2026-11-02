@@ -34,7 +34,9 @@
   ],
   "author": "Willian Saez",
   "contributors": [
-    "mario-andreschak (original mcp-abap-abap-adt-api)"
+    "mario-andreschak (original mcp-abap-abap-adt-api)",
+    "João Gementi (https://github.com/JoaoVTGementi)",
+    "Harusakii (https://github.com/Harusakii)"
   ],
   "description": "ABAP development from Claude and other MCP hosts: read and write source, transports, unit tests, ATC, dumps, debugger. Multi-system, with server-side guard rails.",
   "license": "MIT",
